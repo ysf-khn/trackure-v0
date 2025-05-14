@@ -12,6 +12,7 @@ type OrderDetailPageProps = {
   params: {
     orderId: string;
   };
+  searchParams?: { [key: string]: string | string[] | undefined };
 };
 
 // Define a type for the fetched order data
@@ -28,7 +29,7 @@ type OrderData = {
 export default async function OrderDetailPage({
   params,
 }: OrderDetailPageProps) {
-  const { orderId } = await params; // No need to await params
+  const { orderId } = params; // Removed await here
   const supabase = await createClient();
 
   // Fetch user session and profile server-side
