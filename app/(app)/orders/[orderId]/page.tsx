@@ -29,9 +29,9 @@ type OrderData = {
 export default async function OrderDetailPage({
   params,
 }: {
-  params: { orderId: string };
+  params: Promise<{ orderId: string }>;
 }) {
-  const { orderId } = params; // Removed await here
+  const { orderId } = await params; // Removed await here
   const supabase = await createClient();
 
   // Fetch user session and profile server-side
