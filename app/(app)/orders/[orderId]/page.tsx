@@ -8,12 +8,12 @@ import { PaymentStatus } from "@/types";
 // import { OrderDetails } from '@/components/orders/order-details'; // Hypothetical component
 // import { ItemListTable } from '@/components/items/item-list-table'; // For displaying items later
 
-type OrderDetailPageProps = {
-  params: {
-    orderId: string;
-  };
-  searchParams?: { [key: string]: string | string[] | undefined };
-};
+// type OrderDetailPageProps = {
+//   params: {
+//     orderId: string;
+//   };
+//   searchParams?: { [key: string]: string | string[] | undefined };
+// };
 
 // Define a type for the fetched order data
 type OrderData = {
@@ -28,7 +28,9 @@ type OrderData = {
 
 export default async function OrderDetailPage({
   params,
-}: OrderDetailPageProps) {
+}: {
+  params: { orderId: string };
+}) {
   const { orderId } = params; // Removed await here
   const supabase = await createClient();
 
