@@ -38,7 +38,8 @@ interface SubStageData {
   location: string | null;
 }
 
-export default function StageViewPage() {
+// Separate component that uses useSearchParams
+function StageViewContent() {
   const params = useParams();
   const searchParams = useSearchParams();
 
@@ -52,7 +53,9 @@ export default function StageViewPage() {
   // --- Stage/SubStage IDs ---
   const stageId = params.stageId as string | undefined;
   // Correctly handle null from searchParams.get, pass undefined if null
-  const subStageId = searchParams.get("subStage") ?? undefined; // Fix linter error here
+  const subStageIdParam = searchParams.get("subStage");
+  const subStageId: string | null =
+    subStageIdParam === null ? null : subStageIdParam;
 
   // --- Fetch Stage Data ---
   const {
@@ -68,7 +71,7 @@ export default function StageViewPage() {
     isLoading: isSubStageLoading,
     isError: isSubStageError,
     error: subStageError,
-  } = useSubStage(subStageId ?? null, organizationId!); // Pass null if undefined
+  } = useSubStage(subStageId ? subStageId : null, organizationId!);
 
   // --- Loading and Error States ---
   if (isAuthLoading || isStageLoading) {
@@ -198,127 +201,142 @@ export default function StageViewPage() {
         <Terminal className="h-4 w-4" />
         <AlertTitle>Stage Not Found</AlertTitle>
         <AlertDescription>
-          The requested stage ({stageId}) could not be found or you do not have
-          permission to view it.
+          The requested stage could not be found or you do not have access to
+          it.
         </AlertDescription>
       </Alert>
     );
   }
 
-  // --- Render Page Content ---
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <div className="container mx-auto py-4 px-4 md:px-6 space-y-4">
-        {/* Breadcrumb Navigation */}
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>Workflow</BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              {!subStageId ? (
-                <BreadcrumbPage>
-                  {stageData?.name ?? `Stage ${stageId.substring(0, 6)}`}
-                </BreadcrumbPage>
-              ) : (
-                <BreadcrumbItem>
-                  {stageData?.name ?? `Stage ${stageId.substring(0, 6)}`}
-                </BreadcrumbItem>
-              )}
-            </BreadcrumbItem>
-            {subStageId && subStageData && (
-              <>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>
-                    {subStageData?.name ??
-                      `Sub-stage ${subStageId.substring(0, 6)}`}
-                  </BreadcrumbPage>
-                </BreadcrumbItem>
-              </>
-            )}
-          </BreadcrumbList>
-        </Breadcrumb>
+  // Sub-Stage Data Fetching Error (only if a sub-stage was requested)
+  if (subStageId && isSubStageError) {
+    return (
+      <Alert variant="destructive" className="m-4">
+        <Terminal className="h-4 w-4" />
+        <AlertTitle>Error Loading Sub-Stage</AlertTitle>
+        <AlertDescription>
+          Could not load details for this sub-stage. Please try refreshing. (
+          {subStageError?.message || "Unknown error"})
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
-        {/* Stage Information Card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-semibold">
-                {stageData?.name ?? `Stage ${stageId.substring(0, 6)}`}
-              </h1>
-              <Badge variant="outline" className="text-sm">
-                Sequence Order: {stageData?.sequence_order ?? "?"}
-              </Badge>
+  // Sub-Stage not found (only if a sub-stage was requested)
+  if (subStageId && !subStageData) {
+    return (
+      <Alert variant="destructive" className="m-4">
+        <Terminal className="h-4 w-4" />
+        <AlertTitle>Sub-Stage Not Found</AlertTitle>
+        <AlertDescription>
+          The requested sub-stage could not be found or you do not have access
+          to it.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // --- Main Content ---
+  return (
+    <div className="container mx-auto py-4 px-4 md:px-6 space-y-4">
+      {/* Breadcrumbs */}
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/workflow">Workflow</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{stageData.name || "Unnamed Stage"}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      {/* Stage Info Card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">
+              {stageData.name || "Unnamed Stage"}
+            </h2>
+            <Badge variant="outline">Stage {stageData.sequence_order}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Stage/Sub-Stage Info */}
+            <div className="flex items-center space-x-4">
+              {subStageData && (
+                <>
+                  <Badge variant="secondary">
+                    Sub-Stage {subStageData.sequence_order}
+                  </Badge>
+                  <span className="text-muted-foreground">
+                    {subStageData.name || "Unnamed Sub-Stage"}
+                  </span>
+                </>
+              )}
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Stage Metadata */}
-              <div className="flex items-center space-x-4">
-                {stageData?.location && (
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {stageData.location}
-                  </div>
-                )}
-                {/* <div className="flex items-center text-sm text-muted-foreground">
-                <Users className="h-4 w-4 mr-1" />
-                {/* This is a placeholder - you might want to add actual worker count }
-                3 Workers Assigned
-              </div> */}
+
+            <Separator className="my-4" />
+
+            {/* Location and Team Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Location */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-5 w-5" />
+                  <h3 className="text-lg font-semibold">Location</h3>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-muted-foreground">
+                    {stageData.location || "No location set"}
+                  </p>
+                </div>
               </div>
 
-              {/* Separator between metadata and substage (if present) */}
-              {subStageId && <Separator className="" />}
-
-              {/* Sub-Stage Information (if present) */}
-              {subStageId && (
-                <div>
-                  <h3 className="text-lg font-medium mb-3">
-                    Current Sub-stage
-                  </h3>
-                  {isSubStageLoading ? (
-                    <Skeleton className="h-5 w-1/3" />
-                  ) : isSubStageError ? (
-                    <span className="text-sm text-destructive">
-                      Error loading sub-stage:{" "}
-                      {subStageError?.message || "Unknown error"}
-                    </span>
-                  ) : subStageData ? (
-                    <div className="space-y-2">
-                      <p className="text-lg">
-                        {subStageData.name ??
-                          `Sub-stage ${subStageId.substring(0, 6)}`}
-                      </p>
-                      {subStageData.location && (
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <MapPin className="h-4 w-4 mr-1" />
-                          {subStageData.location}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Sub-Stage: {subStageId} (Details not found)
-                    </p>
-                  )}
+              {/* Team Members (placeholder) */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-5 w-5" />
+                  <h3 className="text-lg font-semibold">Team Members</h3>
                 </div>
-              )}
+                <div className="border rounded-md p-4 text-muted-foreground">
+                  Team member management coming soon...
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Items Table */}
-        <Card>
-          <CardContent className="p-4">
-            <ItemListTable
-              organizationId={organizationId}
-              stageId={stageId}
-              subStageId={subStageId ?? null}
-            />
-          </CardContent>
-        </Card>
-      </div>
+      {/* Items Table */}
+      <Card>
+        <CardContent className="p-4">
+          <ItemListTable
+            stageId={stageId}
+            subStageId={subStageId}
+            organizationId={organizationId}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Main component wrapped in Suspense
+export default function StageViewPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto py-4 px-4 md:px-6 space-y-4">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-[200px] w-full" />
+          <Skeleton className="h-[400px] w-full" />
+        </div>
+      }
+    >
+      <StageViewContent />
     </Suspense>
   );
 }
