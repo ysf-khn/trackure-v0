@@ -114,7 +114,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request, // Keep request param even if unused for consistency
-  { params }: { params: { subStageId: string } }
+  { params }: { params: Promise<{ subStageId: string }> }
 ) {
   const supabase = await createClient();
   const {

@@ -126,7 +126,7 @@ async function getFirstWorkflowStep(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
   const supabase = await createClient();
   const { orderId } = await params;

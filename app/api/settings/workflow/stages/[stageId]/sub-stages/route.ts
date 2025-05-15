@@ -11,7 +11,7 @@ const createSubStageSchema = z.object({
 
 export async function POST(
   request: Request,
-  { params }: { params: { stageId: string } }
+  { params }: { params: Promise<{ stageId: string }> }
 ) {
   // Await client creation
   const supabase = await createClient();

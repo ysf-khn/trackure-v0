@@ -44,7 +44,7 @@ async function checkStageOwnership(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { stageId: string } }
+  { params }: { params: Promise<{ stageId: string }> }
 ) {
   const supabase = await createClient();
   const { stageId } = await params;
@@ -139,7 +139,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { stageId: string } }
+  { params }: { params: Promise<{ stageId: string }> }
 ) {
   const supabase = await createClient();
   const { stageId } = await params;
