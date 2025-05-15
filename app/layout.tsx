@@ -48,10 +48,8 @@ export default function RootLayout({
             {/* <HeaderAuth /> */}
             {/* </div> */}
             {/* </nav> */}
-            <div>
-              {children}
-              <SpeedInsights />
-            </div>
+            <div>{children}</div>
+            <SpeedInsights />
             {/* </div> */}
             {/* </main> */}
           </ThemeProvider>
