@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -116,7 +116,9 @@ async function createOrder(orderData: OrderFormValues) {
   return response.json();
 }
 
-export default function NewOrderPage() {
+// Wrap the form component in its own component to handle searchParams
+function OrderForm() {
+  const searchParams = useSearchParams();
   const router = useRouter();
   const {
     organizationId,
@@ -486,5 +488,32 @@ export default function NewOrderPage() {
         </form>
       </Form>
     </Card>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function NewOrderPage() {
+  return (
+    <Suspense
+      fallback={
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <Skeleton className="h-6 w-1/3" />
+            <Skeleton className="h-4 w-2/3 mt-1" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+          <CardFooter>
+            <Skeleton className="h-10 w-24" />
+          </CardFooter>
+        </Card>
+      }
+    >
+      <OrderForm />
+    </Suspense>
   );
 }
