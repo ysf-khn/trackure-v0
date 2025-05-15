@@ -13,7 +13,7 @@ const createImageAssociationSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { itemId: string } }
+  { params }: { params: Promise<{ itemId: string }> }
 ) {
   // const cookieStore = cookies(); // Removed unused variable
   const supabase = await createClient();
@@ -139,7 +139,7 @@ export async function POST(
 // Optional: GET handler to list images for an item
 export async function GET(
   request: NextRequest,
-  { params }: { params: { itemId: string } }
+  { params }: { params: Promise<{ itemId: string }> }
 ) {
   // const cookieStore = cookies(); // Removed unused variable
   const supabase = await createClient();

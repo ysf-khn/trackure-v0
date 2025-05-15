@@ -1,7 +1,6 @@
+import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { cookies } from "next/headers";
 
 // Define the schema for the PATCH request body
 // Allow fields to be optional for partial updates
@@ -20,10 +19,9 @@ const updateOrderSchema = z.object({
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
-  const cookieStore = await cookies();
-  const orderId = params.orderId;
+  const { orderId } = await params;
 
   if (!orderId) {
     return NextResponse.json(
@@ -32,23 +30,7 @@ export async function PATCH(
     );
   }
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: "", ...options });
-        },
-      },
-    }
-  );
+  const supabase = await createClient();
 
   try {
     // 1. Verify user authentication and authorization

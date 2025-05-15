@@ -11,11 +11,9 @@ const bodySchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { itemId: string } }
+  { params }: { params: Promise<{ itemId: string }> }
 ) {
-  // Validate and extract itemId from params
-  const paramss = await params;
-  const itemId = paramss.itemId;
+  const { itemId } = await params;
 
   const supabase = await createClient();
   const {

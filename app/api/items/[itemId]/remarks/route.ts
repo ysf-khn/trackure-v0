@@ -9,7 +9,7 @@ const addRemarkSchema = z.object({
 
 export async function POST(
   request: Request,
-  { params }: { params: { itemId: string } }
+  { params }: { params: Promise<{ itemId: string }> }
 ) {
   const supabase = await createClient();
 
