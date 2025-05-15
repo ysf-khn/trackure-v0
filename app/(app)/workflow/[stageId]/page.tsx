@@ -21,6 +21,7 @@ import {
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { useStage } from "@/hooks/queries/use-stage";
 import { useSubStage } from "@/hooks/queries/use-sub-stage";
+import { Suspense } from "react";
 
 // Define types for stage and substage data
 interface StageData {
@@ -206,114 +207,118 @@ export default function StageViewPage() {
 
   // --- Render Page Content ---
   return (
-    <div className="container mx-auto py-4 px-4 md:px-6 space-y-4">
-      {/* Breadcrumb Navigation */}
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>Workflow</BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            {!subStageId ? (
-              <BreadcrumbPage>
-                {stageData?.name ?? `Stage ${stageId.substring(0, 6)}`}
-              </BreadcrumbPage>
-            ) : (
-              <BreadcrumbItem>
-                {stageData?.name ?? `Stage ${stageId.substring(0, 6)}`}
-              </BreadcrumbItem>
-            )}
-          </BreadcrumbItem>
-          {subStageId && subStageData && (
-            <>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
+    <Suspense fallback={<div>Loading...</div>}>
+      <div className="container mx-auto py-4 px-4 md:px-6 space-y-4">
+        {/* Breadcrumb Navigation */}
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>Workflow</BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              {!subStageId ? (
                 <BreadcrumbPage>
-                  {subStageData?.name ??
-                    `Sub-stage ${subStageId.substring(0, 6)}`}
+                  {stageData?.name ?? `Stage ${stageId.substring(0, 6)}`}
                 </BreadcrumbPage>
-              </BreadcrumbItem>
-            </>
-          )}
-        </BreadcrumbList>
-      </Breadcrumb>
-
-      {/* Stage Information Card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-semibold">
-              {stageData?.name ?? `Stage ${stageId.substring(0, 6)}`}
-            </h1>
-            <Badge variant="outline" className="text-sm">
-              Sequence Order: {stageData?.sequence_order ?? "?"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Stage Metadata */}
-            <div className="flex items-center space-x-4">
-              {stageData?.location && (
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4 mr-1" />
-                  {stageData.location}
-                </div>
+              ) : (
+                <BreadcrumbItem>
+                  {stageData?.name ?? `Stage ${stageId.substring(0, 6)}`}
+                </BreadcrumbItem>
               )}
-              {/* <div className="flex items-center text-sm text-muted-foreground">
+            </BreadcrumbItem>
+            {subStageId && subStageData && (
+              <>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>
+                    {subStageData?.name ??
+                      `Sub-stage ${subStageId.substring(0, 6)}`}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            )}
+          </BreadcrumbList>
+        </Breadcrumb>
+
+        {/* Stage Information Card */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-semibold">
+                {stageData?.name ?? `Stage ${stageId.substring(0, 6)}`}
+              </h1>
+              <Badge variant="outline" className="text-sm">
+                Sequence Order: {stageData?.sequence_order ?? "?"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Stage Metadata */}
+              <div className="flex items-center space-x-4">
+                {stageData?.location && (
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <MapPin className="h-4 w-4 mr-1" />
+                    {stageData.location}
+                  </div>
+                )}
+                {/* <div className="flex items-center text-sm text-muted-foreground">
                 <Users className="h-4 w-4 mr-1" />
                 {/* This is a placeholder - you might want to add actual worker count }
                 3 Workers Assigned
               </div> */}
-            </div>
-
-            {/* Separator between metadata and substage (if present) */}
-            {subStageId && <Separator className="" />}
-
-            {/* Sub-Stage Information (if present) */}
-            {subStageId && (
-              <div>
-                <h3 className="text-lg font-medium mb-3">Current Sub-stage</h3>
-                {isSubStageLoading ? (
-                  <Skeleton className="h-5 w-1/3" />
-                ) : isSubStageError ? (
-                  <span className="text-sm text-destructive">
-                    Error loading sub-stage:{" "}
-                    {subStageError?.message || "Unknown error"}
-                  </span>
-                ) : subStageData ? (
-                  <div className="space-y-2">
-                    <p className="text-lg">
-                      {subStageData.name ??
-                        `Sub-stage ${subStageId.substring(0, 6)}`}
-                    </p>
-                    {subStageData.location && (
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4 mr-1" />
-                        {subStageData.location}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Sub-Stage: {subStageId} (Details not found)
-                  </p>
-                )}
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Items Table */}
-      <Card>
-        <CardContent className="p-4">
-          <ItemListTable
-            organizationId={organizationId}
-            stageId={stageId}
-            subStageId={subStageId ?? null}
-          />
-        </CardContent>
-      </Card>
-    </div>
+              {/* Separator between metadata and substage (if present) */}
+              {subStageId && <Separator className="" />}
+
+              {/* Sub-Stage Information (if present) */}
+              {subStageId && (
+                <div>
+                  <h3 className="text-lg font-medium mb-3">
+                    Current Sub-stage
+                  </h3>
+                  {isSubStageLoading ? (
+                    <Skeleton className="h-5 w-1/3" />
+                  ) : isSubStageError ? (
+                    <span className="text-sm text-destructive">
+                      Error loading sub-stage:{" "}
+                      {subStageError?.message || "Unknown error"}
+                    </span>
+                  ) : subStageData ? (
+                    <div className="space-y-2">
+                      <p className="text-lg">
+                        {subStageData.name ??
+                          `Sub-stage ${subStageId.substring(0, 6)}`}
+                      </p>
+                      {subStageData.location && (
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <MapPin className="h-4 w-4 mr-1" />
+                          {subStageData.location}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Sub-Stage: {subStageId} (Details not found)
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Items Table */}
+        <Card>
+          <CardContent className="p-4">
+            <ItemListTable
+              organizationId={organizationId}
+              stageId={stageId}
+              subStageId={subStageId ?? null}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    </Suspense>
   );
 }
