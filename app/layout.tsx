@@ -1,5 +1,6 @@
 import HeaderAuth from "@/components/header-auth";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
@@ -47,7 +48,10 @@ export default function RootLayout({
             {/* <HeaderAuth /> */}
             {/* </div> */}
             {/* </nav> */}
-            <div className="">{children}</div>
+            <div>
+              {children}
+              <SpeedInsights />
+            </div>
             {/* </div> */}
             {/* </main> */}
           </ThemeProvider>
