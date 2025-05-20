@@ -259,7 +259,9 @@ function StageViewContent() {
             <h2 className="text-2xl font-bold">
               {stageData.name || "Unnamed Stage"}
             </h2>
-            <Badge variant="outline">Stage {stageData.sequence_order}</Badge>
+            <Badge variant="outline">
+              Sequence Order: {stageData.sequence_order + 1}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent>
@@ -268,9 +270,6 @@ function StageViewContent() {
             <div className="flex items-center space-x-4">
               {subStageData && (
                 <>
-                  <Badge variant="secondary">
-                    Sub-Stage {subStageData.sequence_order}
-                  </Badge>
                   <span className="text-muted-foreground">
                     {subStageData.name || "Unnamed Sub-Stage"}
                   </span>
@@ -292,17 +291,6 @@ function StageViewContent() {
                   <p className="text-muted-foreground">
                     {stageData.location || "No location set"}
                   </p>
-                </div>
-              </div>
-
-              {/* Team Members (placeholder) */}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Users className="h-5 w-5" />
-                  <h3 className="text-lg font-semibold">Team Members</h3>
-                </div>
-                <div className="border rounded-md p-4 text-muted-foreground">
-                  Team member management coming soon...
                 </div>
               </div>
             </div>

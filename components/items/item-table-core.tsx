@@ -31,6 +31,8 @@ import {
 import { SingleItemReworkQuantityModal } from "@/components/items/single-item-rework-quantity-modal";
 import { BulkReworkQuantityModal } from "@/components/items/bulk-rework-quantity-modal";
 import { forwardRef, useImperativeHandle, useState } from "react";
+import { toast } from "sonner";
+import { useReworkItems } from "@/hooks/mutations/use-rework-items";
 
 // Re-define necessary types locally or import if centralized
 interface ReworkableItem {
@@ -96,10 +98,12 @@ interface ItemTableCoreProps {
     targetStageName: string;
   }) => void;
   // Ensure handleOpenSingleReworkQuantityModal is defined only once
-  handleOpenSingleReworkQuantityModal?: (details: {
+  handleOpenSingleReworkQuantityModal?: (item: {
     id: string;
     sku: string | null;
     currentQuantity: number;
+    currentStageId: string;
+    currentSubStageId: string | null;
   }) => void;
   // Add state setters for sorting/filtering/selection if managed outside
   sorting: SortingState;
@@ -139,6 +143,7 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       onViewDetails,
       handleMoveForward,
       handleOpenMoveQuantityModal,
+      handleOpenSingleReworkQuantityModal,
       sorting,
       onSortingChange,
       columnFilters,
@@ -150,7 +155,6 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       currentStageId,
       currentSubStageId,
       subsequentStages,
-      handleOpenSingleReworkQuantityModal,
     },
     ref
   ) => {
@@ -167,7 +171,7 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       useState(false);
     const [itemForSingleRework, setItemForSingleRework] = useState<{
       id: string;
-      sku?: string | null;
+      sku: string | null;
       currentQuantity: number;
       currentStageId: string;
       currentSubStageId: string | null;
@@ -178,12 +182,14 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
     const [itemsForBulkRework, setItemsForBulkRework] = useState<
       {
         id: string;
-        sku?: string | null;
+        sku: string | null;
         currentQuantity: number;
         currentStageId: string;
         currentSubStageId: string | null;
       }[]
     >([]);
+
+    const { mutate: reworkItems } = useReworkItems();
 
     // Create table instance
     const table = useReactTable<ItemInStage>({
@@ -238,9 +244,32 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       reason: string,
       targetStageId: string
     ) => {
-      handleMoveForward([{ id: itemId, quantity }], targetStageId);
-      setIsSingleReworkModalOpen(false);
-      setItemForSingleRework(null);
+      if (!organizationId) return;
+      reworkItems(
+        {
+          items: [
+            {
+              id: itemId,
+              quantity,
+              source_stage_id: currentStageId,
+              source_sub_stage_id: currentSubStageId,
+            },
+          ],
+          rework_reason: reason,
+          target_rework_stage_id: targetStageId,
+          organizationId,
+        },
+        {
+          onSuccess: () => {
+            setIsSingleReworkModalOpen(false);
+            setItemForSingleRework(null);
+          },
+          onError: (error: Error) => {
+            console.error("Rework error:", error);
+            toast.error("Failed to process rework");
+          },
+        }
+      );
     };
 
     const handleConfirmBulkRework = (
@@ -248,9 +277,29 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       reason: string,
       targetStageId: string
     ) => {
-      handleMoveForward(reworkedItems, targetStageId);
-      setIsBulkReworkModalOpen(false);
-      setItemsForBulkRework([]);
+      if (!organizationId) return;
+      reworkItems(
+        {
+          items: reworkedItems.map((item) => ({
+            ...item,
+            source_stage_id: currentStageId,
+            source_sub_stage_id: currentSubStageId,
+          })),
+          rework_reason: reason,
+          target_rework_stage_id: targetStageId,
+          organizationId,
+        },
+        {
+          onSuccess: () => {
+            setIsBulkReworkModalOpen(false);
+            setItemsForBulkRework([]);
+          },
+          onError: (error: Error) => {
+            console.error("Rework error:", error);
+            toast.error("Failed to process rework");
+          },
+        }
+      );
     };
 
     // Loading state

@@ -6,7 +6,6 @@ import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, SettingsIcon } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 const SettingsPage = () => {
   const {
@@ -66,33 +65,39 @@ const SettingsPage = () => {
   }
 
   return (
-    <div className="container mx-auto py-10 px-4 md:px-6 space-y-8">
-      <div className="flex items-center space-x-3">
-        <SettingsIcon className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-bold">Settings</h1>
+    <div className="container mx-auto space-y-8">
+      <div className="border-b">
+        <div className="px-4 md:px-6 py-4">
+          <div className="flex items-center space-x-3">
+            <SettingsIcon className="h-5 w-5 text-primary" />
+            <h1 className="text-xl font-semibold">Settings</h1>
+          </div>
+        </div>
       </div>
 
-      {/* Future: Add more settings sections here, e.g., Profile, Billing, Team */}
+      <div className="px-4 md:px-6 pb-8 space-y-8">
+        {/* Future: Add more settings sections here, e.g., Profile, Billing, Team */}
 
-      <section id="workflow-settings">
-        <h2 className="text-2xl font-semibold mb-4">Workflow Management</h2>
-        <WorkflowEditor organizationId={organizationId} />
-      </section>
+        <section id="workflow-settings">
+          <h2 className="text-2xl font-semibold mb-4">Workflow Management</h2>
+          <WorkflowEditor organizationId={organizationId} />
+        </section>
 
-      {/* Example of another settings section placeholder */}
-      {/*
-      <section id="profile-settings">
-        <h2 className="text-2xl font-semibold mb-4">Profile Settings</h2>
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Profile</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Profile editing form will go here.</p>
-          </CardContent>
-        </Card>
-      </section>
-      */}
+        {/* Example of another settings section placeholder */}
+        {/*
+        <section id="profile-settings">
+          <h2 className="text-2xl font-semibold mb-4">Profile Settings</h2>
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Profile</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">Profile editing form will go here.</p>
+            </CardContent>
+          </Card>
+        </section>
+        */}
+      </div>
     </div>
   );
 };

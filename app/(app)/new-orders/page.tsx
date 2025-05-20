@@ -20,7 +20,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -151,7 +150,7 @@ export default function NewOrdersPage() {
     isLoading: isLoadingWorkflow,
     isError: isErrorWorkflow, // Add error handling for workflow fetching
     error: errorWorkflow, // Add error object for workflow fetching
-  } = useWorkflow(organizationId ?? undefined); // Pass organizationId or undefined
+  } = useWorkflow(); // Pass organizationId or undefined
 
   // Adapt fetched workflowStagesData to the local WorkflowStage[] type if necessary
   // Assuming useWorkflow returns data compatible with WorkflowStage[] defined above

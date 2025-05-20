@@ -69,14 +69,22 @@ import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 
 // --- Types --- //
 
-// Item details for single item rework modal
 interface ItemForSingleRework {
   id: string;
   sku: string | null;
   currentQuantity: number;
+  currentStageId: string;
+  currentSubStageId: string | null;
 }
 
-// Updated meta type for table actions
+interface ItemToMoveDetails {
+  id: string;
+  sku: string | null;
+  currentQuantity: number;
+  targetStageId?: string | null;
+  targetStageName: string;
+}
+
 interface ItemListTableMeta {
   onViewHistory?: (itemId: string, itemSku: string) => void;
   onViewDetails?: (details: Record<string, unknown>, itemName: string) => void;
@@ -84,9 +92,9 @@ interface ItemListTableMeta {
     itemsToMove: { id: string; quantity: number }[],
     targetStageId?: string | null
   ) => void;
-  handleOpenSingleReworkQuantityModal?: (item: ItemForSingleRework) => void; // New for single rework
+  handleOpenSingleReworkQuantityModal?: (item: ItemForSingleRework) => void;
   isMovingItems: boolean;
-  isReworkingItems: boolean; // New loading state for rework
+  isReworkingItems: boolean;
   userRole?: string | null;
   workflowData?: FetchedWorkflowStage[];
   isWorkflowLoading: boolean;
@@ -94,6 +102,12 @@ interface ItemListTableMeta {
   currentSubStageId: string | null;
   subsequentStages?: { id: string; name: string | null }[];
   handleOpenMoveQuantityModal?: (details: ItemToMoveDetails) => void;
+}
+
+interface ItemListTableProps {
+  organizationId: string | undefined | null;
+  stageId: string;
+  subStageId: string | null;
 }
 
 // --- Columns Definition (kept here for clarity) --- //
@@ -152,6 +166,11 @@ export const columns: ColumnDef<ItemInStage>[] = [
     cell: ({ row }) => <div className="font-medium">{row.getValue("sku")}</div>,
   },
   {
+    accessorKey: "order_number",
+    header: "Order Number",
+    cell: ({ row }) => <div>{row.getValue("order_number")}</div>,
+  },
+  {
     accessorKey: "quantity",
     header: "Quantity",
     cell: ({ row }) => <div>{row.getValue("quantity")}</div>,
@@ -196,7 +215,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
       try {
         return (
           <div>
-            {formatDistanceToNow(new Date(enteredAt), { addSuffix: true })}
+            {formatDistanceToNow(new Date(enteredAt), { addSuffix: false })}
           </div>
         );
       } catch (error) {
@@ -305,11 +324,13 @@ export const columns: ColumnDef<ItemInStage>[] = [
           : false;
 
       const handleOpenSingleItemRework = () => {
-        if (meta?.handleOpenSingleReworkQuantityModal) {
+        if (meta?.handleOpenSingleReworkQuantityModal && meta.currentStageId) {
           meta.handleOpenSingleReworkQuantityModal({
             id: item.id,
             sku: item.sku,
             currentQuantity: item.quantity,
+            currentStageId: meta.currentStageId,
+            currentSubStageId: meta.currentSubStageId,
           });
         }
       };
@@ -461,21 +482,6 @@ export const columns: ColumnDef<ItemInStage>[] = [
 ];
 
 // --- Main Component --- //
-
-interface ItemListTableProps {
-  organizationId: string | undefined | null;
-  stageId: string;
-  subStageId: string | null;
-}
-
-// Define a type for the item details needed by the move quantity modal
-interface ItemToMoveDetails {
-  id: string;
-  sku: string | null;
-  currentQuantity: number;
-  targetStageId?: string | null;
-  targetStageName: string;
-}
 
 export function ItemListTable({
   organizationId: propOrganizationId,
@@ -708,12 +714,21 @@ export function ItemListTable({
     itemId: string,
     quantity: number,
     reason: string,
-    targetStageId: string
+    targetStageId: string,
+    sourceStageId: string,
+    sourceSubStageId: string | null
   ) => {
     if (!organizationId) return;
     reworkItems(
       {
-        items: [{ id: itemId, quantity }],
+        items: [
+          {
+            id: itemId,
+            quantity,
+            source_stage_id: sourceStageId,
+            source_sub_stage_id: sourceSubStageId,
+          },
+        ],
         rework_reason: reason,
         target_rework_stage_id: targetStageId,
         organizationId,
@@ -730,7 +745,7 @@ export function ItemListTable({
 
   const handleOpenBulkReworkModal = () => {
     const selectedData = itemTableCoreRef.current?.getSelectedItemsData();
-    if (selectedData && selectedData.length > 0) {
+    if (selectedData && selectedData.length > 0 && stageId) {
       const itemsToProcess: ItemForBulkRework[] = selectedData.map((item) => ({
         id: item.id,
         sku: item.sku || null,
@@ -750,10 +765,14 @@ export function ItemListTable({
     reason: string,
     targetStageId: string
   ) => {
-    if (!organizationId) return;
+    if (!organizationId || !stageId) return;
     reworkItems(
       {
-        items: reworkedItemsToSubmit,
+        items: reworkedItemsToSubmit.map((item) => ({
+          ...item,
+          source_stage_id: stageId,
+          source_sub_stage_id: subStageId,
+        })),
         rework_reason: reason,
         target_rework_stage_id: targetStageId,
         organizationId,

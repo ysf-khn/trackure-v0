@@ -3,7 +3,7 @@
 import { encodedRedirect } from "@/utils/utils";
 import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
 
 export const signUpAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
@@ -54,6 +54,30 @@ export const signInAction = async (formData: FormData) => {
   }
 
   return redirect("/dashboard");
+};
+
+export const signInWithGoogleAction = async () => {
+  // const searchParams = useSearchParams();
+  // const next = searchParams.get("next");
+  const supabase = await createClient();
+  const origin = (await headers()).get("origin");
+  console.log("origin", origin);
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `http://localhost:3000/dashboard`,
+      // queryParams: {
+      //   access_type: "offline",
+      //   prompt: "consent",
+      // },
+    },
+  });
+
+  if (error) {
+    return encodedRedirect("error", "/sign-in", error.message);
+  }
+
+  return redirect(data.url);
 };
 
 export const forgotPasswordAction = async (formData: FormData) => {

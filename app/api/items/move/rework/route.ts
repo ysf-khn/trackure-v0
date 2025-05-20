@@ -10,6 +10,11 @@ const reworkInputSchema = z.object({
       z.object({
         id: z.string().uuid(),
         quantity: z.number().positive("Quantity must be a positive number."),
+        source_stage_id: z.string().uuid("Invalid source stage ID."),
+        source_sub_stage_id: z
+          .string()
+          .uuid("Invalid source sub-stage ID.")
+          .nullable(),
       })
     )
     .min(1, "At least one item is required."),
@@ -60,8 +65,8 @@ export async function POST(request: NextRequest) {
   const userRole = profile.role;
   // --- End: Standard Auth & Profile Fetch --- //
 
-  // RBAC Check: Only 'Owner' can perform rework actions
-  if (userRole !== "Owner") {
+  // RBAC Check: Allow both Owner and Worker to perform rework actions
+  if (!["Owner", "Worker"].includes(userRole)) {
     return NextResponse.json(
       { error: "Forbidden: Insufficient permissions." },
       { status: 403 }
@@ -122,32 +127,69 @@ export async function POST(request: NextRequest) {
     const timestamp = new Date().toISOString();
 
     for (const itemInput of itemsToRework) {
-      const { id: itemId, quantity: requestedQuantity } = itemInput;
+      const {
+        id: itemId,
+        quantity: requestedQuantity,
+        source_stage_id,
+        source_sub_stage_id,
+      } = itemInput;
 
-      // Fetch current item allocation state
-      const { data: currentAllocation, error: allocationError } = await supabase
+      // Fetch current item allocation state - now with stage filters
+      let { data: currentAllocation, error: allocationError } = await supabase
         .from("item_stage_allocations")
         .select("id, stage_id, sub_stage_id, quantity, organization_id")
         .eq("item_id", itemId)
         .eq("organization_id", organizationId)
-        .order("created_at", { ascending: false })
-        .limit(1)
+        .eq("stage_id", source_stage_id)
         .single();
 
-      if (allocationError || !currentAllocation) {
-        errors.push({
-          itemId,
-          error: `Allocation for item not found. ${allocationError?.message || ""}`,
-        });
-        continue;
-      }
+      // Add sub-stage filter if it exists
+      if (source_sub_stage_id) {
+        const { data: subStageAllocation, error: subStageError } =
+          await supabase
+            .from("item_stage_allocations")
+            .select("id, stage_id, sub_stage_id, quantity, organization_id")
+            .eq("item_id", itemId)
+            .eq("organization_id", organizationId)
+            .eq("stage_id", source_stage_id)
+            .eq("sub_stage_id", source_sub_stage_id)
+            .single();
 
-      if (requestedQuantity > currentAllocation.quantity) {
-        errors.push({
-          itemId,
-          error: `Requested rework quantity (${requestedQuantity}) exceeds available quantity (${currentAllocation.quantity}).`,
-        });
-        continue;
+        if (subStageError || !subStageAllocation) {
+          errors.push({
+            itemId,
+            error: `Allocation for item not found in specified sub-stage. ${subStageError?.message || ""}`,
+          });
+          continue;
+        }
+
+        if (requestedQuantity > subStageAllocation.quantity) {
+          errors.push({
+            itemId,
+            error: `Requested rework quantity (${requestedQuantity}) exceeds available quantity (${subStageAllocation.quantity}) in sub-stage.`,
+          });
+          continue;
+        }
+
+        // Use the sub-stage allocation
+        currentAllocation = subStageAllocation;
+      } else {
+        // If no sub-stage, use the stage allocation
+        if (allocationError || !currentAllocation) {
+          errors.push({
+            itemId,
+            error: `Allocation for item not found in specified stage. ${allocationError?.message || ""}`,
+          });
+          continue;
+        }
+
+        if (requestedQuantity > currentAllocation.quantity) {
+          errors.push({
+            itemId,
+            error: `Requested rework quantity (${requestedQuantity}) exceeds available quantity (${currentAllocation.quantity}) in stage.`,
+          });
+          continue;
+        }
       }
 
       // Get target stage's first sub-stage if it has any
@@ -158,6 +200,10 @@ export async function POST(request: NextRequest) {
 
       // Handle the source allocation for Rework
       if (requestedQuantity === currentAllocation.quantity) {
+        console.log("Full rework - deleting source allocation:", {
+          allocationId: currentAllocation.id,
+          quantity: currentAllocation.quantity,
+        });
         // FULL REWORK from source: Delete the source allocation
         const { error: deleteSourceError } = await supabase
           .from("item_stage_allocations")
@@ -165,6 +211,7 @@ export async function POST(request: NextRequest) {
           .eq("id", currentAllocation.id);
 
         if (deleteSourceError) {
+          console.error("Delete source error:", deleteSourceError);
           errors.push({
             itemId,
             error: `Failed to remove source item allocation for full rework. ${deleteSourceError.message}`,
@@ -172,6 +219,11 @@ export async function POST(request: NextRequest) {
           continue;
         }
       } else {
+        console.log("Partial rework - updating source allocation:", {
+          allocationId: currentAllocation.id,
+          oldQuantity: currentAllocation.quantity,
+          newQuantity: currentAllocation.quantity - requestedQuantity,
+        });
         // PARTIAL REWORK from source: Reduce quantity
         const { error: existingUpdateError } = await supabase
           .from("item_stage_allocations")
@@ -182,6 +234,7 @@ export async function POST(request: NextRequest) {
           .eq("id", currentAllocation.id);
 
         if (existingUpdateError) {
+          console.error("Update source error:", existingUpdateError);
           errors.push({
             itemId,
             error: `Failed to update existing allocation (partial rework). ${existingUpdateError.message}`,

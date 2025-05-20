@@ -9,20 +9,20 @@ const ONBOARDING_STEPS = {
   pending_invites: "/invite",
 };
 
-const APP_ROUTES = new Set([
-  "/dashboard",
-  "/orders",
-  "/settings",
-  "/workflow",
-  "/dashboard",
-]);
+const APP_ROUTES = new Set(["/dashboard", "/orders", "/settings", "/workflow"]);
 const ONBOARDING_ROUTES = new Set([
   "/profile",
   "/organization",
   "/setup-workflow",
   "/invite",
 ]);
-const AUTH_ROUTES = new Set(["/login", "/signup", "/sign-in"]);
+const AUTH_ROUTES = new Set(["/login", "/sign-up", "/sign-in"]);
+const PUBLIC_ROUTES = new Set([
+  "/",
+  "/privacy-policy",
+  "/terms-of-service",
+  "/pricing",
+]);
 
 // Optimized path matching using Sets for O(1) lookup
 function isExactPathMatch(pathname: string, routes: Set<string>): boolean {
@@ -84,8 +84,9 @@ export const updateSession = async (request: NextRequest) => {
 
     // --- Handle unauthenticated users ---
     if (getUserError || !user) {
-      // If not on an auth route or public root, redirect to sign-in
-      if (!isAuthPath && !isPublicRoot) {
+      // If not on an auth route or public route, redirect to sign-in
+      const isPublicRoute = isPathOrSubpathMatch(pathname, PUBLIC_ROUTES);
+      if (!isAuthPath && !isPublicRoute) {
         return NextResponse.redirect(new URL("/sign-in", request.url));
       }
       return response;

@@ -2,11 +2,36 @@ import { createClient } from "@/utils/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 // import { useAuth } from "@/hooks/use-auth"; // Removed direct dependency
 
-// Define the structure of the fetched item data including the entry time and history ID
+interface HistoryMovementEntry {
+  id: number;
+  moved_at: string;
+  to_stage_id: string;
+  to_sub_stage_id: string | null;
+}
+
+interface ItemDetails {
+  id: string;
+  sku: string;
+  order_id: string;
+  orders: {
+    order_number: string | null;
+  };
+  instance_details: Record<string, unknown>;
+  item_movement_history: HistoryMovementEntry[];
+}
+
+interface ItemAllocation {
+  stage_id: string;
+  sub_stage_id: string | null;
+  quantity: number;
+  items: ItemDetails | ItemDetails[];
+}
+
 export interface ItemInStage {
   id: string;
   sku: string;
   order_id: string;
+  order_number: string | null;
   instance_details: Record<string, unknown>; // Use unknown for flexible JSON
   current_stage_id: string;
   current_sub_stage_id: string | null;
@@ -15,14 +40,6 @@ export interface ItemInStage {
   quantity: number; // Add quantity field
   // Add other relevant item fields as needed
 }
-
-// Define the structure of the history entry subset we need
-type HistoryMovementEntry = {
-  id: number;
-  moved_at: string;
-  to_stage_id: string | null;
-  to_sub_stage_id: string | null;
-};
 
 const fetchItemsInStage = async (
   organizationId: string,
@@ -43,6 +60,9 @@ const fetchItemsInStage = async (
         id,
         sku,
         order_id,
+        orders:orders!inner (
+          order_number
+        ),
         instance_details,
         item_movement_history (
           id,
@@ -80,13 +100,14 @@ const fetchItemsInStage = async (
   const processedData =
     allocations
       ?.map((alloc) => {
+        const typedAlloc = alloc as unknown as ItemAllocation;
         // Assuming alloc.items might be an array due to Supabase join behavior,
         // even with !inner, let's defensively access the first element.
         const itemDetails =
-          Array.isArray(alloc.items) && alloc.items.length > 0
-            ? alloc.items[0]
-            : !Array.isArray(alloc.items)
-              ? alloc.items
+          Array.isArray(typedAlloc.items) && typedAlloc.items.length > 0
+            ? typedAlloc.items[0]
+            : !Array.isArray(typedAlloc.items)
+              ? typedAlloc.items
               : null;
 
         if (!itemDetails) {
@@ -94,22 +115,21 @@ const fetchItemsInStage = async (
           // or if the data integrity (FK) is guaranteed.
           console.warn(
             "Skipping allocation due to missing item details:",
-            alloc
+            typedAlloc
           );
           return null;
         }
 
-        const movementEntries =
-          (itemDetails.item_movement_history as HistoryMovementEntry[]) || [];
+        const movementEntries = itemDetails.item_movement_history || [];
 
         const currentStageMovement = movementEntries
           .filter(
-            (h) =>
-              h.to_stage_id === alloc.stage_id && // Compare with alloc's stage_id
-              h.to_sub_stage_id === alloc.sub_stage_id // Compare with alloc's sub_stage_id
+            (h: HistoryMovementEntry) =>
+              h.to_stage_id === typedAlloc.stage_id && // Compare with alloc's stage_id
+              h.to_sub_stage_id === typedAlloc.sub_stage_id // Compare with alloc's sub_stage_id
           )
           .sort(
-            (a, b) =>
+            (a: HistoryMovementEntry, b: HistoryMovementEntry) =>
               new Date(b.moved_at).getTime() - new Date(a.moved_at).getTime()
           );
 
@@ -119,13 +139,14 @@ const fetchItemsInStage = async (
           id: itemDetails.id, // Item's actual ID from the items table
           sku: itemDetails.sku,
           order_id: itemDetails.order_id,
+          order_number: itemDetails.orders?.order_number ?? null,
           instance_details: itemDetails.instance_details,
-          current_stage_id: alloc.stage_id, // Stage from item_stage_allocations
-          current_sub_stage_id: alloc.sub_stage_id, // Sub-stage from item_stage_allocations
+          current_stage_id: typedAlloc.stage_id, // Stage from item_stage_allocations
+          current_sub_stage_id: typedAlloc.sub_stage_id, // Sub-stage from item_stage_allocations
           current_stage_entered_at:
             latestEntryForCurrentStage?.moved_at ?? null,
           current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
-          quantity: alloc.quantity, // Assign the fetched quantity
+          quantity: typedAlloc.quantity, // Assign the fetched quantity
         };
       })
       // Filter out any nulls that might have occurred

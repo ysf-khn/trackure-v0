@@ -22,7 +22,12 @@ type ReworkErrorResponse = {
 
 // Define the type for the mutation variables
 interface ReworkItemsVariables {
-  items: { id: string; quantity: number }[];
+  items: {
+    id: string;
+    quantity: number;
+    source_stage_id: string;
+    source_sub_stage_id: string | null;
+  }[];
   rework_reason: string;
   target_rework_stage_id: string;
   organizationId: string; // Needed for query invalidation

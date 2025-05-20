@@ -65,33 +65,21 @@ export function BulkReworkQuantityModal({
   isProcessing,
   userRole,
 }: BulkReworkQuantityModalProps) {
-  const [itemQuantities, setItemQuantities] = useState<
-    {
-      id: string;
-      quantity: number;
-      maxQuantity: number;
-    }[]
-  >(() =>
-    itemsToRework.map((item) => ({
-      id: item.id,
-      quantity: 1,
-      maxQuantity: item.currentQuantity,
-    }))
+  const [itemQuantities, setItemQuantities] = useState<Record<string, number>>(
+    {}
   );
-  const [reworkReason, setReworkReason] = useState<string>("");
+  const [reworkReason, setReworkReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
-  const [selectedStageId, setSelectedStageId] = useState<string>("");
+  const [selectedStageId, setSelectedStageId] = useState("");
 
   useEffect(() => {
     if (isOpen) {
       // Reset form state when modal opens
-      setItemQuantities(
-        itemsToRework.map((item) => ({
-          id: item.id,
-          quantity: 1,
-          maxQuantity: item.currentQuantity,
-        }))
-      );
+      const initialQuantities: Record<string, number> = {};
+      itemsToRework.forEach((item) => {
+        initialQuantities[item.id] = 1;
+      });
+      setItemQuantities(initialQuantities);
       setReworkReason("");
       setReasonError(null);
       setSelectedStageId(availableStages[0]?.id || "");
@@ -99,63 +87,148 @@ export function BulkReworkQuantityModal({
   }, [isOpen, itemsToRework, availableStages]);
 
   const handleSubmit = async () => {
+    // Validate quantities and reason
     let canSubmit = true;
-    const itemsWithErrors = itemQuantities.filter(
-      (item) => item.quantity <= 0 || item.quantity > item.maxQuantity
-    );
+    let itemsToSubmit: { id: string; quantity: number }[] = [];
 
-    if (itemsWithErrors.length > 0) {
-      toast.error("Some items have invalid quantities.");
-      canSubmit = false;
-    }
+    // Check each item's quantity
+    itemsToRework.forEach((item) => {
+      const quantity = itemQuantities[item.id] || 0;
+      if (quantity <= 0 || quantity > item.currentQuantity) {
+        canSubmit = false;
+        return;
+      }
+      itemsToSubmit.push({ id: item.id, quantity });
+    });
 
+    // Check reason
     if (reworkReason.trim().length < 3) {
-      setReasonError("Valid reason required.");
       canSubmit = false;
     }
 
+    // Check target stage
     if (!selectedStageId) {
       toast.error("Please select a target stage for rework.");
-      canSubmit = false;
-    }
-
-    if (!canSubmit) {
-      toast.error("Please correct the errors before submitting.");
       return;
     }
 
-    const reworkedItems = itemQuantities.map((item) => ({
-      id: item.id,
-      quantity: item.quantity,
-    }));
+    if (!canSubmit) {
+      toast.error("Please correct any errors before submitting.");
+      return;
+    }
 
-    onConfirmBulkRework(reworkedItems, reworkReason.trim(), selectedStageId);
+    // Find the selected stage/substage in the available stages
+    let targetStageId = selectedStageId;
+    let isSubStage = false;
 
-    // Download vouchers if user is Owner
-    if (userRole === "Owner") {
-      try {
-        // Download vouchers for each item
-        for (const item of itemsToRework) {
-          const response = await fetch(`/api/vouchers/${item.id}`);
-          if (!response.ok) {
-            throw new Error(`Failed to generate voucher for item ${item.id}`);
-          }
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `rework_voucher_${item.sku || item.id}_${new Date().toISOString().replace(/[:.]/g, "-")}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          a.remove();
-          // Add a small delay between downloads to prevent browser issues
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-      } catch (error) {
-        console.error("Error downloading vouchers:", error);
-        toast.error("Failed to download one or more rework vouchers");
+    // Look through all stages and their substages to find the selected ID
+    for (const stage of availableStages) {
+      if (stage.id === selectedStageId) {
+        // It's a main stage
+        targetStageId = selectedStageId;
+        break;
       }
+      // Check substages
+      if (stage.sub_stages) {
+        const foundSubStage = stage.sub_stages.find(
+          (sub) => sub.id === selectedStageId
+        );
+        if (foundSubStage) {
+          // It's a substage, use the parent stage's ID
+          targetStageId = stage.id;
+          isSubStage = true;
+          break;
+        }
+      }
+    }
+
+    onConfirmBulkRework(
+      itemsToSubmit,
+      reworkReason.trim(),
+      targetStageId // Use the parent stage ID
+    );
+
+    // Download vouchers if user is Owner, null, or undefined
+    console.log(
+      `[VoucherDebug] handleSubmit: Checking userRole. Value: '${userRole}' (Type: ${typeof userRole}) against Owner, null, or undefined.`
+    );
+
+    if (userRole === "Owner" || userRole === null || userRole === undefined) {
+      console.log(
+        "[VoucherDebug] handleSubmit: Voucher download condition met."
+      );
+      console.log(
+        "[VoucherDebug] handleSubmit: itemsToRework:",
+        JSON.stringify(
+          itemsToRework.map((item) => ({ id: item.id, sku: item.sku }))
+        )
+      );
+
+      if (!itemsToRework || itemsToRework.length === 0) {
+        console.warn(
+          "[VoucherDebug] handleSubmit: itemsToRework is empty or undefined. No vouchers to download."
+        );
+      } else {
+        try {
+          console.log(
+            "[VoucherDebug] handleSubmit: Entering voucher download try block."
+          );
+          // Download vouchers for each item
+          for (const item of itemsToRework) {
+            console.log(
+              `[VoucherDebug] handleSubmit: Processing item ${item.id} (SKU: ${item.sku}) for voucher download.`
+            );
+            const response = await fetch(`/api/vouchers/${item.id}`);
+            console.log(
+              `[VoucherDebug] handleSubmit: Fetch response for item ${item.id} - Status: ${response.status}, OK: ${response.ok}`
+            );
+
+            if (!response.ok) {
+              let errorBody = "Could not read error body";
+              try {
+                errorBody = await response.text();
+              } catch (e) {
+                /* ignore */
+              }
+              console.error(
+                `[VoucherDebug] handleSubmit: Failed to fetch voucher for item ${item.id}. Status: ${response.status}. Body: ${errorBody}`
+              );
+              throw new Error(
+                `Failed to generate voucher for item ${item.id}. Status: ${response.status}`
+              );
+            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `rework_voucher_${item.sku || item.id}_${new Date().toISOString().replace(/[:.]/g, "-")}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            console.log(
+              `[VoucherDebug] handleSubmit: Voucher download triggered for item ${item.id}.`
+            );
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            // Add a small delay between downloads to prevent browser issues
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+          console.log(
+            "[VoucherDebug] handleSubmit: All vouchers processed successfully."
+          );
+        } catch (error) {
+          console.error(
+            "[VoucherDebug] handleSubmit: Error during voucher download process:",
+            error
+          );
+          toast.error(
+            "Failed to download one or more rework vouchers. Check console for details."
+          );
+        }
+      }
+    } else {
+      console.log(
+        `[VoucherDebug] handleSubmit: Voucher download condition NOT met. User role: '${userRole}' (Type: ${typeof userRole}) - was not Owner, null, or undefined.`
+      );
     }
   };
 
@@ -231,39 +304,29 @@ export function BulkReworkQuantityModal({
                     id={`rework-quantity-${item.id}`}
                     type="number"
                     value={
-                      itemQuantities.find((i) => i.id === item.id)?.quantity ===
-                        0 && reasonError
+                      itemQuantities[item.id] === 0 && reasonError
                         ? ""
-                        : itemQuantities.find((i) => i.id === item.id)
-                            ?.quantity || ""
+                        : itemQuantities[item.id] || ""
                     }
                     onChange={(e) => {
                       const numValue = parseInt(e.target.value);
                       if (isNaN(numValue) || numValue <= 0) {
                         setReasonError("Quantity must be a positive number.");
-                        setItemQuantities(
-                          itemQuantities.map((i) =>
-                            i.id === item.id ? { ...i, quantity: 0 } : i
-                          )
-                        );
+                        setItemQuantities({ ...itemQuantities, [item.id]: 0 });
                       } else if (numValue > item.currentQuantity) {
                         setReasonError(
                           `Cannot exceed available quantity (${item.currentQuantity}).`
                         );
-                        setItemQuantities(
-                          itemQuantities.map((i) =>
-                            i.id === item.id
-                              ? { ...i, quantity: item.currentQuantity }
-                              : i
-                          )
-                        );
+                        setItemQuantities({
+                          ...itemQuantities,
+                          [item.id]: item.currentQuantity,
+                        });
                       } else {
                         setReasonError(null);
-                        setItemQuantities(
-                          itemQuantities.map((i) =>
-                            i.id === item.id ? { ...i, quantity: numValue } : i
-                          )
-                        );
+                        setItemQuantities({
+                          ...itemQuantities,
+                          [item.id]: numValue,
+                        });
                       }
                     }}
                     min="1"

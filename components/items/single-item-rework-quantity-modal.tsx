@@ -48,7 +48,9 @@ interface SingleItemReworkQuantityModalProps {
     itemId: string,
     quantity: number,
     reason: string,
-    targetStageId: string
+    targetStageId: string,
+    sourceStageId: string,
+    sourceSubStageId: string | null
   ) => void;
   isProcessing: boolean;
   userRole?: string | null;
@@ -160,11 +162,39 @@ export function SingleItemReworkQuantityModal({
       toast.error("Please correct the errors before submitting.");
       return;
     }
+
+    // Find the selected stage/substage in the available stages
+    let targetStageId = selectedStageId;
+    let isSubStage = false;
+
+    // Look through all stages and their substages to find the selected ID
+    for (const stage of availableStages) {
+      if (stage.id === selectedStageId) {
+        // It's a main stage
+        targetStageId = selectedStageId;
+        break;
+      }
+      // Check substages
+      if (stage.sub_stages) {
+        const foundSubStage = stage.sub_stages.find(
+          (sub) => sub.id === selectedStageId
+        );
+        if (foundSubStage) {
+          // It's a substage, use the parent stage's ID
+          targetStageId = stage.id;
+          isSubStage = true;
+          break;
+        }
+      }
+    }
+
     onConfirmRework(
       item.id,
       quantityToRework,
       reworkReason.trim(),
-      selectedStageId
+      targetStageId, // Use the parent stage ID
+      item.currentStageId,
+      item.currentSubStageId
     );
 
     console.log("USER ROLE==", userRole);

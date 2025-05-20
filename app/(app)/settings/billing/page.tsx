@@ -109,56 +109,63 @@ const BillingSettingsPage = () => {
   const paymentMethod = "Visa ending in 1234";
 
   return (
-    <div className="container mx-auto py-10 px-4 md:px-6 space-y-8">
-      <div className="flex items-center space-x-3">
-        <CreditCardIcon className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-bold">Billing & Subscription</h1>
+    <div className="container mx-auto space-y-8">
+      <div className="border-b">
+        <div className="px-4 md:px-6 py-4">
+          <div className="flex items-center space-x-3">
+            <CreditCardIcon className="h-5 w-5 text-primary" />
+            <h1 className="text-xl font-semibold">Billing & Subscription</h1>
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Current Subscription</CardTitle>
-          {organizationName && (
-            <CardDescription>Organization: {organizationName}</CardDescription>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <h3 className="text-lg font-semibold">{currentPlan}</h3>
+      <div className="px-4 md:px-6 pb-8 space-y-8">
+        {" "}
+        <Card>
+          <CardHeader>
+            <CardTitle>Current Subscription</CardTitle>
+            {organizationName && (
+              <CardDescription>
+                Organization: {organizationName}
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold">{currentPlan}</h3>
+              <p className="text-muted-foreground">
+                Trail End Date: {nextBillingDate}
+              </p>
+            </div>
+            <div className="flex items-center justify-between pt-2">
+              <Button>Change Plan</Button>
+              <Button variant="outline">Cancel Subscription</Button>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Payment Method</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p>{paymentMethod}</p>
+            <Button variant="secondary">Update Payment Method</Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Billing History</CardTitle>
+            <CardDescription>View your past invoices.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Placeholder for billing history table or list */}
             <p className="text-muted-foreground">
-              Trail End Date: {nextBillingDate}
+              No billing history available yet. Past invoices will appear here.
             </p>
-          </div>
-          <div className="flex items-center justify-between pt-2">
-            <Button>Change Plan</Button>
-            <Button variant="outline">Cancel Subscription</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment Method</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p>{paymentMethod}</p>
-          <Button variant="secondary">Update Payment Method</Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Billing History</CardTitle>
-          <CardDescription>View your past invoices.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Placeholder for billing history table or list */}
-          <p className="text-muted-foreground">
-            No billing history available yet. Past invoices will appear here.
-          </p>
-          {/* <Button variant="link">View All Invoices</Button> */}
-        </CardContent>
-      </Card>
+            {/* <Button variant="link">View All Invoices</Button> */}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

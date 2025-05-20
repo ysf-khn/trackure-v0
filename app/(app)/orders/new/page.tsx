@@ -236,255 +236,271 @@ export default function NewOrderPage() {
   const isWorkflowSelectLoading = isAuthLoading || isLoadingWorkflow;
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>Create New Order</CardTitle>
-        <CardDescription>
-          Fill in the details below to create a new order. Individual items and
-          their specific quantities can be added after the order is created.
-        </CardDescription>
-      </CardHeader>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <CardContent className="space-y-4">
-            <FormField
-              control={form.control}
-              name="order_number"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Order Number</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter order number" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="customer_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Buyer Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter buyer name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="total_quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Total Quantity of Items</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="Enter total quantity"
-                      {...field}
-                      onChange={(e) =>
-                        field.onChange(parseInt(e.target.value, 10) || 0)
-                      } // Ensure value is number
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {/* Add more FormField components for other order details */}
+    <div className="container mx-auto space-y-8">
+      <div className="border-b">
+        <div className="px-4 md:px-6 py-4">
+          <h1 className="text-xl font-semibold">Create New Order</h1>
+        </div>
+      </div>
 
-            {/* --- Required Packaging Materials --- */}
-            <FormField
-              control={form.control}
-              name="required_packaging_materials"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Required Packaging Materials</FormLabel>
-                  <div className="space-y-2">
-                    <FormLabel className="text-sm font-normal text-muted-foreground">
-                      Common Materials:
-                    </FormLabel>
-                    <div className="grid grid-cols-2 gap-2">
-                      {COMMON_PACKAGING_MATERIALS.map((material) => (
-                        <FormField
-                          key={material}
-                          control={form.control} // Inner FormField for checkbox state
-                          name="required_packaging_materials" // Bind to the same array
-                          render={({ field: checkboxField }) => {
-                            const isChecked =
-                              checkboxField.value?.includes(material);
-                            return (
-                              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+      <div className="px-4 md:px-6">
+        <Card className="w-full max-w-3xl mx-auto mb-4">
+          <CardHeader>
+            <CardTitle>Order Details</CardTitle>
+            <CardDescription>
+              Fill in the details below to create a new order. Individual items
+              and their specific quantities can be added after the order is
+              created.
+            </CardDescription>
+          </CardHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <CardContent className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="order_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Order Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter order number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="customer_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Buyer Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter buyer name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="total_quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Total Quantity of Items</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="Enter total quantity"
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value, 10) || 0)
+                          } // Ensure value is number
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* --- Required Packaging Materials --- */}
+                <FormField
+                  control={form.control}
+                  name="required_packaging_materials"
+                  render={({ field }) => (
+                    <FormItem className="space-y-4">
+                      <FormLabel>Required Packaging Materials</FormLabel>
+                      <div className="space-y-4">
+                        <div>
+                          <FormLabel className="text-sm font-normal text-muted-foreground">
+                            Common Materials:
+                          </FormLabel>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                            {COMMON_PACKAGING_MATERIALS.map((material) => (
+                              <FormField
+                                key={material}
+                                control={form.control} // Inner FormField for checkbox state
+                                name="required_packaging_materials" // Bind to the same array
+                                render={({ field: checkboxField }) => {
+                                  const isChecked =
+                                    checkboxField.value?.includes(material);
+                                  return (
+                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={isChecked}
+                                          onCheckedChange={(checked) => {
+                                            const currentMaterials =
+                                              checkboxField.value || [];
+                                            if (checked) {
+                                              checkboxField.onChange([
+                                                ...currentMaterials,
+                                                material,
+                                              ]);
+                                            } else {
+                                              checkboxField.onChange(
+                                                currentMaterials.filter(
+                                                  (m) => m !== material
+                                                )
+                                              );
+                                            }
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="font-normal">
+                                        {material}
+                                      </FormLabel>
+                                    </FormItem>
+                                  );
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <FormLabel className="text-sm font-normal text-muted-foreground">
+                            Custom Material:
+                          </FormLabel>
+                          <div className="flex items-center space-x-2 mt-2">
+                            <FormField
+                              control={form.control}
+                              name="custom_packaging_material" // Separate field for input
+                              render={({ field: customField }) => (
                                 <FormControl>
-                                  <Checkbox
-                                    checked={isChecked}
-                                    onCheckedChange={(checked) => {
-                                      const currentMaterials =
-                                        checkboxField.value || [];
-                                      if (checked) {
-                                        checkboxField.onChange([
-                                          ...currentMaterials,
-                                          material,
-                                        ]);
-                                      } else {
-                                        checkboxField.onChange(
-                                          currentMaterials.filter(
-                                            (m) => m !== material
-                                          )
-                                        );
-                                      }
-                                    }}
+                                  <Input
+                                    placeholder="Enter custom material name"
+                                    {...customField}
                                   />
                                 </FormControl>
-                                <FormLabel className="font-normal">
-                                  {material}
-                                </FormLabel>
-                              </FormItem>
-                            );
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-4">
-                    <FormLabel className="text-sm font-normal text-muted-foreground">
-                      Custom Material:
-                    </FormLabel>
-                    <div className="flex items-center space-x-2">
-                      <FormField
-                        control={form.control}
-                        name="custom_packaging_material" // Separate field for input
-                        render={({ field: customField }) => (
-                          <FormControl>
-                            <Input
-                              placeholder="Enter custom material name"
-                              {...customField}
+                              )}
                             />
-                          </FormControl>
-                        )}
-                      />
-                      <Button
-                        type="button" // Prevent form submission
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const customMaterial = form
-                            .getValues("custom_packaging_material")
-                            ?.trim();
-                          const currentMaterials = field.value || [];
-                          if (
-                            customMaterial &&
-                            !currentMaterials.includes(customMaterial)
-                          ) {
-                            field.onChange([
-                              ...currentMaterials,
-                              customMaterial,
-                            ]);
-                            form.setValue("custom_packaging_material", ""); // Clear input
-                          }
-                        }}
-                      >
-                        Add
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-4">
-                    <FormLabel className="text-sm font-normal text-muted-foreground">
-                      Selected Materials:
-                    </FormLabel>
-                    <div className="flex flex-wrap gap-2">
-                      {field.value && field.value.length > 0 ? (
-                        field.value.map((material) => (
-                          <Badge key={material} variant="secondary">
-                            {material}
-                          </Badge>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          No materials selected.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="packaging_reminder_trigger"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Send Packaging Reminder When Items Reach:
-                  </FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={isWorkflowSelectLoading}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        {isWorkflowSelectLoading || !isMounted ? (
-                          <span className="text-muted-foreground">
-                            Loading workflow...
-                          </span>
-                        ) : (
-                          <SelectValue placeholder="Select a stage or sub-stage..." />
-                        )}
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {/* Only render content if mounted and not loading */}
-                      {isMounted && !isWorkflowSelectLoading && (
-                        <>
-                          <SelectItem value="none">
-                            -- No Reminder --
-                          </SelectItem>
-                          {/* Use flatMap to avoid React.Fragment inside SelectContent */}
-                          {workflowResultData?.flatMap((stage) => [
-                            <SelectItem
-                              key={`stage:${stage.id}`}
-                              value={`stage:${stage.id}`}
+                            <Button
+                              type="button" // Prevent form submission
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const customMaterial = form
+                                  .getValues("custom_packaging_material")
+                                  ?.trim();
+                                const currentMaterials = field.value || [];
+                                if (
+                                  customMaterial &&
+                                  !currentMaterials.includes(customMaterial)
+                                ) {
+                                  field.onChange([
+                                    ...currentMaterials,
+                                    customMaterial,
+                                  ]);
+                                  form.setValue(
+                                    "custom_packaging_material",
+                                    ""
+                                  ); // Clear input
+                                }
+                              }}
                             >
-                              Stage: {stage.name}
-                            </SelectItem>,
-                            ...(stage.sub_stages?.map((subStage) => (
-                              <SelectItem
-                                key={`sub_stage:${subStage.id}`}
-                                value={`sub_stage:${subStage.id}`}
-                                className="pl-8"
-                              >
-                                Sub-stage: {stage.name} &gt; {subStage.name}
+                              Add
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <FormLabel className="text-sm font-normal text-muted-foreground">
+                            Selected Materials:
+                          </FormLabel>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {field.value && field.value.length > 0 ? (
+                              field.value.map((material) => (
+                                <Badge key={material} variant="secondary">
+                                  {material}
+                                </Badge>
+                              ))
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                No materials selected.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="packaging_reminder_trigger"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Send Packaging Reminder When Items Reach:
+                      </FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        disabled={isWorkflowSelectLoading}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            {isWorkflowSelectLoading || !isMounted ? (
+                              <span className="text-muted-foreground">
+                                Loading workflow...
+                              </span>
+                            ) : (
+                              <SelectValue placeholder="Select a stage or sub-stage..." />
+                            )}
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {/* Only render content if mounted and not loading */}
+                          {isMounted && !isWorkflowSelectLoading && (
+                            <>
+                              <SelectItem value="none">
+                                -- No Reminder --
                               </SelectItem>
-                            )) || []), // Handle potentially null/undefined sub-stages
-                          ])}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-          <CardFooter>
-            <Button
-              type="submit"
-              disabled={
-                mutation.isPending || isWorkflowSelectLoading || !isMounted
-              }
-            >
-              {mutation.isPending ? "Creating..." : "Create Order"}
-            </Button>
-          </CardFooter>
-        </form>
-      </Form>
-    </Card>
+                              {/* Use flatMap to avoid React.Fragment inside SelectContent */}
+                              {workflowResultData?.flatMap((stage) => [
+                                <SelectItem
+                                  key={`stage:${stage.id}`}
+                                  value={`stage:${stage.id}`}
+                                >
+                                  Stage: {stage.name}
+                                </SelectItem>,
+                                ...(stage.sub_stages?.map((subStage) => (
+                                  <SelectItem
+                                    key={`sub_stage:${subStage.id}`}
+                                    value={`sub_stage:${subStage.id}`}
+                                    className="pl-8"
+                                  >
+                                    Sub-stage: {stage.name} &gt; {subStage.name}
+                                  </SelectItem>
+                                )) || []), // Handle potentially null/undefined sub-stages
+                              ])}
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+              <CardFooter>
+                <Button
+                  type="submit"
+                  disabled={
+                    mutation.isPending || isWorkflowSelectLoading || !isMounted
+                  }
+                  className="w-full md:w-auto"
+                >
+                  {mutation.isPending ? "Creating..." : "Create Order"}
+                </Button>
+              </CardFooter>
+            </form>
+          </Form>
+        </Card>
+      </div>
+    </div>
   );
 }

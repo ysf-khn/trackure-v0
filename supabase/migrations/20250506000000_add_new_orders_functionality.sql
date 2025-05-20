@@ -131,21 +131,20 @@ begin
         p_item_id, null, null, p_stage_id, p_sub_stage_id, p_quantity, p_allocated_by, v_org_id
     );
     
-    -- Update item status if all original quantity has now been allocated
+    -- Update item status based on allocation status
     if (v_currently_allocated_in_stages + p_quantity) = v_item_original_total_quantity then
         raise notice '[allocate_item_to_workflow V2] All quantity allocated (Existing: % + New: % = Original: %). Setting status to In Workflow.', 
                     v_currently_allocated_in_stages, p_quantity, v_item_original_total_quantity;
         update public.items
-        set status = 'In Workflow' -- No change to items.total_quantity
+        set status = 'In Workflow'
         where id = p_item_id;
     else
         raise notice '[allocate_item_to_workflow V2] Partial quantity allocated (Existing: % + New: % < Original: %). Status remains New.', 
                     v_currently_allocated_in_stages, p_quantity, v_item_original_total_quantity;
-        -- Item status remains 'New', items.total_quantity is not changed.
+        -- Item status remains 'New', no update needed
     end if;
 
     raise notice '[allocate_item_to_workflow V2] Successfully processed allocation for item %.', p_item_id;
-
 end;
 $$ language plpgsql;
 
