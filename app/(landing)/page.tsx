@@ -1,4 +1,5 @@
 import React from "react";
+import { Metadata } from "next";
 import { Navbar } from "@/components/landing-page/navbar";
 import { Hero } from "@/components/landing-page/hero";
 import { Problems } from "@/components/landing-page/problems";
@@ -6,6 +7,36 @@ import { Solutions } from "@/components/landing-page/solutions";
 import { CTA } from "@/components/landing-page/cta";
 import { Footer } from "@/components/landing-page/footer";
 import Image from "next/image";
+
+export const metadata: Metadata = {
+  title: "Trakure - Export Workflows, Perfected",
+  description:
+    "Stop drowning in spreadsheets. Track your entire export workflow from raw items to finished products in one simple system. Get clear answers instantly with Trakure.",
+  keywords:
+    "export management, workflow tracking, export process, inventory management, export business software, inventory tracking, export business, export management software, export business software cost",
+  openGraph: {
+    title: "Trakure - Export Workflows, Perfected",
+    description:
+      "Stop drowning in spreadsheets. Track your entire export workflow from raw items to finished products in one simple system.",
+    type: "website",
+    url: "https://trakure.com",
+    images: [
+      {
+        url: "/opengraph-image.png",
+        width: 1200,
+        height: 675,
+        alt: "Trakure",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Trakure - Export Workflows, Perfected",
+    description:
+      "Stop drowning in spreadsheets. Track your entire export workflow from raw items to finished products in one simple system.",
+    images: ["/twitter-image.png"],
+  },
+};
 
 export default function LandingPage() {
   return (
