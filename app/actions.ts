@@ -57,19 +57,16 @@ export const signInAction = async (formData: FormData) => {
 };
 
 export const signInWithGoogleAction = async () => {
-  // const searchParams = useSearchParams();
-  // const next = searchParams.get("next");
   const supabase = await createClient();
   const origin = (await headers()).get("origin");
-  console.log("origin", origin);
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `http://localhost:3000/dashboard`,
-      // queryParams: {
-      //   access_type: "offline",
-      //   prompt: "consent",
-      // },
+      redirectTo: `${origin}/auth/callback`,
+      queryParams: {
+        next: "/dashboard",
+      },
     },
   });
 

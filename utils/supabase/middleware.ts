@@ -73,6 +73,11 @@ export const updateSession = async (request: NextRequest) => {
       }
     );
 
+    // Special handling for auth callback
+    if (pathname.startsWith("/auth/callback")) {
+      return response;
+    }
+
     // This will refresh session if expired
     const {
       data: { user },
