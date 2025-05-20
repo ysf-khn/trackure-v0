@@ -10,26 +10,26 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3  gap-12 mb-12">
           {/* Company Info */}
           <div className="space-y-4">
-            <h3 className="text-white font-semibold text-lg">Trackure</h3>
+            <h3 className="text-white font-semibold text-lg">Trakure</h3>
             <p className="text-sm text-gray-400">
               Streamline your inventory management and workflow processes with
               our powerful platform.
             </p>
             {/* <div className="flex space-x-4 pt-2">
               <a
-                href="https://twitter.com/trackure"
+                href="https://twitter.com/trakure"
                 className="hover:text-white transition-colors"
               >
                 <Twitter size={20} />
               </a>
               <a
-                href="https://linkedin.com/company/trackure"
+                href="https://linkedin.com/company/trakure"
                 className="hover:text-white transition-colors"
               >
                 <Linkedin size={20} />
               </a>
               <a
-                href="https://github.com/trackure"
+                href="https://github.com/trakure"
                 className="hover:text-white transition-colors"
               >
                 <Github size={20} />
@@ -120,11 +120,11 @@ export function Footer() {
             <h3 className="text-white font-semibold text-lg">Contact</h3>
             <div className="space-y-2">
               <a
-                href="mailto:support@trackure.com"
+                href="mailto:support@trakure.com"
                 className="flex items-center text-sm hover:text-white transition-colors"
               >
                 <Mail size={16} className="mr-2" />
-                support@trackure.com
+                support@trakure.com
               </a>
               {/* <p className="text-sm text-gray-400">
                 123 Business Street
@@ -141,7 +141,7 @@ export function Footer() {
         <div className="pt-8 border-t border-gray-800">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-sm text-gray-400">
-              © {currentYear} Trackure. All rights reserved.
+              © {currentYear} Trakure. All rights reserved.
             </div>
             <div className="flex space-x-6">
               <Link

@@ -74,7 +74,7 @@ export default function OnboardingProfilePage() {
       <div className="w-full max-w-md space-y-6 rounded-lg bg-white p-8 shadow-md">
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-gray-900">
-            Welcome to Trackure!
+            Welcome to Trakure!
           </h1>
           <p className="mt-2 text-sm text-gray-600">
             Let&apos;s start by setting up your profile.
@@ -93,7 +93,7 @@ export default function OnboardingProfilePage() {
                     <Input placeholder="e.g., Ada Lovelace" {...field} />
                   </FormControl>
                   <FormDescription>
-                    This is how your name will appear in Trackure.
+                    This is how your name will appear in Trakure.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

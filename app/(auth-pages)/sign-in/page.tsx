@@ -19,7 +19,7 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
       <div className="flex-1 flex flex-col items-center justify-center px-4 w-full">
         <div className="flex flex-col items-center mb-8 w-full">
           <AnimatedLogo />
-          <h1 className="text-3xl font-bold mb-2">Welcome back to Trackure</h1>
+          <h1 className="text-3xl font-bold mb-2">Welcome back to Trakure</h1>
           <p className="text-sm text-gray-400">
             First time here?{" "}
             <Link className="text-gray-300 hover:underline" href="/sign-up">

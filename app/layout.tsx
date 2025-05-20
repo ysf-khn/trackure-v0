@@ -13,7 +13,7 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Trackure",
+  title: "Trakure",
   description: "Track your items with ease",
 };
 
@@ -42,7 +42,6 @@ export default function RootLayout({
             {/* <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16"> */}
             {/* <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm"> */}
             {/* <div className="flex gap-5 items-center font-semibold"> */}
-            {/* <Link href={"/"}>Trackure</Link> */}
             {/* <ThemeSwitcher /> */}
             {/* </div> */}
             {/* <HeaderAuth /> */}

@@ -7,7 +7,7 @@ export function PricingHeader() {
         Simple Tracking, Clear Pricing.
       </h1>
       <p className="text-gray-300 text-lg">
-        Choose the Trackure plan that fits your export business. All plans
+        Choose the Trakure plan that fits your export business. All plans
         include our core features to help you manage your workflow, track items,
         handle rework, and get packaging reminders. Professional and Business
         plans get exclusive access to new features as we continue to innovate.

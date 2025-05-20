@@ -17,7 +17,7 @@ export const LogoOnlyNavbar = () => {
           <div className="relative h-10 w-10">
             <Image
               src="/logo-grey-bg.svg"
-              alt="Trackure Logo"
+              alt="Trakure Logo"
               fill
               className="object-contain"
               priority

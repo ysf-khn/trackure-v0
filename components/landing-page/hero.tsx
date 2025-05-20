@@ -29,7 +29,7 @@ export const Hero = () => {
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg text-gray-400">
-              Get clear answers instantly with Trackure. One simple system to
+              Get clear answers instantly with Trakure. One simple system to
               track your entire workflow - from raw items to finished products,
               so you can export with confidence. Try it free.
             </p>
@@ -69,7 +69,7 @@ export const Hero = () => {
               <div className="relative rounded-lg overflow-hidden">
                 <Image
                   src="/dashboard-preview.png"
-                  alt="Trackure Dashboard Preview"
+                  alt="Trakure Dashboard Preview"
                   width={1200}
                   height={675}
                   className="w-full h-auto"

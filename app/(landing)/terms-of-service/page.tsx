@@ -14,10 +14,10 @@ export default function TermsOfService() {
               Last Updated: {new Date().toLocaleDateString()}
             </p>
             <p className="mb-4">
-              Welcome to Trackure! These Terms of Service ("Terms") govern your
-              access to and use of the Trackure software-as-a-service
-              application (the "Service") provided by Trackure ("we," "us," or
-              "our"). Please read these Terms carefully.
+              Welcome to Trakure! These Terms of Service ("Terms") govern your
+              access to and use of the Trakure software-as-a-service application
+              (the "Service") provided by Trakure ("we," "us," or "our"). Please
+              read these Terms carefully.
             </p>
           </section>
 
@@ -40,10 +40,9 @@ export default function TermsOfService() {
               2. Description of Service
             </h2>
             <p className="mb-4">
-              Trackure provides a platform for export firms to document and
-              track items through their internal production workflows, manage
-              rework, set packaging reminders, and generate related
-              documentation.
+              Trakure provides a platform for export firms to document and track
+              items through their internal production workflows, manage rework,
+              set packaging reminders, and generate related documentation.
             </p>
           </section>
 
@@ -145,7 +144,7 @@ export default function TermsOfService() {
                 </h3>
                 <p>
                   Certain features of the Service may require payment of
-                  subscription fees. All fees are as quoted on the Trackure
+                  subscription fees. All fees are as quoted on the Trakure
                   website or as otherwise agreed in writing.
                 </p>
               </div>
@@ -156,7 +155,7 @@ export default function TermsOfService() {
                 <p>
                   You agree to pay all applicable fees for your subscription. We
                   use a third-party payment processor (e.g., Dodo Payments for
-                  Trackure's subscription management) to handle payments.
+                  Trakure's subscription management) to handle payments.
                 </p>
               </div>
               <div>
@@ -262,7 +261,7 @@ export default function TermsOfService() {
               9. Limitation of Liability
             </h2>
             <p className="uppercase mb-4">
-              TO THE FULLEST EXTENT PERMITTED BY LAW, IN NO EVENT WILL TRACKURE,
+              TO THE FULLEST EXTENT PERMITTED BY LAW, IN NO EVENT WILL TRAKURE,
               ITS AFFILIATES, OFFICERS, EMPLOYEES, AGENTS, SUPPLIERS, OR
               LICENSORS BE LIABLE FOR (A) ANY INDIRECT, INCIDENTAL, SPECIAL,
               PUNITIVE, COVER, OR CONSEQUENTIAL DAMAGES (INCLUDING, WITHOUT
@@ -285,10 +284,10 @@ export default function TermsOfService() {
               10. Indemnification
             </h2>
             <p>
-              You agree to indemnify and hold harmless Trackure and its
-              officers, directors, employees, and agents from and against any
-              claims, disputes, demands, liabilities, damages, losses, and costs
-              and expenses, including, without limitation, reasonable legal and
+              You agree to indemnify and hold harmless Trakure and its officers,
+              directors, employees, and agents from and against any claims,
+              disputes, demands, liabilities, damages, losses, and costs and
+              expenses, including, without limitation, reasonable legal and
               accounting fees arising out of or in any way connected with (i)
               your access to or use of the Service, (ii) your User Content, or
               (iii) your violation of these Terms.
@@ -325,10 +324,10 @@ export default function TermsOfService() {
             <p>
               If you have any questions about these Terms, please contact us at{" "}
               <a
-                href="mailto:support@trackure.com"
+                href="mailto:support@trakure.com"
                 className="text-blue-400 hover:text-blue-300"
               >
-                support@trackure.com
+                support@trakure.com
               </a>
               .
             </p>

@@ -14,9 +14,9 @@ export default function PrivacyPolicy() {
               Last Updated: {new Date().toLocaleDateString()}
             </p>
             <p className="mb-4">
-              Welcome to Trackure! Your privacy is important to us. This Privacy
-              Policy explains how Trackure ("we," "us," or "our") collects,
-              uses, shares, and protects information in relation to our
+              Welcome to Trakure! Your privacy is important to us. This Privacy
+              Policy explains how Trakure ("we," "us," or "our") collects, uses,
+              shares, and protects information in relation to our
               software-as-a-service application (the "Service").
             </p>
           </section>
@@ -33,9 +33,8 @@ export default function PrivacyPolicy() {
                 <ul className="list-disc list-inside space-y-2 pl-4">
                   <li>
                     <span className="font-medium">Account Information:</span>{" "}
-                    When you sign up for Trackure, we collect information such
-                    as your name, email address, organization name, and
-                    password.
+                    When you sign up for Trakure, we collect information such as
+                    your name, email address, organization name, and password.
                   </li>
                   <li>
                     <span className="font-medium">Payment Information:</span> If
@@ -235,10 +234,10 @@ export default function PrivacyPolicy() {
               If you have any questions about this Privacy Policy, please
               contact us at{" "}
               <a
-                href="mailto:support@trackure.com"
+                href="mailto:support@trakure.com"
                 className="text-blue-400 hover:text-blue-300"
               >
-                support@trackure.com
+                support@trakure.com
               </a>
               .
             </p>

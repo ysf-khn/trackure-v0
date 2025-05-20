@@ -17,13 +17,13 @@ export const Navbar = () => {
           <div className="relative h-6 w-6 mr-2">
             <Image
               src="/logo.svg"
-              alt="Trackure Logo"
+              alt="Trakure Logo"
               fill
               className="object-contain"
               priority
             />
           </div>
-          <span className="text-xl font-bold text-white">Trackure</span>
+          <span className="text-xl font-bold text-white">Trakure</span>
         </Link>
 
         {/* Desktop Navigation */}

@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
         status: 200,
         headers: {
           "Content-Type": "text/csv",
-          "Content-Disposition": `attachment; filename="trackure_export_${new Date().toISOString().split("T")[0]}.csv"`,
+          "Content-Disposition": `attachment; filename="trakure_export_${new Date().toISOString().split("T")[0]}.csv"`,
         },
       });
     }
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
     });
 
     // --- Return Response ---
-    const filename = `trackure_export_${new Date().toISOString().split("T")[0]}.csv`;
+    const filename = `trakure_export_${new Date().toISOString().split("T")[0]}.csv`;
     return new Response(csv, {
       status: 200,
       headers: {

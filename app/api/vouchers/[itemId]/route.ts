@@ -217,14 +217,14 @@ export async function POST(
       .font("Helvetica-Oblique")
       .fontSize(10)
       .fillColor(secondaryColor)
-      .text("This is a system-generated voucher from Trackure", {
+      .text("This is a system-generated voucher from Trakure", {
         align: "center",
       });
     doc
       .font("Helvetica-Oblique")
       .fontSize(10)
       .fillColor(secondaryColor)
-      .text("trackure.com", { align: "center" });
+      .text("trakure.com", { align: "center" });
 
     // Finalize PDF
     doc.end();

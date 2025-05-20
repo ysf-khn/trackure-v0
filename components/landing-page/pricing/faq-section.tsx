@@ -9,7 +9,7 @@ const faqs = [
   {
     question: "Do all plans really include all current features?",
     answer:
-      "Yes! Every Trackure plan gets you access to our core V1 features, including workflow customization, rework tracking, packaging reminders, and PDF generation. However, Professional and Business plans get exclusive access to new features, priority feature requests, and beta program access.",
+      "Yes! Every Trakure plan gets you access to our core V1 features, including workflow customization, rework tracking, packaging reminders, and PDF generation. However, Professional and Business plans get exclusive access to new features, priority feature requests, and beta program access.",
   },
   {
     question:
@@ -30,7 +30,7 @@ const faqs = [
   {
     question: "Is there a free trial?",
     answer:
-      "Absolutely! Every new Trackure account starts with a 14-day free trial of our Professional plan, giving you full access to see how it can transform your workflow. No credit card required to start.",
+      "Absolutely! Every new Trakure account starts with a 14-day free trial of our Professional plan, giving you full access to see how it can transform your workflow. No credit card required to start.",
   },
   {
     question: "Can I change my plan later?",
@@ -45,12 +45,12 @@ const faqs = [
   {
     question: "How secure is my data?",
     answer:
-      "We take data security very seriously. Trackure is built on industry-standard secure infrastructure (Supabase), and your organization's data is kept separate.",
+      "We take data security very seriously. Trakure is built on industry-standard secure infrastructure (Supabase), and your organization's data is kept separate.",
   },
   {
     question: "Do I need to install anything?",
     answer:
-      "No! Trackure is a fully web-based application. All you need is an internet connection and a modern web browser.",
+      "No! Trakure is a fully web-based application. All you need is an internet connection and a modern web browser.",
   },
   {
     question: "Can I cancel anytime?",

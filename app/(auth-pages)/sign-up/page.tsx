@@ -30,7 +30,7 @@ export default async function Signup(props: {
       <div className="flex-1 flex flex-col items-center justify-center px-4 w-full">
         <div className="flex flex-col items-center mb-8 w-full">
           <AnimatedLogo />
-          <h1 className="text-3xl font-bold mb-2">Get started with Trackure</h1>
+          <h1 className="text-3xl font-bold mb-2">Get started with Trakure</h1>
           <p className="text-sm text-gray-400">
             Already have an account?{" "}
             <Link className="text-gray-300 hover:underline" href="/sign-in">
