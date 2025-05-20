@@ -27,7 +27,7 @@ export function BillingToggle({ isAnnual, onToggle }: BillingToggleProps) {
       </div>
       {isAnnual && (
         <p className="text-green-500 font-medium">
-          Annual Billing Gets You 16% OFF!
+          Annual Billing saves you 2 full months – that’s 16% OFF your total!
         </p>
       )}
     </div>

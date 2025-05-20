@@ -63,10 +63,10 @@ export const Hero = () => {
           </div>
 
           {/* Dashboard container */}
-          <div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="relative rounded-xl border border-gray-800/50 bg-black/50 p-2 backdrop-blur-sm">
+          <div className="relative z-10 w-full px-0 sm:container sm:mx-auto sm:px-6 lg:px-8">
+            <div className="relative border-y sm:rounded-xl sm:border bg-black/50 p-0 sm:p-2 backdrop-blur-sm border-gray-800/50">
               <div className="absolute -inset-0.5 bg-gradient-to-tr from-blue-500/20 to-blue-900/20 blur-sm"></div>
-              <div className="relative rounded-lg overflow-hidden">
+              <div className="relative overflow-hidden sm:rounded-lg">
                 <Image
                   src="/dashboard-preview.png"
                   alt="Trakure Dashboard Preview"

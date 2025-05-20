@@ -89,7 +89,7 @@ export const Solutions = () => {
         </div>
 
         {/* Additional Features Grid */}
-        <div className="grid grid-cols-2 gap-8 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
           <div className="bg-black/40 backdrop-blur-sm rounded-xl p-8 border border-blue-500/10 hover:border-blue-500/30 transition-all duration-300">
             <h3 className="text-xl font-semibold mb-6 text-white">
               Proactive Delay Prevention

@@ -32,6 +32,8 @@ export default function LandingPage() {
         </div>
       </div>
       <Footer />
+      {/* Blur overlay at the bottom */}
+      <div className="fixed bottom-0 left-0 right-0 h-[3vh] bg-gradient-to-t from-black/50 to-transparent backdrop-blur-sm z-10 pointer-events-none" />
     </main>
   );
 }

@@ -11,7 +11,7 @@ export function PricingCTA() {
         Pick your plan and start your free 14-day trial today.
       </p>
       <Button size="lg" className="px-8">
-        Start My Free Trial
+        Start Free Trial
       </Button>
     </div>
   );
