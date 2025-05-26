@@ -202,104 +202,149 @@ export function ImageUploader({
   ]);
 
   return (
-    <div className="space-y-4 p-4 border rounded-md bg-card text-card-foreground">
-      <Label htmlFor="image-upload" className="font-medium">
-        Upload Image
-      </Label>
-      <Input
-        id="image-upload"
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileChange}
-        disabled={disabled || isUploading || isCompressing}
-        className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-      />
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="image-upload" className="text-sm font-medium">
+          Attach Image (Optional)
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          Upload an image to accompany your remark
+        </p>
+      </div>
 
-      {previewUrl && selectedFile && (
-        <Dialog>
-          <DialogTrigger asChild>
-            <div
-              className="mt-4 p-2 border rounded-md relative w-40 h-40 flex items-center justify-center bg-muted/40 cursor-pointer group"
-              role="button"
-              aria-label="View full size image"
-            >
+      {!previewUrl ? (
+        <div className="relative">
+          <Input
+            id="image-upload"
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            disabled={disabled || isUploading || isCompressing}
+            className="hidden"
+          />
+          <Label
+            htmlFor="image-upload"
+            className={`
+              flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer
+              transition-colors duration-200
+              ${
+                disabled || isUploading || isCompressing
+                  ? "border-muted bg-muted/20 cursor-not-allowed"
+                  : "border-muted-foreground/25 bg-muted/10 hover:bg-muted/20 hover:border-muted-foreground/40"
+              }
+            `}
+          >
+            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+              <UploadCloud
+                className={`w-8 h-8 mb-2 ${disabled || isUploading || isCompressing ? "text-muted-foreground/50" : "text-muted-foreground"}`}
+              />
+              <p className="mb-1 text-sm text-muted-foreground">
+                <span className="font-medium">Click to upload</span> or drag and
+                drop
+              </p>
+              <p className="text-xs text-muted-foreground">
+                PNG, JPG, GIF up to 10MB
+              </p>
+            </div>
+          </Label>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <Dialog>
+            <DialogTrigger asChild>
+              <div className="relative group cursor-pointer">
+                <div className="w-full h-48 border rounded-lg overflow-hidden bg-muted/10">
+                  <img
+                    src={previewUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 rounded-lg flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-background/90 rounded-full p-2">
+                    <ImageIcon className="h-5 w-5" />
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2 h-8 w-8 bg-background/80 hover:bg-destructive hover:text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    resetState();
+                  }}
+                  disabled={disabled || isUploading || isCompressing}
+                  aria-label="Remove selected image"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] flex items-center justify-center p-4">
               <img
                 src={previewUrl}
-                alt="Preview"
-                className="max-w-full max-h-full object-contain"
+                alt="Full size preview"
+                className="max-w-full max-h-[85vh] object-contain rounded-lg"
               />
+            </DialogContent>
+          </Dialog>
+
+          {selectedFile && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <ImageIcon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {selectedFile.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {(isCompressing || isUploading) && (
+                <div className="space-y-2">
+                  <Progress
+                    value={isCompressing ? undefined : (uploadProgress ?? 0)}
+                    className="w-full h-2"
+                  />
+                  <p className="text-sm text-primary text-center">
+                    {isCompressing
+                      ? "Compressing image..."
+                      : `Uploading ${uploadProgress !== null ? `${uploadProgress}%` : "..."}`}
+                  </p>
+                </div>
+              )}
+
               <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-1 right-1 h-6 w-6 bg-background/70 hover:bg-destructive hover:text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  resetState();
-                }}
+                onClick={handleUpload}
                 disabled={disabled || isUploading || isCompressing}
-                aria-label="Remove selected image"
+                className="w-full"
+                size="sm"
               >
-                <X className="h-4 w-4" />
+                <UploadCloud className="mr-2 h-4 w-4" />
+                {isUploading
+                  ? "Uploading..."
+                  : isCompressing
+                    ? "Compressing..."
+                    : "Upload Image"}
               </Button>
             </div>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[85vh] flex items-center justify-center p-2 sm:p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewUrl}
-              alt="Full size preview"
-              className="max-w-full max-h-[80vh] object-contain rounded-md"
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-      {!previewUrl && (
-        <div className="mt-4 p-2 border rounded-md w-40 h-40 flex flex-col items-center justify-center bg-muted/40 text-muted-foreground">
-          <ImageIcon className="h-10 w-10 mb-2" />
-          <span className="text-sm text-center">Select an image</span>
+          )}
         </div>
       )}
 
-      {selectedFile && (
-        <div className="mt-4 space-y-2">
-          <p className="text-sm text-muted-foreground truncate">
-            Selected: {selectedFile.name} (
-            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-          </p>
-
-          {(isCompressing || isUploading) && (
-            <Progress
-              value={isCompressing ? undefined : (uploadProgress ?? 0)}
-              className="w-full h-2"
-            />
-          )}
-          {isCompressing && (
-            <p className="text-sm text-primary animate-pulse">Compressing...</p>
-          )}
-          {isUploading && (
-            <p className="text-sm text-primary animate-pulse">
-              Uploading {uploadProgress !== null ? `${uploadProgress}%` : "..."}
-            </p>
-          )}
-
-          <Button
-            onClick={handleUpload}
-            disabled={disabled || isUploading || isCompressing}
-            className="w-full"
-            aria-label="Upload selected image"
-          >
-            <UploadCloud className="mr-2 h-4 w-4" />
-            {isUploading
-              ? "Uploading..."
-              : isCompressing
-                ? "Compressing..."
-                : "Upload Image"}
-          </Button>
+      {error && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
-
-      {error && <p className="mt-2 text-sm text-destructive">Error: {error}</p>}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea"; // For rework reason
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Select,
@@ -70,6 +71,7 @@ export function SingleItemReworkQuantityModal({
   const [reworkReason, setReworkReason] = useState<string>("");
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [selectedStageId, setSelectedStageId] = useState<string>("");
+  const [downloadVoucher, setDownloadVoucher] = useState<boolean>(false);
 
   // Get the current stage's sequence order
   const currentStageSequence = React.useMemo(() => {
@@ -114,6 +116,7 @@ export function SingleItemReworkQuantityModal({
       setReworkReason("");
       setReasonError(null);
       setSelectedStageId(reworkTargetOptions[0]?.id || "");
+      setDownloadVoucher(false); // Reset voucher option
     }
   }, [isOpen, reworkTargetOptions]);
 
@@ -165,6 +168,7 @@ export function SingleItemReworkQuantityModal({
 
     // Find the selected stage/substage in the available stages
     let targetStageId = selectedStageId;
+    let targetStageIdForVoucher = selectedStageId; // For voucher generation
     let isSubStage = false;
 
     // Look through all stages and their substages to find the selected ID
@@ -172,6 +176,7 @@ export function SingleItemReworkQuantityModal({
       if (stage.id === selectedStageId) {
         // It's a main stage
         targetStageId = selectedStageId;
+        targetStageIdForVoucher = selectedStageId;
         break;
       }
       // Check substages
@@ -180,8 +185,10 @@ export function SingleItemReworkQuantityModal({
           (sub) => sub.id === selectedStageId
         );
         if (foundSubStage) {
-          // It's a substage, use the parent stage's ID
+          // It's a substage, use the parent stage's ID for rework operation
           targetStageId = stage.id;
+          // But use the actual sub-stage ID for voucher
+          targetStageIdForVoucher = selectedStageId;
           isSubStage = true;
           break;
         }
@@ -199,27 +206,71 @@ export function SingleItemReworkQuantityModal({
 
     console.log("USER ROLE==", userRole);
 
-    // Download voucher if user is Owner
-    if (userRole === "Owner") {
+    // Download voucher if user is Owner AND they chose to download
+    console.log(
+      `[VoucherDebug] handleSubmit: Checking userRole. Value: '${userRole}' (Type: ${typeof userRole})`
+    );
+    console.log(
+      `[VoucherDebug] handleSubmit: userRole === "Owner": ${userRole === "Owner"}`
+    );
+    console.log(
+      `[VoucherDebug] handleSubmit: downloadVoucher: ${downloadVoucher}`
+    );
+
+    if (userRole === "Owner" && downloadVoucher) {
+      console.log(
+        "[VoucherDebug] handleSubmit: Voucher download condition met."
+      );
       console.log("REWORKKKK");
       try {
-        const response = await fetch(`/api/vouchers/${item.id}`);
+        console.log(
+          `[VoucherDebug] handleSubmit: About to fetch voucher for item ${item.id} with quantity ${quantityToRework}`
+        );
+        const response = await fetch(`/api/vouchers/${item.id}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            quantity: quantityToRework,
+            targetStageId: targetStageIdForVoucher,
+            isRework: true,
+            reworkReason: reworkReason.trim(),
+          }),
+        });
+        console.log(
+          `[VoucherDebug] handleSubmit: Fetch response - Status: ${response.status}, OK: ${response.ok}`
+        );
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error(
+            `[VoucherDebug] handleSubmit: Response not OK. Status: ${response.status}, Body: ${errorText}`
+          );
           throw new Error("Failed to generate voucher");
         }
         const blob = await response.blob();
+        console.log(
+          `[VoucherDebug] handleSubmit: Blob created, size: ${blob.size} bytes`
+        );
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
         a.download = `rework_voucher_${item.sku || item.id}_${new Date().toISOString().replace(/[:.]/g, "-")}.pdf`;
         document.body.appendChild(a);
         a.click();
+        console.log(
+          `[VoucherDebug] handleSubmit: Download triggered for ${a.download}`
+        );
         window.URL.revokeObjectURL(url);
         a.remove();
       } catch (error) {
         console.error("Error downloading voucher:", error);
         toast.error("Failed to download rework voucher");
       }
+    } else {
+      console.log(
+        `[VoucherDebug] handleSubmit: Voucher download condition NOT met. User role: '${userRole}' (Type: ${typeof userRole}) - was not "Owner" or downloadVoucher was ${downloadVoucher}.`
+      );
     }
   };
 
@@ -294,6 +345,24 @@ export function SingleItemReworkQuantityModal({
             <p className="col-start-2 col-span-3 text-sm text-destructive pl-1">
               {reasonError}
             </p>
+          )}
+
+          {userRole === "Owner" && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="download-rework-voucher"
+                checked={downloadVoucher}
+                onCheckedChange={(checked) =>
+                  setDownloadVoucher(checked as boolean)
+                }
+              />
+              <Label
+                htmlFor="download-rework-voucher"
+                className="text-sm font-normal"
+              >
+                Download rework voucher
+              </Label>
+            </div>
           )}
         </div>
         <DialogFooter>

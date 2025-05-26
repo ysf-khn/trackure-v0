@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea"; // For rework reason
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -71,6 +72,7 @@ export function BulkReworkQuantityModal({
   const [reworkReason, setReworkReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [selectedStageId, setSelectedStageId] = useState("");
+  const [downloadVouchers, setDownloadVouchers] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -83,6 +85,7 @@ export function BulkReworkQuantityModal({
       setReworkReason("");
       setReasonError(null);
       setSelectedStageId(availableStages[0]?.id || "");
+      setDownloadVouchers(false); // Reset voucher option
     }
   }, [isOpen, itemsToRework, availableStages]);
 
@@ -119,6 +122,7 @@ export function BulkReworkQuantityModal({
 
     // Find the selected stage/substage in the available stages
     let targetStageId = selectedStageId;
+    let targetStageIdForVoucher = selectedStageId; // For voucher generation
     let isSubStage = false;
 
     // Look through all stages and their substages to find the selected ID
@@ -126,6 +130,7 @@ export function BulkReworkQuantityModal({
       if (stage.id === selectedStageId) {
         // It's a main stage
         targetStageId = selectedStageId;
+        targetStageIdForVoucher = selectedStageId;
         break;
       }
       // Check substages
@@ -134,8 +139,10 @@ export function BulkReworkQuantityModal({
           (sub) => sub.id === selectedStageId
         );
         if (foundSubStage) {
-          // It's a substage, use the parent stage's ID
+          // It's a substage, use the parent stage's ID for rework operation
           targetStageId = stage.id;
+          // But use the actual sub-stage ID for voucher
+          targetStageIdForVoucher = selectedStageId;
           isSubStage = true;
           break;
         }
@@ -148,12 +155,15 @@ export function BulkReworkQuantityModal({
       targetStageId // Use the parent stage ID
     );
 
-    // Download vouchers if user is Owner, null, or undefined
+    // Download vouchers if user is Owner AND they chose to download
     console.log(
-      `[VoucherDebug] handleSubmit: Checking userRole. Value: '${userRole}' (Type: ${typeof userRole}) against Owner, null, or undefined.`
+      `[VoucherDebug] handleSubmit: Checking userRole. Value: '${userRole}' (Type: ${typeof userRole})`
+    );
+    console.log(
+      `[VoucherDebug] handleSubmit: downloadVouchers: ${downloadVouchers}`
     );
 
-    if (userRole === "Owner" || userRole === null || userRole === undefined) {
+    if (userRole === "Owner" && downloadVouchers) {
       console.log(
         "[VoucherDebug] handleSubmit: Voucher download condition met."
       );
@@ -178,7 +188,18 @@ export function BulkReworkQuantityModal({
             console.log(
               `[VoucherDebug] handleSubmit: Processing item ${item.id} (SKU: ${item.sku}) for voucher download.`
             );
-            const response = await fetch(`/api/vouchers/${item.id}`);
+            const response = await fetch(`/api/vouchers/${item.id}`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                quantity: itemQuantities[item.id] || 1,
+                targetStageId: targetStageIdForVoucher,
+                isRework: true,
+                reworkReason: reworkReason.trim(),
+              }),
+            });
             console.log(
               `[VoucherDebug] handleSubmit: Fetch response for item ${item.id} - Status: ${response.status}, OK: ${response.ok}`
             );
@@ -227,7 +248,7 @@ export function BulkReworkQuantityModal({
       }
     } else {
       console.log(
-        `[VoucherDebug] handleSubmit: Voucher download condition NOT met. User role: '${userRole}' (Type: ${typeof userRole}) - was not Owner, null, or undefined.`
+        `[VoucherDebug] handleSubmit: Voucher download condition NOT met. User role: '${userRole}' (Type: ${typeof userRole}) - was not "Owner" or downloadVouchers was ${downloadVouchers}.`
       );
     }
   };
@@ -283,6 +304,24 @@ export function BulkReworkQuantityModal({
               <p className="text-sm text-destructive pl-1">{reasonError}</p>
             )}
           </div>
+
+          {userRole === "Owner" && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="download-bulk-rework-vouchers"
+                checked={downloadVouchers}
+                onCheckedChange={(checked) =>
+                  setDownloadVouchers(checked as boolean)
+                }
+              />
+              <Label
+                htmlFor="download-bulk-rework-vouchers"
+                className="text-sm font-normal"
+              >
+                Download rework vouchers for all items
+              </Label>
+            </div>
+          )}
 
           <DialogDescription className="mt-3 mb-1 font-medium">
             Items to Rework:

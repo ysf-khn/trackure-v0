@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { AddItemForm } from "@/components/items/add-item-form";
 import OrderDetailsDisplay from "@/components/orders/order-details-display";
 import PaymentStatusEditor from "@/components/orders/payment-status-editor";
+import OrderItemsDisplay from "@/components/orders/order-items-display";
 import { PaymentStatus } from "@/types";
 // import { headers } from 'next/headers'; // Needed for createClient - REMOVED
 // import { OrderDetails } from '@/components/orders/order-details'; // Hypothetical component
@@ -149,32 +150,34 @@ export default async function OrderDetailPage({
         </Card>
       )}
 
-      {/* --- PDF Download Section --- */}
-      {isOwner && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Downloads</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Download Invoice Button Placeholder */}
-            <p className="text-sm text-muted-foreground">
-              (Download Invoice Button Placeholder)
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Placeholder for Item List */}
+      {/* Order Items Section */}
       <Card>
         <CardHeader>
           <CardTitle>Items</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            (Placeholder for Item List with Download Voucher Action)
-          </p>
+          <OrderItemsDisplay
+            orderId={order.id}
+            organizationId={organizationId}
+            userRole={userRole}
+          />
         </CardContent>
       </Card>
+
+      {/* --- PDF Download Section --- */}
+      {/* {isOwner && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Downloads</CardTitle>
+          </CardHeader>
+          <CardContent>
+           
+            <p className="text-sm text-muted-foreground">
+              (Download Invoice Button Placeholder)
+            </p>
+          </CardContent>
+        </Card>
+      )} */}
     </div>
   );
 }

@@ -55,11 +55,12 @@ export async function getWorkflowStructure(
 
   // Parallel queries to improve performance
   const [stagesResult, countsResult] = await Promise.all([
-    // Query 1: Get organization-specific stages
+    // Query 1: Get organization-specific stages (excluding "Completed" stages)
     supabase
       .from("workflow_stages")
       .select("*")
       .eq("organization_id", organizationId)
+      .neq("name", "Completed")
       .order("sequence_order", { ascending: true }),
 
     // Query 2: Get counts directly from the database using GROUP BY
@@ -149,12 +150,13 @@ export async function getWorkflowStructure(
 async function getDefaultWorkflow(
   supabase: SupabaseClient
 ): Promise<WorkflowStructure> {
-  // Get default stages
+  // Get default stages (excluding "Completed" stages)
   const { data: stages, error } = await supabase
     .from("workflow_stages")
     .select("*")
     .is("organization_id", null)
     .eq("is_default", true)
+    .neq("name", "Completed")
     .order("sequence_order", { ascending: true });
 
   if (error || !stages?.length) {

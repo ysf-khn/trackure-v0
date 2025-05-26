@@ -254,47 +254,30 @@ function StageViewContent() {
 
       {/* Stage Info Card */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">
-              {stageData.name || "Unnamed Stage"}
-            </h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold">
+                {stageData.name || "Unnamed Stage"}
+              </h2>
+              {subStageData && (
+                <span className="text-muted-foreground text-sm">
+                  / {subStageData.name || "Unnamed Sub-Stage"}
+                </span>
+              )}
+            </div>
             <Badge variant="outline">
               Sequence Order: {stageData.sequence_order + 1}
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Stage/Sub-Stage Info */}
-            <div className="flex items-center space-x-4">
-              {subStageData && (
-                <>
-                  <span className="text-muted-foreground">
-                    {subStageData.name || "Unnamed Sub-Stage"}
-                  </span>
-                </>
-              )}
+        <CardContent className="pt-2">
+          {stageData.location && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              <span>{stageData.location}</span>
             </div>
-
-            <Separator className="my-4" />
-
-            {/* Location and Team Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Location */}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <MapPin className="h-5 w-5" />
-                  <h3 className="text-lg font-semibold">Location</h3>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-muted-foreground">
-                    {stageData.location || "No location set"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 

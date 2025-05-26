@@ -1,114 +1,88 @@
-"use client";
+import { createClient } from "@/utils/supabase/server";
+import { redirect } from "next/navigation";
+import { ProfileForm } from "./components/profile-form";
+import { headers } from "next/headers";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { toast } from "sonner";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { useMutation } from "@tanstack/react-query";
-
-// Schema for form validation
-const profileSchema = z.object({
-  full_name: z.string().min(1, "Full name is required").max(255),
-});
-
-type ProfileFormValues = z.infer<typeof profileSchema>;
-
-// API call function
-async function updateProfile(data: ProfileFormValues) {
-  const response = await fetch("/api/profiles/me", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || "Failed to update profile");
-  }
-
-  return response.json();
+interface PageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default function OnboardingProfilePage() {
-  const router = useRouter();
-  const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      full_name: "",
-    },
-  });
+export default async function OnboardingProfilePage({
+  searchParams,
+}: PageProps) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  const mutation = useMutation({
-    mutationFn: updateProfile,
-    onSuccess: () => {
-      toast.success("Profile updated!");
-      router.push("/organization"); // Navigate to the next step
-    },
-    onError: (error) => {
-      toast.error(`Error: ${error.message}`);
-      console.error("Profile update mutation failed:", error);
-    },
-  });
+    if (!user) {
+      return redirect("/sign-in");
+    }
 
-  function onSubmit(values: ProfileFormValues) {
-    mutation.mutate(values);
+    // Get search parameters
+    const params = await searchParams;
+    const subscriptionId = params.subscription_id as string;
+    const status = params.status as string;
+
+    // If we have a subscription_id from successful payment, store it in user metadata
+    if (subscriptionId && status === "active" && user) {
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          ...user.user_metadata,
+          subscription_id: subscriptionId,
+          payment_status: "completed",
+        },
+      });
+
+      if (updateError) {
+        console.error(
+          "Error updating user metadata with subscription_id:",
+          updateError
+        );
+      } else {
+        console.log(
+          "Successfully stored subscription_id in user metadata:",
+          subscriptionId
+        );
+
+        // Redirect to clean URL after storing subscription_id
+        return redirect("/profile");
+      }
+    }
+
+    // Check if user has a product_id - if not, redirect to subscribe page
+    // Also check if payment is not completed yet
+    if (
+      !user.user_metadata?.product_id ||
+      user.user_metadata?.payment_status === "pending"
+    ) {
+      // If they have a product_id but payment is pending, redirect to payment
+      if (
+        user.user_metadata?.product_id &&
+        user.user_metadata?.payment_status === "pending"
+      ) {
+        const headersList = await headers();
+        const origin = headersList.get("origin") || "http://localhost:3000";
+        const redirectUrl = encodeURIComponent(`${origin}/profile`);
+        const productId = encodeURIComponent(user.user_metadata.product_id);
+        const baseUrl =
+          process.env.NODE_ENV === "development"
+            ? "https://test.checkout.dodopayments.com"
+            : "https://checkout.dodopayments.com";
+
+        return redirect(
+          `${baseUrl}/buy/${productId}?quantity=1&redirect_url=${redirectUrl}`
+        );
+      }
+
+      // If they don't have a product_id, redirect to subscribe
+      return redirect("/subscribe");
+    }
+
+    return <ProfileForm />;
+  } catch (error) {
+    console.error("Error in OnboardingProfilePage:", error);
+    throw error;
   }
-
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md space-y-6 rounded-lg bg-white p-8 shadow-md">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Welcome to Trakure!
-          </h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Let&apos;s start by setting up your profile.
-          </p>
-        </div>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="full_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Full Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Ada Lovelace" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    This is how your name will appear in Trakure.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={mutation.isPending}
-            >
-              {mutation.isPending ? "Saving" : "Save and Continue"}
-            </Button>
-          </form>
-        </Form>
-      </div>
-    </div>
-  );
 }

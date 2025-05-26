@@ -24,25 +24,15 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useWorkflowStructure } from "@/hooks/queries/use-workflow-structure";
+// Textarea, Select, and useWorkflowStructure imports removed - packaging reminders coming soon
 // import { getOrderQueryKey } from "@/hooks/queries/use-order"; // Assuming this exists - Temporarily commented out
 // import { getWorkflowQueryKey } from "@/hooks/queries/use-workflow-structure"; // Removed unused import
 
-// Define Zod schema (same as new order page)
+// Define Zod schema (packaging reminders disabled - coming soon)
 const orderFormSchema = z.object({
   order_number: z.string().min(1, "Order Number is required"),
   customer_name: z.string().min(1, "Customer Name is required"),
-  required_packaging_materials: z.string().optional(),
-  packaging_reminder_trigger: z.string().optional(),
-  // TODO: Add other fields if necessary for editing
+  // Packaging reminder fields removed - coming soon
 });
 
 type OrderFormValues = z.infer<typeof orderFormSchema>;
@@ -72,33 +62,12 @@ async function updateOrder({
   orderId: string;
   orderData: OrderFormValues;
 }) {
-  // Prepare data for API (similar transformation as createOrder)
-  const apiPayload = {
-    ...orderData,
-    required_packaging_materials:
-      orderData.required_packaging_materials
-        ?.split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0) || null, // Handle empty string -> null
-    packaging_reminder_trigger_stage_id:
-      orderData.packaging_reminder_trigger?.startsWith("stage:")
-        ? orderData.packaging_reminder_trigger.split(":")[1]
-        : null, // Explicitly set null if not stage
-    packaging_reminder_trigger_sub_stage_id:
-      orderData.packaging_reminder_trigger?.startsWith("sub_stage:")
-        ? orderData.packaging_reminder_trigger.split(":")[1]
-        : null, // Explicitly set null if not sub-stage
-  };
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { packaging_reminder_trigger: _unusedTrigger, ...payloadToSend } =
-    apiPayload;
-
   const response = await fetch(`/api/orders/${orderId}`, {
     method: "PATCH", // Use PATCH for partial updates
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(payloadToSend),
+    body: JSON.stringify(orderData),
   });
 
   if (!response.ok) {
@@ -120,32 +89,15 @@ export function EditOrderForm({ initialData }: EditOrderFormProps) {
   const orderId = initialData.id;
   const organizationId = initialData.organization_id;
 
-  // Helper to derive the combined trigger value for the form
-  const getInitialTriggerValue = () => {
-    if (initialData.packaging_reminder_trigger_stage_id) {
-      return `stage:${initialData.packaging_reminder_trigger_stage_id}`;
-    }
-    if (initialData.packaging_reminder_trigger_sub_stage_id) {
-      return `sub_stage:${initialData.packaging_reminder_trigger_sub_stage_id}`;
-    }
-    return ""; // No reminder set
-  };
-
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
       order_number: initialData.order_number || "",
       customer_name: initialData.customer_name || "",
-      required_packaging_materials:
-        initialData.required_packaging_materials?.join(", ") || "", // Join array to string
-      packaging_reminder_trigger: getInitialTriggerValue(), // Set combined trigger value
-      // Initialize other fields from initialData if needed
     },
   });
 
-  // Fetch workflow structure
-  const { data: workflowData, isLoading: isLoadingWorkflow } =
-    useWorkflowStructure(organizationId);
+  // Workflow structure fetching removed - packaging reminders coming soon
 
   // Setup mutation
   const mutation = useMutation({
@@ -207,76 +159,28 @@ export function EditOrderForm({ initialData }: EditOrderFormProps) {
               )}
             />
 
-            {/* Packaging Fields */}
-            <FormField
-              control={form.control}
-              name="required_packaging_materials"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Required Packaging Materials</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Enter required materials, separated by commas (e.g., Box Type A, Bubble Wrap, Tape)"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="packaging_reminder_trigger"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Send Packaging Reminder When Items Reach:
-                  </FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value} // Use controlled value
-                    disabled={isLoadingWorkflow}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a stage or sub-stage..." />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="">-- No Reminder --</SelectItem>
-                      {workflowData?.map((stage) => (
-                        <React.Fragment key={`stage_group_${stage.id}`}>
-                          <SelectItem
-                            key={`stage:${stage.id}`}
-                            value={`stage:${stage.id}`}
-                          >
-                            Stage: {stage.name}
-                          </SelectItem>
-                          {stage.sub_stages?.map((subStage) => (
-                            <SelectItem
-                              key={`sub_stage:${subStage.id}`}
-                              value={`sub_stage:${subStage.id}`}
-                              className="pl-8"
-                            >
-                              Sub-stage: {stage.name} &gt; {subStage.name}
-                            </SelectItem>
-                          ))}
-                        </React.Fragment>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Packaging Reminders (Coming Soon) */}
+            <div className="space-y-4">
+              <div className="border rounded-lg p-6 bg-muted/50">
+                <div className="flex items-center space-x-2 mb-3">
+                  <h3 className="text-lg font-medium">
+                    📦 Packaging Reminders
+                  </h3>
+                  <span className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded">
+                    Coming Soon
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Packaging reminder settings will be available in a future
+                  update.
+                </p>
+              </div>
+            </div>
 
             {/* TODO: Add other editable fields here */}
           </CardContent>
           <CardFooter>
-            <Button
-              type="submit"
-              disabled={mutation.isPending || isLoadingWorkflow}
-            >
+            <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
             {/* Optional: Add a Cancel button */}

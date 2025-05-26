@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Dot,
   PackageOpenIcon,
+  CheckCircle2Icon,
 } from "lucide-react";
 
 import { NavSecondary } from "@/components/nav-secondary";
@@ -39,6 +40,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useWorkflow } from "@/hooks/queries/use-workflow";
 import { useNewItemsCount } from "@/hooks/queries/use-new-items-count";
+import { useCompletedItemsCount } from "@/hooks/queries/use-completed-items-count";
 
 interface SubStage {
   id: string;
@@ -80,6 +82,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     // isError: isErrorNewItemsCount, // Optional: handle specific error display for count
     // error: errorNewItemsCount
   } = useNewItemsCount(); // Use the new hook
+
+  const {
+    data: completedItemsCount,
+    isLoading: isLoadingCompletedItemsCount,
+    // isError: isErrorCompletedItemsCount, // Optional: handle specific error display for count
+    // error: errorCompletedItemsCount
+  } = useCompletedItemsCount(); // Use the new hook
 
   const workflowData = workflowDataUntyped as Stage[] | undefined;
 
@@ -387,6 +396,38 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               })}
             </nav>
           )}
+
+        {/* Completed Items Section */}
+        <div className="px-3 py-3 border-t border-sidebar-border">
+          <Link href="/completed-items" passHref>
+            <Button
+              variant={pathname === "/completed-items" ? "secondary" : "ghost"}
+              size="sm"
+              className="w-full justify-start pl-3 pr-2"
+            >
+              <CheckCircle2Icon className="mr-2 h-4 w-4" />
+              <span className="flex-grow text-left mr-2 truncate">
+                Completed Items
+              </span>
+              {!isLoadingCompletedItemsCount &&
+                typeof completedItemsCount === "number" && (
+                  <Badge
+                    variant={completedItemsCount > 0 ? "default" : "secondary"}
+                    className={cn(
+                      "flex-shrink-0",
+                      completedItemsCount > 0 && "bg-green-600 text-white"
+                    )}
+                  >
+                    {completedItemsCount}
+                  </Badge>
+                )}
+              {isLoadingCompletedItemsCount && (
+                <Skeleton className="h-4 w-6 rounded-full" />
+              )}
+            </Button>
+          </Link>
+        </div>
+
         <NavSecondary
           items={data.navSecondary}
           className="mt-auto border-t border-sidebar-border"

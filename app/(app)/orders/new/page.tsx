@@ -35,10 +35,13 @@ import {
 import { useWorkflowStructure } from "@/hooks/queries/use-workflow-structure";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Info, Terminal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+// Checkbox import removed - packaging reminders coming soon
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
+import { TooltipContent } from "@/components/ui/tooltip";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Define Zod schema based on Task 1.2 (assuming required fields)
 const orderFormSchema = z.object({
@@ -48,57 +51,21 @@ const orderFormSchema = z.object({
     .number()
     .int()
     .positive("Total quantity must be greater than0"),
-  // Add other fields as needed based on PRD
-  required_packaging_materials: z.array(z.string()).optional(), // Make optional, rely on defaultValues
-  custom_packaging_material: z.string().optional(), // Temporary field for the input
-  packaging_reminder_trigger: z.string().optional(),
+  // Packaging reminder fields removed - coming soon
 });
 
 type OrderFormValues = z.infer<typeof orderFormSchema>;
 
-const COMMON_PACKAGING_MATERIALS = [
-  "Box Type A",
-  "Box Type B",
-  "Bubble Wrap",
-  "Packing Tape",
-  "Foam Peanuts",
-  "Fragile Sticker",
-  "Velvet Box",
-];
+// Packaging materials constants removed - coming soon
 
 // Function to post data to the API
 async function createOrder(orderData: OrderFormValues) {
-  // Destructure to remove the temporary custom field before sending
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { custom_packaging_material: _unusedCustom, ...payloadToSend } =
-    orderData;
-
-  const apiPayload = {
-    ...payloadToSend, // Use the destructured payload
-    // No need to split/map required_packaging_materials, it's already an array
-    packaging_reminder_trigger_stage_id:
-      orderData.packaging_reminder_trigger?.startsWith("stage:") &&
-      orderData.packaging_reminder_trigger !== "none" // Check for "none"
-        ? orderData.packaging_reminder_trigger.split(":")[1]
-        : undefined,
-    packaging_reminder_trigger_sub_stage_id:
-      orderData.packaging_reminder_trigger?.startsWith("sub_stage:") &&
-      orderData.packaging_reminder_trigger !== "none" // Check for "none"
-        ? orderData.packaging_reminder_trigger.split(":")[1]
-        : undefined,
-  };
-  // Remove the combined trigger field before sending
-  // Prefix with underscore to silence linter warning about unused variable
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { packaging_reminder_trigger: _unusedTrigger, ...finalPayload } =
-    apiPayload; // Use object destructuring instead
-
   const response = await fetch("/api/orders", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(finalPayload), // Use the final payload
+    body: JSON.stringify(orderData),
   });
 
   if (!response.ok) {
@@ -132,10 +99,7 @@ export default function NewOrderPage() {
     defaultValues: {
       order_number: "",
       customer_name: "",
-      total_quantity: 0, // Default to 1
-      required_packaging_materials: [], // Default to empty array
-      custom_packaging_material: "", // Default custom input
-      packaging_reminder_trigger: undefined,
+      total_quantity: 0,
     },
   });
 
@@ -287,7 +251,26 @@ export default function NewOrderPage() {
                   name="total_quantity"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Total Quantity of Items</FormLabel>
+                      <div className="flex items-center gap-1">
+                        <FormLabel>Total Quantity of Items</FormLabel>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button className="text-muted-foreground hover:text-foreground">
+                                <Info className="h-3 w-3" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p>
+                                This is the total quantity of items that will be
+                                added to the order. Eg: If the order is for 100
+                                units of Item A, and 50 units of Item B, then
+                                the total quantity would be 150.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
                       <FormControl>
                         <Input
                           type="number"
@@ -303,188 +286,41 @@ export default function NewOrderPage() {
                   )}
                 />
 
-                {/* --- Required Packaging Materials --- */}
-                <FormField
-                  control={form.control}
-                  name="required_packaging_materials"
-                  render={({ field }) => (
-                    <FormItem className="space-y-4">
-                      <FormLabel>Required Packaging Materials</FormLabel>
-                      <div className="space-y-4">
-                        <div>
-                          <FormLabel className="text-sm font-normal text-muted-foreground">
-                            Common Materials:
-                          </FormLabel>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                            {COMMON_PACKAGING_MATERIALS.map((material) => (
-                              <FormField
-                                key={material}
-                                control={form.control} // Inner FormField for checkbox state
-                                name="required_packaging_materials" // Bind to the same array
-                                render={({ field: checkboxField }) => {
-                                  const isChecked =
-                                    checkboxField.value?.includes(material);
-                                  return (
-                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                      <FormControl>
-                                        <Checkbox
-                                          checked={isChecked}
-                                          onCheckedChange={(checked) => {
-                                            const currentMaterials =
-                                              checkboxField.value || [];
-                                            if (checked) {
-                                              checkboxField.onChange([
-                                                ...currentMaterials,
-                                                material,
-                                              ]);
-                                            } else {
-                                              checkboxField.onChange(
-                                                currentMaterials.filter(
-                                                  (m) => m !== material
-                                                )
-                                              );
-                                            }
-                                          }}
-                                        />
-                                      </FormControl>
-                                      <FormLabel className="font-normal">
-                                        {material}
-                                      </FormLabel>
-                                    </FormItem>
-                                  );
-                                }}
-                              />
-                            ))}
-                          </div>
-                        </div>
-
-                        <div>
-                          <FormLabel className="text-sm font-normal text-muted-foreground">
-                            Custom Material:
-                          </FormLabel>
-                          <div className="flex items-center space-x-2 mt-2">
-                            <FormField
-                              control={form.control}
-                              name="custom_packaging_material" // Separate field for input
-                              render={({ field: customField }) => (
-                                <FormControl>
-                                  <Input
-                                    placeholder="Enter custom material name"
-                                    {...customField}
-                                  />
-                                </FormControl>
-                              )}
-                            />
-                            <Button
-                              type="button" // Prevent form submission
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const customMaterial = form
-                                  .getValues("custom_packaging_material")
-                                  ?.trim();
-                                const currentMaterials = field.value || [];
-                                if (
-                                  customMaterial &&
-                                  !currentMaterials.includes(customMaterial)
-                                ) {
-                                  field.onChange([
-                                    ...currentMaterials,
-                                    customMaterial,
-                                  ]);
-                                  form.setValue(
-                                    "custom_packaging_material",
-                                    ""
-                                  ); // Clear input
-                                }
-                              }}
-                            >
-                              Add
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <FormLabel className="text-sm font-normal text-muted-foreground">
-                            Selected Materials:
-                          </FormLabel>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {field.value && field.value.length > 0 ? (
-                              field.value.map((material) => (
-                                <Badge key={material} variant="secondary">
-                                  {material}
-                                </Badge>
-                              ))
-                            ) : (
-                              <p className="text-sm text-muted-foreground">
-                                No materials selected.
-                              </p>
-                            )}
-                          </div>
-                        </div>
+                {/* --- Packaging Reminders (Coming Soon) --- */}
+                <div className="space-y-4">
+                  <div className="border rounded-lg p-6 bg-muted/50">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <h3 className="text-lg font-medium">
+                        📦 Packaging Reminders
+                      </h3>
+                      <Badge variant="secondary" className="text-xs">
+                        Coming Soon
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Automatically get notified when it's time to order
+                      packaging materials based on your order progress.
+                    </p>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-muted-foreground/40 rounded-full"></div>
+                        <span>
+                          Define required packaging materials per order
+                        </span>
                       </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="packaging_reminder_trigger"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Send Packaging Reminder When Items Reach:
-                      </FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        disabled={isWorkflowSelectLoading}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            {isWorkflowSelectLoading || !isMounted ? (
-                              <span className="text-muted-foreground">
-                                Loading workflow...
-                              </span>
-                            ) : (
-                              <SelectValue placeholder="Select a stage or sub-stage..." />
-                            )}
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {/* Only render content if mounted and not loading */}
-                          {isMounted && !isWorkflowSelectLoading && (
-                            <>
-                              <SelectItem value="none">
-                                -- No Reminder --
-                              </SelectItem>
-                              {/* Use flatMap to avoid React.Fragment inside SelectContent */}
-                              {workflowResultData?.flatMap((stage) => [
-                                <SelectItem
-                                  key={`stage:${stage.id}`}
-                                  value={`stage:${stage.id}`}
-                                >
-                                  Stage: {stage.name}
-                                </SelectItem>,
-                                ...(stage.sub_stages?.map((subStage) => (
-                                  <SelectItem
-                                    key={`sub_stage:${subStage.id}`}
-                                    value={`sub_stage:${subStage.id}`}
-                                    className="pl-8"
-                                  >
-                                    Sub-stage: {stage.name} &gt; {subStage.name}
-                                  </SelectItem>
-                                )) || []), // Handle potentially null/undefined sub-stages
-                              ])}
-                            </>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-muted-foreground/40 rounded-full"></div>
+                        <span>Set trigger stages for automatic reminders</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-muted-foreground/40 rounded-full"></div>
+                        <span>
+                          Email notifications with lead time considerations
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
               <CardFooter>
                 <Button

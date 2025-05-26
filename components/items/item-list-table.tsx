@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner"; // Import toast
+import { DateRange } from "react-day-picker";
 
 import {
   MoreHorizontal,
@@ -20,11 +21,27 @@ import {
   ChevronsRight, // Icon for submenu
   Info, // Import the Info icon
   RotateCcw, // Icon for Rework
+  FileText, // Icon for PDF
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { DatePickerWithRange } from "@/components/ui/date-picker-with-range";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -90,7 +107,8 @@ interface ItemListTableMeta {
   onViewDetails?: (details: Record<string, unknown>, itemName: string) => void;
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
-    targetStageId?: string | null
+    targetStageId?: string | null,
+    sourceStageId?: string | null
   ) => void;
   handleOpenSingleReworkQuantityModal?: (item: ItemForSingleRework) => void;
   isMovingItems: boolean;
@@ -254,7 +272,26 @@ export const columns: ColumnDef<ItemInStage>[] = [
   },
   {
     id: "voucher",
-    header: "Voucher",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <span>Voucher</span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button className="text-muted-foreground hover:text-foreground">
+                <Info className="h-3 w-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p>
+                Download the latest movement voucher for the current item's
+                quantity that has reached this stage.
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    ),
     cell: ({ row, table }) => {
       const item = row.original as ItemInStage & {
         current_stage_history_id?: string;
@@ -551,6 +588,11 @@ export function ItemListTable({
   const [orderIdFilter, setOrderIdFilter] = useState<string | null>(null);
   const debouncedOrderIdFilter = useDebounce(orderIdFilter, 500);
 
+  // State for PDF export modal and date range picker
+  const [isPdfExportModalOpen, setIsPdfExportModalOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
   const { data: workflowData, isLoading: isWorkflowLoading } =
     useWorkflowStructure(organizationId);
 
@@ -575,9 +617,10 @@ export function ItemListTable({
 
   const handleMoveForward = (
     itemsToMove: { id: string; quantity: number }[], // Updated signature
-    targetStageId?: string | null // Add optional targetStageId
+    targetStageId?: string | null, // Add optional targetStageId
+    sourceStageId?: string | null // Add optional sourceStageId
   ) => {
-    console.log("hereee", itemsToMove, targetStageId);
+    console.log("hereee", itemsToMove, targetStageId, sourceStageId);
 
     if (!organizationId) {
       // organizationId from useProfileAndOrg
@@ -589,6 +632,7 @@ export function ItemListTable({
         items: itemsToMove, // Updated payload
         organizationId: organizationId, // organizationId from useProfileAndOrg
         targetStageId: targetStageId, // Pass it here
+        sourceStageId: sourceStageId || stageId, // Use provided sourceStageId or current stageId
       },
       {
         onSuccess: () => {
@@ -608,41 +652,73 @@ export function ItemListTable({
     setRowSelection({}); // Clear selection after successful rework
   };
 
-  const handleExportCsv = async () => {
+  const handleOpenPdfExportModal = () => {
+    setIsPdfExportModalOpen(true);
+  };
+
+  const handleExportPdf = async (selectedDateRange?: DateRange) => {
     if (!organizationId) {
-      // organizationId from useProfileAndOrg
       toast.error("Organization ID is missing. Cannot export items.");
       return;
     }
-    const toastId = toast.loading("Generating CSV export...");
+
+    setIsExportingPdf(true);
+    const toastId = toast.loading("Generating PDF export...");
+
     try {
+      // Build query parameters
+      const params = new URLSearchParams({
+        organizationId: organizationId,
+        stageId: stageId,
+      });
+
+      if (subStageId) {
+        params.append("subStageId", subStageId);
+      }
+
+      if (debouncedOrderIdFilter) {
+        params.append("orderId", debouncedOrderIdFilter);
+      }
+
+      // Add date range parameters if selected
+      if (selectedDateRange?.from) {
+        params.append("startDate", selectedDateRange.from.toISOString());
+      }
+      if (selectedDateRange?.to) {
+        params.append("endDate", selectedDateRange.to.toISOString());
+      }
+
       const response = await fetch(
-        // Use propOrganizationId if specifically for the current stage context, or hook's if general
-        // Assuming stageId and subStageId from props are the context for export
-        `/api/items/export?organizationId=${organizationId}&stageId=${stageId}` +
-          (subStageId ? `&subStageId=${subStageId}` : "") +
-          (debouncedOrderIdFilter ? `&orderId=${debouncedOrderIdFilter}` : "")
+        `/api/items/export-pdf?${params.toString()}`
       );
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate CSV");
+        throw new Error(errorData.error || "Failed to generate PDF");
       }
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      a.download = `items_${stageId}_${timestamp}.csv`;
+      a.download = `items_${stageId}_${timestamp}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
-      toast.success("CSV export generated successfully.", { id: toastId });
+      toast.success("PDF export generated successfully.", { id: toastId });
+
+      // Close modal and reset state
+      setIsPdfExportModalOpen(false);
+      setDateRange(undefined);
     } catch (error) {
-      console.error("Export CSV error:", error);
+      console.error("Export PDF error:", error);
       toast.error(`Export failed: ${(error as Error).message}`, {
         id: toastId,
       });
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -654,13 +730,6 @@ export function ItemListTable({
   const selectedItemsData = React.useMemo(() => {
     return [];
   }, [rowSelection]);
-  /*
-  // Example of how to get selected item IDs if table instance were here:
-  // const selectedItemIds = table.getSelectedRowModel().flatRows.map(row => row.original.id);
-
-  // If we need to pass the table instance or selected data up from ItemTableCore,
-  // that would be a significant refactor. For now, bulk actions might need table instance.
-  */
 
   const handleOpenMoveQuantityModal = (details: ItemToMoveDetails) => {
     setItemToMoveDetails(details);
@@ -830,24 +899,24 @@ export function ItemListTable({
 
   return (
     <div className="space-y-4">
-      {/* --- Restore Filter Input and Export Button --- */}
+      {/* --- Updated Filter Input and Export Button --- */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
         <Input
           placeholder="Filter by Order ID..."
           value={orderIdFilter ?? ""}
           onChange={(event) => setOrderIdFilter(event.target.value)}
-          className="max-w-sm text-sm h-9" // Adjusted height to h-9
+          className="max-w-sm text-sm h-9"
         />
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <Button
             variant="outline"
-            size="sm" // Ensure consistent button size
-            onClick={handleExportCsv}
-            disabled={isMovingItems || isReworkingItems} // isMovingItems from useMoveItemsForward
-            className="h-9" // Ensure button height matches input
+            size="sm"
+            onClick={handleOpenPdfExportModal}
+            disabled={isMovingItems || isReworkingItems}
+            className="h-9"
           >
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
+            <FileText className="mr-2 h-4 w-4" />
+            Export PDF
           </Button>
           {/* --- Restore DropdownMenu for bulk actions --- */}
           {userRole === "Owner" &&
@@ -863,7 +932,7 @@ export function ItemListTable({
                       isReworkingItems ||
                       Object.keys(rowSelection).length === 0
                     }
-                    className="h-9" // Ensure button height matches input
+                    className="h-9"
                   >
                     Move Selected To <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
@@ -874,9 +943,7 @@ export function ItemListTable({
                   {subsequentStages.map((target) => (
                     <DropdownMenuItem
                       key={target.id}
-                      onClick={
-                        () => handleOpenBulkMoveModal(target) // Updated to open bulk modal
-                      }
+                      onClick={() => handleOpenBulkMoveModal(target)}
                       disabled={isMovingItems || isReworkingItems}
                     >
                       {target.name || target.id}
@@ -887,6 +954,47 @@ export function ItemListTable({
             )}
         </div>
       </div>
+
+      {/* --- PDF Export Modal --- */}
+      <Dialog
+        open={isPdfExportModalOpen}
+        onOpenChange={setIsPdfExportModalOpen}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Export Items to PDF</DialogTitle>
+            <DialogDescription>
+              Choose a date range to filter items by when they entered the
+              current stage. Leave empty to export all items in this stage.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <DatePickerWithRange
+              date={dateRange}
+              onDateChange={setDateRange}
+              className="w-full"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsPdfExportModalOpen(false);
+                setDateRange(undefined);
+              }}
+              disabled={isExportingPdf}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => handleExportPdf(dateRange)}
+              disabled={isExportingPdf}
+            >
+              {isExportingPdf ? "Generating..." : "Export PDF"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* --- Restore ItemTableCore --- */}
       <ItemTableCore
@@ -950,6 +1058,7 @@ export function ItemListTable({
             currentQuantity: itemToMoveDetails.currentQuantity,
           }}
           targetStageName={itemToMoveDetails.targetStageName}
+          targetStageId={itemToMoveDetails.targetStageId}
           onConfirmMove={handleConfirmMoveItem}
           userRole={userRole}
         />
@@ -980,6 +1089,7 @@ export function ItemListTable({
           onConfirmRework={handleConfirmSingleRework}
           isProcessing={isReworkingItems}
           availableStages={workflowData || []}
+          userRole={userRole}
         />
       )}
 
@@ -996,6 +1106,7 @@ export function ItemListTable({
           onConfirmBulkRework={handleConfirmBulkRework}
           isProcessing={isReworkingItems}
           availableStages={workflowData || []}
+          userRole={userRole}
         />
       )}
     </div>

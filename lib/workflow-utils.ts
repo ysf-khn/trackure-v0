@@ -192,3 +192,76 @@ export function getSubsequentStages(
 
   return subsequent;
 }
+
+/**
+ * Get the "Completed" stage ID for an organization
+ */
+export async function getCompletedStageId(
+  organizationId: string,
+  supabase: any
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("workflow_stages")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("name", "Completed")
+    .eq("is_default", false)
+    .single();
+
+  if (error) {
+    console.error("Error fetching completed stage:", error);
+    return null;
+  }
+
+  return data?.id || null;
+}
+
+/**
+ * Check if the current stage is the last regular workflow stage before "Completed"
+ */
+export function isLastWorkflowStage(
+  stageId: string,
+  subStageId: string | null,
+  workflowStages: FetchedWorkflowStage[]
+): boolean {
+  // Filter out the "Completed" stage from regular workflow stages
+  const regularWorkflowStages = workflowStages.filter(
+    (stage) => stage.name !== "Completed"
+  );
+
+  if (regularWorkflowStages.length === 0) {
+    return false;
+  }
+
+  // Sort by sequence order
+  regularWorkflowStages.sort((a, b) => a.sequence_order - b.sequence_order);
+
+  const lastStage = regularWorkflowStages[regularWorkflowStages.length - 1];
+
+  // If we're in the last stage
+  if (stageId === lastStage.id) {
+    // If there are sub-stages, check if we're in the last sub-stage
+    if (lastStage.sub_stages && lastStage.sub_stages.length > 0) {
+      const lastSubStage = lastStage.sub_stages.sort(
+        (a, b) => a.sequence_order - b.sequence_order
+      )[lastStage.sub_stages.length - 1];
+      return subStageId === lastSubStage.id;
+    } else {
+      // No sub-stages, so being in this stage means we're at the end
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Determine if the next move should go to "Completed" stage
+ */
+export function shouldMoveToCompleted(
+  currentStageId: string,
+  currentSubStageId: string | null,
+  workflowStages: FetchedWorkflowStage[]
+): boolean {
+  return isLastWorkflowStage(currentStageId, currentSubStageId, workflowStages);
+}

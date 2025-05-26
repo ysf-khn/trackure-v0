@@ -63,12 +63,12 @@ export const Navbar = () => {
             >
               Sign in
             </Link>
-            <Button
-              size="sm"
-              className="text-white bg-blue-600 hover:bg-blue-700"
+            <Link
+              href="/pricing"
+              className="px-4 py-2 rounded-md text-white text-sm font-medium bg-blue-600 hover:bg-blue-700"
             >
               Start Free Trial
-            </Button>
+            </Link>
           </div>
 
           {/* Mobile menu button */}

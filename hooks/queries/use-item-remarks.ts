@@ -5,16 +5,17 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { useQuery } from "@tanstack/react-query";
 
 export interface RemarkWithProfile {
-  id: string;
+  id: number;
   timestamp: string;
   text: string;
   item_id: string;
   user_id: string;
+  created_by: string;
 }
 
-// Type for the raw data returned by Supabase before transformation
+// Type for the raw data returned by Supabase
 interface RawRemarkData {
-  id: string;
+  id: number;
   timestamp: string;
   text: string;
   item_id: string;
@@ -51,6 +52,7 @@ async function fetchItemRemarks(
     text: remark.text,
     item_id: remark.item_id,
     user_id: remark.user_id,
+    created_by: remark.user_id,
   }));
 
   return processedData;

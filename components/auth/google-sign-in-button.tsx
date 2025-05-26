@@ -2,13 +2,18 @@
 
 import { Button } from "@/components/ui/button";
 import { signInWithGoogleAction } from "@/app/actions";
+
 export function GoogleSignInButton() {
+  const handleGoogleSignIn = () => {
+    signInWithGoogleAction(); // No productId for existing users
+  };
+
   return (
     <Button
       type="button"
       variant="outline"
-      className="w-full border border-gray-800 bg-gray-900 text-white h-12 rounded-md flex items-center justify-center gap-2 max-w-md"
-      onClick={signInWithGoogleAction}
+      className="w-full  h-12  flex items-center justify-center gap-3 max-w-md rounded-lg border border-neutral-700 bg-neutral-900 text-white font-medium transition-all hover:bg-neutral-800 hover:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+      onClick={handleGoogleSignIn}
     >
       <svg
         viewBox="0 0 24 24"

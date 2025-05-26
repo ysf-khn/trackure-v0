@@ -93,6 +93,33 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
     error,
   } = useWorkflowStructure(organizationId);
 
+  // --- Helper Functions ---
+  const isCompletedStage = (stage: FetchedWorkflowStage): boolean => {
+    return stage.name?.toLowerCase() === "completed";
+  };
+
+  // Sort workflow to ensure Completed stage is always last
+  const sortedWorkflowStructure = React.useMemo(() => {
+    if (!workflowStructure) return [];
+
+    const regularStages = workflowStructure.filter(
+      (stage) => !isCompletedStage(stage)
+    );
+    const completedStages = workflowStructure.filter((stage) =>
+      isCompletedStage(stage)
+    );
+
+    // Sort regular stages by sequence_order, then append completed stages
+    const sortedRegular = regularStages.sort(
+      (a, b) => a.sequence_order - b.sequence_order
+    );
+    const sortedCompleted = completedStages.sort(
+      (a, b) => a.sequence_order - b.sequence_order
+    );
+
+    return [...sortedRegular, ...sortedCompleted];
+  }, [workflowStructure]);
+
   // --- Mutations ---
   const reorderStageMutation = useMutation({
     mutationFn: reorderStageApi,
@@ -189,14 +216,36 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
 
   // --- Event Handlers ---
   const handleAddStage = () => setIsAddStageModalOpen(true);
-  const handleEditStage = (stage: FetchedWorkflowStage) =>
+
+  const handleEditStage = (stage: FetchedWorkflowStage) => {
+    // Allow editing of completed stage but with restrictions
     setEditingStage(stage);
-  const handleDeleteStage = (stage: FetchedWorkflowStage) =>
+  };
+
+  const handleDeleteStage = (stage: FetchedWorkflowStage) => {
+    // Prevent deletion of completed stage
+    if (isCompletedStage(stage)) {
+      toast.error(
+        "The 'Completed' stage cannot be deleted as it's required by the system."
+      );
+      return;
+    }
     setDeletingStage(stage);
+  };
 
   // Placeholder handlers - these will be implemented in later steps or remain as placeholders
   const handleMoveStage = (id: string, direction: "up" | "down") => {
     if (reorderStageMutation.isPending) return;
+
+    // Find the stage being moved
+    const stage = workflowStructure?.find((s) => s.id === id);
+    if (stage && isCompletedStage(stage)) {
+      toast.error(
+        "The 'Completed' stage cannot be moved as it must remain the final stage."
+      );
+      return;
+    }
+
     reorderStageMutation.mutate({ itemId: id, direction });
   };
 
@@ -226,190 +275,238 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
       <Card className="border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Workflow Structure</CardTitle>
-          <Button
-            onClick={handleAddStage}
-            size="sm"
-            disabled={
-              reorderStageMutation.isPending ||
-              reorderSubStageMutation.isPending
-            }
-          >
-            <PlusIcon className="mr-2 h-4 w-4" /> Add Stage
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleAddStage}
+              size="sm"
+              disabled={
+                reorderStageMutation.isPending ||
+                reorderSubStageMutation.isPending
+              }
+            >
+              <PlusIcon className="mr-2 h-4 w-4" /> Add Stage
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {workflowStructure.map((stage, stageIndex) => (
-              <div
-                key={stage.id}
-                className="rounded-md border border-border p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-semibold">{`${stage.sequence_order}. ${stage.name}`}</h4>
-                    {stage.location && (
-                      <p className="text-sm text-muted-foreground">
-                        Location: {stage.location}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      title="Move Stage Up"
-                      onClick={() => handleMoveStage(stage.id, "up")}
-                      disabled={
-                        stageIndex === 0 ||
-                        reorderStageMutation.isPending ||
-                        reorderSubStageMutation.isPending
-                      }
-                    >
-                      <ArrowUpIcon className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      title="Move Stage Down"
-                      onClick={() => handleMoveStage(stage.id, "down")}
-                      disabled={
-                        stageIndex === (workflowStructure?.length ?? 0) - 1 ||
-                        reorderStageMutation.isPending ||
-                        reorderSubStageMutation.isPending
-                      }
-                    >
-                      <ArrowDownIcon className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      title="Add Sub-stage"
-                      onClick={() => handleAddSubStage(stage)}
-                      disabled={
-                        reorderStageMutation.isPending ||
-                        reorderSubStageMutation.isPending
-                      }
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      title="Edit Stage"
-                      onClick={() => handleEditStage(stage)}
-                      disabled={
-                        reorderStageMutation.isPending ||
-                        reorderSubStageMutation.isPending
-                      }
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      title="Delete Stage"
-                      onClick={() => handleDeleteStage(stage)}
-                      disabled={
-                        reorderStageMutation.isPending ||
-                        reorderSubStageMutation.isPending
-                      }
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+            {sortedWorkflowStructure.map((stage, stageIndex) => {
+              const isCompleted = isCompletedStage(stage);
+              const isFirstNonCompletedStage = stageIndex === 0 && !isCompleted;
+              const isLastNonCompletedStage =
+                stageIndex ===
+                  sortedWorkflowStructure.filter((s) => !isCompletedStage(s))
+                    .length -
+                    1 && !isCompleted;
 
-                {/* Sub-stages List */}
-                {stage.sub_stages.length > 0 && (
-                  <div className="ml-6 mt-3 space-y-2 border-l pl-4">
-                    {stage.sub_stages
-                      .sort(
-                        (a: FetchedSubStage, b: FetchedSubStage) =>
-                          a.sequence_order - b.sequence_order
-                      )
-                      .map(
-                        (subStage: FetchedSubStage, subStageIndex: number) => (
-                          <div
-                            key={subStage.id}
-                            className="flex items-center justify-between"
-                          >
-                            <div>
-                              <span>{`${stage.sequence_order}.${subStage.sequence_order}. ${subStage.name}`}</span>
-                              {subStage.location && (
-                                <p className="text-sm text-muted-foreground">
-                                  Location: {subStage.location}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Move Sub-stage Up"
-                                onClick={() =>
-                                  handleMoveSubStage(subStage.id, "up")
-                                }
-                                disabled={
-                                  subStageIndex === 0 ||
-                                  reorderStageMutation.isPending ||
-                                  reorderSubStageMutation.isPending
-                                }
-                              >
-                                <ArrowUpIcon className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Move Sub-stage Down"
-                                onClick={() =>
-                                  handleMoveSubStage(subStage.id, "down")
-                                }
-                                disabled={
-                                  subStageIndex ===
-                                    stage.sub_stages.length - 1 ||
-                                  reorderStageMutation.isPending ||
-                                  reorderSubStageMutation.isPending
-                                }
-                              >
-                                <ArrowDownIcon className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Edit Sub-stage"
-                                onClick={() => handleEditSubStage(subStage)}
-                                disabled={
-                                  reorderStageMutation.isPending ||
-                                  reorderSubStageMutation.isPending
-                                }
-                              >
-                                <PencilIcon className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                title="Delete Sub-stage"
-                                onClick={() => handleDeleteSubStage(subStage)}
-                                disabled={
-                                  reorderStageMutation.isPending ||
-                                  reorderSubStageMutation.isPending
-                                }
-                              >
-                                <TrashIcon className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        )
+              // Calculate display sequence order (normalized for user display)
+              const displaySequenceOrder = isCompleted
+                ? sortedWorkflowStructure.length // Show as last
+                : stageIndex + 1; // Show 1, 2, 3, etc.
+
+              return (
+                <div
+                  key={stage.id}
+                  className={`rounded-md border p-4 ${isCompleted ? "border-green-200 bg-green-50/30" : "border-border"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold flex items-center gap-2">
+                        {`${displaySequenceOrder}. ${stage.name}`}
+                        {isCompleted && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                            System Stage
+                          </span>
+                        )}
+                      </h4>
+                      {stage.location && (
+                        <p className="text-sm text-muted-foreground">
+                          Location: {stage.location}
+                        </p>
                       )}
+                      {isCompleted && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          This stage is automatically managed by the system and
+                          must remain as the final stage.
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {/* Move Up Button - hidden for completed stages and first stage */}
+                      {!isCompleted && !isFirstNonCompletedStage && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          title="Move Stage Up"
+                          onClick={() => handleMoveStage(stage.id, "up")}
+                          disabled={
+                            reorderStageMutation.isPending ||
+                            reorderSubStageMutation.isPending
+                          }
+                        >
+                          <ArrowUpIcon className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      {/* Move Down Button - hidden for completed stages and when next stage is completed */}
+                      {!isCompleted && !isLastNonCompletedStage && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          title="Move Stage Down"
+                          onClick={() => handleMoveStage(stage.id, "down")}
+                          disabled={
+                            reorderStageMutation.isPending ||
+                            reorderSubStageMutation.isPending
+                          }
+                        >
+                          <ArrowDownIcon className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      {/* Add Sub-stage Button */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        title="Add Sub-stage"
+                        onClick={() => handleAddSubStage(stage)}
+                        disabled={
+                          reorderStageMutation.isPending ||
+                          reorderSubStageMutation.isPending
+                        }
+                      >
+                        <PlusIcon className="h-4 w-4" />
+                      </Button>
+
+                      {/* Edit Button */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        title={
+                          isCompleted ? "Edit Stage (Limited)" : "Edit Stage"
+                        }
+                        onClick={() => handleEditStage(stage)}
+                        disabled={
+                          reorderStageMutation.isPending ||
+                          reorderSubStageMutation.isPending
+                        }
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </Button>
+
+                      {/* Delete Button - hidden for completed stages */}
+                      {!isCompleted && (
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          title="Delete Stage"
+                          onClick={() => handleDeleteStage(stage)}
+                          disabled={
+                            reorderStageMutation.isPending ||
+                            reorderSubStageMutation.isPending
+                          }
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                )}
-                {stage.sub_stages.length === 0 && (
-                  <p className="ml-6 mt-2 text-sm text-muted-foreground">
-                    No sub-stages defined for this stage.
-                  </p>
-                )}
-              </div>
-            ))}
+
+                  {/* Sub-stages List */}
+                  {stage.sub_stages.length > 0 && (
+                    <div className="ml-6 mt-3 space-y-2 border-l pl-4">
+                      {stage.sub_stages
+                        .sort(
+                          (a: FetchedSubStage, b: FetchedSubStage) =>
+                            a.sequence_order - b.sequence_order
+                        )
+                        .map(
+                          (
+                            subStage: FetchedSubStage,
+                            subStageIndex: number
+                          ) => (
+                            <div
+                              key={subStage.id}
+                              className="flex items-center justify-between"
+                            >
+                              <div>
+                                <span>{`${displaySequenceOrder}.${subStage.sequence_order}. ${subStage.name}`}</span>
+                                {subStage.location && (
+                                  <p className="text-sm text-muted-foreground">
+                                    Location: {subStage.location}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Move Sub-stage Up"
+                                  onClick={() =>
+                                    handleMoveSubStage(subStage.id, "up")
+                                  }
+                                  disabled={
+                                    subStageIndex === 0 ||
+                                    reorderStageMutation.isPending ||
+                                    reorderSubStageMutation.isPending
+                                  }
+                                >
+                                  <ArrowUpIcon className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Move Sub-stage Down"
+                                  onClick={() =>
+                                    handleMoveSubStage(subStage.id, "down")
+                                  }
+                                  disabled={
+                                    subStageIndex ===
+                                      stage.sub_stages.length - 1 ||
+                                    reorderStageMutation.isPending ||
+                                    reorderSubStageMutation.isPending
+                                  }
+                                >
+                                  <ArrowDownIcon className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Edit Sub-stage"
+                                  onClick={() => handleEditSubStage(subStage)}
+                                  disabled={
+                                    reorderStageMutation.isPending ||
+                                    reorderSubStageMutation.isPending
+                                  }
+                                >
+                                  <PencilIcon className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="icon"
+                                  title="Delete Sub-stage"
+                                  onClick={() => handleDeleteSubStage(subStage)}
+                                  disabled={
+                                    reorderStageMutation.isPending ||
+                                    reorderSubStageMutation.isPending
+                                  }
+                                >
+                                  <TrashIcon className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        )}
+                    </div>
+                  )}
+                  {stage.sub_stages.length === 0 && (
+                    <p className="ml-6 mt-2 text-sm text-muted-foreground">
+                      No sub-stages defined for this stage.
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>

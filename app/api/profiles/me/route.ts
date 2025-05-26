@@ -45,25 +45,42 @@ export async function PUT(request: Request) {
   const { full_name } = validation.data;
 
   try {
-    // Use upsert to handle both creation and update
-    const { error: upsertError } = await supabase.from("profiles").upsert(
-      {
-        id: user.id, // Include the id for insertion/conflict resolution
-        full_name: full_name,
-        onboarding_status: "pending_org", // Set status on create/update
-      },
-      {
-        onConflict: "id", // Specify the constraint column for conflict
-      }
-    );
-    // .eq("id", user.id); // .eq is not needed with upsert onConflict
+    // Check if profile exists first to determine if this is an update or creation
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id, onboarding_status")
+      .eq("id", user.id)
+      .single();
 
-    if (upsertError) {
-      console.error("Supabase profile upsert error:", upsertError);
-      return NextResponse.json(
-        { error: "Failed to update profile", details: upsertError.message },
-        { status: 500 }
-      );
+    if (existingProfile) {
+      // Profile exists - just update the full_name, preserve existing onboarding_status
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ full_name: full_name })
+        .eq("id", user.id);
+
+      if (updateError) {
+        console.error("Supabase profile update error:", updateError);
+        return NextResponse.json(
+          { error: "Failed to update profile", details: updateError.message },
+          { status: 500 }
+        );
+      }
+    } else {
+      // Profile doesn't exist - create new with onboarding status
+      const { error: insertError } = await supabase.from("profiles").insert({
+        id: user.id,
+        full_name: full_name,
+        onboarding_status: "pending_org", // Only set this for new profiles
+      });
+
+      if (insertError) {
+        console.error("Supabase profile insert error:", insertError);
+        return NextResponse.json(
+          { error: "Failed to create profile", details: insertError.message },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({ message: "Profile updated successfully" });

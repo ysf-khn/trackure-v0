@@ -8,7 +8,10 @@ const createImageAssociationSchema = z.object({
   fileName: z.string().optional(),
   fileSizeBytes: z.number().int().positive().optional(),
   contentType: z.string().optional(),
-  remarkId: z.string().optional(), // Optional: if linking to a remark
+  remarkId: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : null)), // Convert string to number for BIGINT
 });
 
 export async function POST(
@@ -16,12 +19,12 @@ export async function POST(
   { params }: { params: Promise<{ itemId: string }> }
 ) {
   // const cookieStore = cookies(); // Removed unused variable
-  const supabase = await createClient();
   const { itemId } = await params;
 
   if (!itemId || !z.string().uuid().safeParse(itemId).success) {
     return NextResponse.json({ error: "Invalid item ID" }, { status: 400 });
   }
+  const supabase = await createClient();
 
   // 1. Authentication & Authorization - Fetch user and profile
   const {
@@ -106,7 +109,7 @@ export async function POST(
 
   // 4. Insert Image Metadata into `item_images` table
   console.log(
-    `Attempting to insert item_image: itemId=${itemId}, orgId=${organizationId}, userId=${user.id}`
+    `Attempting to insert item_image: itemId=${itemId}, orgId=${organizationId}, userId=${user.id}, remarkId=${requestData.remarkId} (type: ${typeof requestData.remarkId})`
   );
   const { error: insertError, data: insertedImage } = await supabase
     .from("item_images")
@@ -118,7 +121,7 @@ export async function POST(
       file_size_bytes: requestData.fileSizeBytes,
       content_type: requestData.contentType,
       uploaded_by: user.id,
-      remark_id: requestData.remarkId, // Include if provided
+      remark_id: requestData.remarkId, // Now properly converted to number or null
     })
     .select()
     .single();
@@ -186,6 +189,7 @@ export async function GET(
   // const organizationId = profile.organization_id; // We don't explicitly need the ID here due to RLS
 
   // Fetch images associated with the item (RLS ensures org isolation)
+  console.log("Fetching images for itemId:", itemId);
   const { data: images, error } = await supabase
     .from("item_images")
     .select(
@@ -202,5 +206,7 @@ export async function GET(
     );
   }
 
+  console.log("Found images:", images?.length || 0, "images for item", itemId);
+  console.log("Images data:", images);
   return NextResponse.json(images ?? [], { status: 200 });
 }

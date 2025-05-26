@@ -208,7 +208,15 @@ export function ReworkModal({
       // Invalidate relevant queries to trigger UI updates
       queryClient.invalidateQueries({ queryKey: ["items"] }); // Adjust query key as needed for item tables
       queryClient.invalidateQueries({ queryKey: ["itemHistory"] }); // Invalidate history if displayed
-      queryClient.invalidateQueries({ queryKey: ["workflow", "structure"] }); // Correct key for sidebar counts
+
+      // Invalidate the workflow sidebar query (which includes counts for the sidebar)
+      queryClient.invalidateQueries({ queryKey: ["workflow", "sidebar"] });
+
+      // Invalidate the new items count query
+      queryClient.invalidateQueries({ queryKey: ["newItemsCount"] });
+
+      // Invalidate the completed items count query
+      queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });
       form.reset();
       onOpenChange(false);
       onSuccess?.(); // Call optional success callback provided by parent

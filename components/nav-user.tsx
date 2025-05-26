@@ -26,11 +26,18 @@ import {
 } from "@/components/ui/sidebar";
 import { signOutAction } from "@/app/actions";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
+import { useAvatarUrl } from "@/hooks/use-avatar-url";
 import Link from "next/link";
 
 export function NavUser() {
   const { user, profile, isLoading, error } = useProfileAndOrg();
   const { isMobile } = useSidebar();
+
+  // Use the avatar URL hook for proper caching
+  const { avatarUrl } = useAvatarUrl({
+    rawAvatarUrl: user?.user_metadata?.avatar_url,
+    userId: user?.id,
+  });
 
   return (
     <SidebarMenu>
@@ -43,8 +50,9 @@ export function NavUser() {
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
                 <AvatarImage
-                  src={user?.user_metadata?.avatar_url}
+                  src={avatarUrl || undefined}
                   alt={user?.user_metadata?.name}
+                  key={avatarUrl} // Force re-render when URL changes
                 />
                 <AvatarFallback className="rounded-lg">
                   {profile?.full_name
@@ -78,8 +86,9 @@ export function NavUser() {
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage
-                    src={user?.user_metadata?.avatar_url}
+                    src={avatarUrl || undefined}
                     alt={user?.user_metadata?.name}
+                    key={avatarUrl} // Force re-render when URL changes
                   />
                   <AvatarFallback className="rounded-lg">
                     {profile?.full_name

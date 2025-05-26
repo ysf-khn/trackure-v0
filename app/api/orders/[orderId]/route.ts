@@ -4,16 +4,10 @@ import { z } from "zod";
 
 // Define the schema for the PATCH request body
 // Allow fields to be optional for partial updates
+// Packaging reminder fields removed - coming soon
 const updateOrderSchema = z.object({
   order_number: z.string().min(1).optional(),
   customer_name: z.string().min(1).optional(),
-  required_packaging_materials: z.array(z.string()).nullable().optional(), // Expecting array from frontend transformation
-  packaging_reminder_trigger_stage_id: z.string().uuid().nullable().optional(),
-  packaging_reminder_trigger_sub_stage_id: z
-    .string()
-    .uuid()
-    .nullable()
-    .optional(),
   // Add other editable fields as needed
 });
 

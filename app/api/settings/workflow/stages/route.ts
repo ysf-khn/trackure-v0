@@ -49,11 +49,13 @@ export async function POST(request: Request) {
 
     const { name, location } = validation.data;
 
-    // Calculate next sequence_order
+    // Calculate next sequence_order using simple max + 1 logic
+    // Completed stages now use sequence order 100000, so they won't interfere
     const { data: maxOrderData, error: maxOrderError } = await supabase
       .from("workflow_stages")
       .select("sequence_order")
       .eq("organization_id", organization_id)
+      .lt("sequence_order", 50000) // Only consider stages with reasonable sequence orders
       .order("sequence_order", { ascending: false })
       .limit(1)
       .maybeSingle();

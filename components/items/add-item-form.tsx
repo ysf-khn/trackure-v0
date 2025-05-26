@@ -234,7 +234,15 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
       // Invalidate queries to refetch relevant data
       queryClient.invalidateQueries({ queryKey: ["orderItems", orderId] }); // If you have a query for items specific to this order
       queryClient.invalidateQueries({ queryKey: ["itemsInStage"] }); // To update stage view lists
-      queryClient.invalidateQueries({ queryKey: ["workflow", "structure"] }); // To update sidebar counts
+
+      // Invalidate the workflow sidebar query (which includes counts for the sidebar)
+      queryClient.invalidateQueries({ queryKey: ["workflow", "sidebar"] });
+
+      // Invalidate the new items count query
+      queryClient.invalidateQueries({ queryKey: ["newItemsCount"] });
+
+      // Invalidate the completed items count query
+      queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });
       if (onItemAdded) onItemAdded(); // Call optional callback
     },
     onError: (error: Error) => {

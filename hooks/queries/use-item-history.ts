@@ -40,10 +40,40 @@ type MovementData = {
   to_sub_stage: { name: string } | null;
 };
 
-async function fetchItemHistory(itemId: string): Promise<ItemHistoryEntry[]> {
+// Pagination response type
+export type PaginatedHistoryResponse = {
+  data: ItemHistoryEntry[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+  pageSize: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
+async function fetchItemHistory(
+  itemId: string,
+  page: number = 1,
+  pageSize: number = 10
+): Promise<PaginatedHistoryResponse> {
   const supabase = createClient();
 
-  // First get the movement history with stage info
+  // Calculate offset for pagination
+  const offset = (page - 1) * pageSize;
+
+  // First get the total count
+  const { count: totalCount, error: countError } = await supabase
+    .from("item_movement_history")
+    .select("*", { count: "exact", head: true })
+    .eq("item_id", itemId);
+
+  if (countError) {
+    console.error("Error fetching item history count:", countError);
+    toast.error(`Failed to load item history count: ${countError.message}`);
+    throw countError;
+  }
+
+  // Then get the paginated movement history with stage info
   const { data: movementData, error: movementError } = await supabase
     .from("item_movement_history")
     .select(
@@ -61,6 +91,7 @@ async function fetchItemHistory(itemId: string): Promise<ItemHistoryEntry[]> {
     )
     .eq("item_id", itemId)
     .order("moved_at", { ascending: false })
+    .range(offset, offset + pageSize - 1)
     .returns<MovementData[]>();
 
   if (movementError) {
@@ -92,7 +123,7 @@ async function fetchItemHistory(itemId: string): Promise<ItemHistoryEntry[]> {
   }
 
   // Combine the data
-  return (movementData || []).map((entry) => ({
+  const historyEntries = (movementData || []).map((entry) => ({
     id: entry.id,
     moved_at: entry.moved_at,
     rework_reason: entry.rework_reason,
@@ -105,12 +136,29 @@ async function fetchItemHistory(itemId: string): Promise<ItemHistoryEntry[]> {
       (entry.moved_by ? profilesMap[entry.moved_by] : null) ??
       (entry.moved_by ? "Unknown User" : "System"),
   }));
+
+  const totalPages = Math.ceil((totalCount || 0) / pageSize);
+
+  return {
+    data: historyEntries,
+    totalCount: totalCount || 0,
+    totalPages,
+    currentPage: page,
+    pageSize,
+    hasNextPage: page < totalPages,
+    hasPreviousPage: page > 1,
+  };
 }
 
-export function useItemHistory(itemId: string | null) {
-  return useQuery<ItemHistoryEntry[], Error>({
-    queryKey: ["itemHistory", itemId],
-    queryFn: () => fetchItemHistory(itemId!),
+// Updated hook to support pagination
+export function useItemHistory(
+  itemId: string | null,
+  page: number = 1,
+  pageSize: number = 10
+) {
+  return useQuery<PaginatedHistoryResponse, Error>({
+    queryKey: ["itemHistory", itemId, page, pageSize],
+    queryFn: () => fetchItemHistory(itemId!, page, pageSize),
     enabled: !!itemId, // Only run the query if itemId is not null
     staleTime: 5 * 60 * 1000, // 5 minutes
   });

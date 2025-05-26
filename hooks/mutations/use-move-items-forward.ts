@@ -24,21 +24,26 @@ interface MoveItemsForwardVariables {
   items: { id: string; quantity: number }[]; // Updated from itemIds
   organizationId: string;
   targetStageId?: string | null; // Add optional target stage ID
+  sourceStageId?: string | null; // Add optional source stage ID
 }
 
 async function moveItemsForwardAPI(
   variables: MoveItemsForwardVariables
 ): Promise<MoveForwardSuccessResponse> {
-  // Construct the body, including target_stage_id if present
+  // Construct the body, including target_stage_id and source_stage_id if present
   const body: {
     items: { id: string; quantity: number }[];
     target_stage_id?: string | null;
+    source_stage_id?: string | null;
   } = {
     // Updated property name
     items: variables.items, // Use the new items array
   };
   if (variables.targetStageId !== undefined) {
     body.target_stage_id = variables.targetStageId;
+  }
+  if (variables.sourceStageId !== undefined) {
+    body.source_stage_id = variables.sourceStageId;
   }
 
   const response = await fetch("/api/items/move/forward", {
@@ -110,14 +115,20 @@ export function useMoveItemsForward() {
       queryClient.invalidateQueries({
         queryKey: ["itemsInStage", organizationId],
       });
-      // 2. Invalidate the workflow structure query (which includes counts for the sidebar)
+
+      // 2. Invalidate the workflow sidebar query (which includes counts for the sidebar)
       queryClient.invalidateQueries({
-        queryKey: ["workflow", "structure"], // Correct key for sidebar counts
+        queryKey: ["workflow", "sidebar"],
       });
-      // 3. Keep the sidebar-counts invalidation just in case it's used elsewhere,
-      //    but the key above is the one identified in the Sidebar component.
+
+      // 3. Invalidate the new items count query
       queryClient.invalidateQueries({
-        queryKey: ["sidebar-counts", organizationId],
+        queryKey: ["newItemsCount"],
+      });
+
+      // 4. Invalidate the completed items count query
+      queryClient.invalidateQueries({
+        queryKey: ["completedItemsCount"],
       });
 
       // Optional: More precise invalidation if needed later

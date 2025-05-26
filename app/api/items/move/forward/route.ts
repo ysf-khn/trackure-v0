@@ -21,6 +21,7 @@ const moveForwardSchema = z.object({
     )
     .min(1, "At least one item is required."),
   target_stage_id: z.string().uuid().optional().nullable(), // Optional target stage
+  source_stage_id: z.string().uuid().optional().nullable(), // Optional source stage to prioritize
 });
 
 export async function POST(request: Request) {
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { items, target_stage_id } = validation.data;
+  const { items, target_stage_id, source_stage_id } = validation.data;
 
   try {
     // Fetch workflow configuration for the organization once
@@ -199,11 +200,28 @@ export async function POST(request: Request) {
               };
             }
           } else {
-            // Sort by stage sequence_order (descending) to pick the one closest to target
-            validSourceAllocations.sort(
-              (a, b) => b.stage!.sequence_order - a.stage!.sequence_order
-            );
-            currentAllocation = validSourceAllocations[0];
+            // If source_stage_id is provided, prioritize allocations from that stage
+            if (source_stage_id) {
+              const preferredSourceAllocation = validSourceAllocations.find(
+                (alloc) => alloc.stage_id === source_stage_id
+              );
+              if (preferredSourceAllocation) {
+                currentAllocation = preferredSourceAllocation;
+              } else {
+                // Fallback to closest to target if preferred source not found
+                validSourceAllocations.sort(
+                  (a, b) => b.stage!.sequence_order - a.stage!.sequence_order
+                );
+                currentAllocation = validSourceAllocations[0];
+              }
+            } else {
+              // Original logic: Sort by stage sequence_order (ascending) to pick the earliest stage
+              // This is more intuitive - move from the earliest stage first
+              validSourceAllocations.sort(
+                (a, b) => a.stage!.sequence_order - b.stage!.sequence_order
+              );
+              currentAllocation = validSourceAllocations[0];
+            }
           }
         }
       } else {

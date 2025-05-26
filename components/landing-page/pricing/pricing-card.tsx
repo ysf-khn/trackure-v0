@@ -1,6 +1,9 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { selectPlanAction } from "@/app/actions";
 
 interface PricingFeature {
   text: string;
@@ -10,6 +13,8 @@ interface PricingCardProps {
   title: string;
   monthlyPrice: number;
   annualPrice: number;
+  monthlyProductId: string;
+  annualProductId: string;
   description: string;
   isPopular?: boolean;
   keyFeatures: PricingFeature[];
@@ -20,12 +25,18 @@ export function PricingCard({
   title,
   monthlyPrice,
   annualPrice,
+  monthlyProductId,
+  annualProductId,
   description,
   isPopular,
   keyFeatures,
   isAnnual,
 }: PricingCardProps) {
+  const pathname = usePathname();
+  const isSubscribePage = pathname === "/subscribe";
+
   const displayPrice = isAnnual ? annualPrice : monthlyPrice;
+  const productId = isAnnual ? annualProductId : monthlyProductId;
   const annualSavings = ((monthlyPrice - annualPrice) * 12).toLocaleString(
     "en-IN"
   );
@@ -58,12 +69,27 @@ export function PricingCard({
         <p className="text-gray-300">{description}</p>
       </div>
 
-      <Button
-        className="w-full mb-8"
-        variant={isPopular ? "default" : "outline"}
-      >
-        Start 14-Day Free Trial
-      </Button>
+      {isSubscribePage ? (
+        <form action={selectPlanAction} className="mb-8">
+          <input type="hidden" name="productId" value={productId} />
+          <Button
+            type="submit"
+            className="w-full"
+            variant={isPopular ? "default" : "outline"}
+          >
+            Select Plan
+          </Button>
+        </form>
+      ) : (
+        <Link href={`/sign-up?productId=${productId}`} className="block mb-8">
+          <Button
+            className="w-full"
+            variant={isPopular ? "default" : "outline"}
+          >
+            Start 14-Day Free Trial
+          </Button>
+        </Link>
+      )}
 
       <div className="space-y-4">
         <div className="font-medium text-white mb-4">Key Features:</div>

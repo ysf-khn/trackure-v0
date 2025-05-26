@@ -237,7 +237,12 @@ export default function NewOrdersPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["newItemsCount"] }); // To update sidebar
       queryClient.invalidateQueries({ queryKey: ["itemsInStage"] }); // To update stage views
-      queryClient.invalidateQueries({ queryKey: ["workflow", "structure"] }); // To update sidebar workflow counts
+
+      // Invalidate the workflow sidebar query (which includes counts for the sidebar)
+      queryClient.invalidateQueries({ queryKey: ["workflow", "sidebar"] });
+
+      // Invalidate the completed items count query
+      queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });
       setIsAllocationDialogOpen(false);
       setSelectedItem(null);
     },

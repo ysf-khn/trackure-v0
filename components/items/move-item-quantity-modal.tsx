@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 interface MoveItemQuantityModalProps {
@@ -25,6 +26,7 @@ interface MoveItemQuantityModalProps {
     currentQuantity: number; // Max quantity available to move
   };
   targetStageName: string; // Display name for the target stage
+  targetStageId?: string | null; // ID of the target stage
   onConfirmMove: (itemId: string, quantity: number) => void;
   userRole?: string | null;
 }
@@ -34,16 +36,19 @@ export function MoveItemQuantityModal({
   onOpenChange,
   item,
   targetStageName,
+  targetStageId,
   onConfirmMove,
   userRole,
 }: MoveItemQuantityModalProps) {
   const [quantityToMove, setQuantityToMove] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
+  const [downloadVoucher, setDownloadVoucher] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
       setQuantityToMove(1); // Reset to 1 when modal opens
       setError(null);
+      setDownloadVoucher(false); // Reset voucher option
     }
   }, [isOpen]);
 
@@ -81,8 +86,8 @@ export function MoveItemQuantityModal({
     }
     onConfirmMove(item.id, quantityToMove);
 
-    // Download voucher if user is Owner
-    if (userRole === "Owner") {
+    // Download voucher if user is Owner AND they chose to download
+    if (userRole === "Owner" && downloadVoucher) {
       try {
         const response = await fetch(`/api/vouchers/${item.id}`, {
           method: "POST",
@@ -91,6 +96,7 @@ export function MoveItemQuantityModal({
           },
           body: JSON.stringify({
             quantity: quantityToMove,
+            targetStageId: targetStageId,
           }),
         });
         if (!response.ok) {
@@ -146,6 +152,21 @@ export function MoveItemQuantityModal({
             <p className="col-span-4 text-sm text-destructive text-center px-1">
               {error}
             </p>
+          )}
+
+          {userRole === "Owner" && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="download-voucher"
+                checked={downloadVoucher}
+                onCheckedChange={(checked) =>
+                  setDownloadVoucher(checked as boolean)
+                }
+              />
+              <Label htmlFor="download-voucher" className="text-sm font-normal">
+                Download movement voucher
+              </Label>
+            </div>
           )}
         </div>
         <DialogFooter>

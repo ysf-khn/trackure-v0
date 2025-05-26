@@ -1,18 +1,18 @@
 import { signInAction } from "@/app/actions";
 import { FormMessage, Message } from "@/components/form-message";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { AnimatedLogo } from "@/components/ui/animated-logo";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { SubmitButton } from "./components";
 
 export default async function Login(props: { searchParams: Promise<Message> }) {
   const searchParams = await props.searchParams;
   return (
     <div className="flex flex-col min-h-screen bg-black text-white w-full">
-      <div className="p-6">
+      <div className="p-6 absolute top-0 left-0">
         <AnimatedButton>Export Workflows, Perfected</AnimatedButton>
       </div>
 
@@ -28,7 +28,10 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
           </p>
         </div>
 
-        <form className="w-full max-w-md flex flex-col gap-5">
+        <form
+          className="w-full max-w-md flex flex-col gap-5"
+          action={signInAction}
+        >
           <div className="flex flex-col gap-2">
             <Label htmlFor="email" className="text-gray-400">
               Email
@@ -39,7 +42,7 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
               type="email"
               placeholder="Your email"
               required
-              className="bg-gray-900 border-gray-800 h-12 rounded-md"
+              className="border-gray-800 h-12 rounded-md"
             />
           </div>
 
@@ -53,18 +56,14 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
               type="password"
               placeholder="Enter your password"
               required
-              className="bg-gray-900 border-gray-800 h-12 rounded-md"
+              className="border-gray-800 h-12 rounded-md"
             />
           </div>
 
-          <Button
-            type="submit"
-            className="bg-gray-100 text-black hover:bg-white h-12 rounded-md"
-            formAction={signInAction}
-          >
-            Sign in
-          </Button>
+          <SubmitButton />
         </form>
+
+        <FormMessage message={searchParams} />
 
         <div className="flex items-center gap-4 my-2 w-full max-w-md">
           <div className="h-px bg-gray-800 flex-1"></div>
@@ -81,15 +80,19 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
           Forgot your password?
         </Link>
 
-        <FormMessage message={searchParams} />
-
         <p className="text-xs text-gray-500 text-center mt-4">
           You acknowledge that you read, and agree to our{" "}
-          <Link href="#" className="text-gray-400 hover:underline">
+          <Link
+            href="/terms-of-service"
+            className="text-gray-400 hover:underline"
+          >
             Terms of Service
           </Link>{" "}
           and our{" "}
-          <Link href="#" className="text-gray-400 hover:underline">
+          <Link
+            href="/privacy-policy"
+            className="text-gray-400 hover:underline"
+          >
             Privacy Policy
           </Link>
           .

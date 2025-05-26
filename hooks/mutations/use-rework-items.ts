@@ -78,11 +78,20 @@ export function useReworkItems() {
       queryClient.invalidateQueries({
         queryKey: ["itemsInStage", organizationId],
       });
+
+      // Invalidate the workflow sidebar query (which includes counts for the sidebar)
       queryClient.invalidateQueries({
-        queryKey: ["workflow", "structure"],
+        queryKey: ["workflow", "sidebar"],
       });
+
+      // Invalidate the new items count query
       queryClient.invalidateQueries({
-        queryKey: ["sidebar-counts", organizationId],
+        queryKey: ["newItemsCount"],
+      });
+
+      // Invalidate the completed items count query
+      queryClient.invalidateQueries({
+        queryKey: ["completedItemsCount"],
       });
 
       // Handle partial success/errors from the API response

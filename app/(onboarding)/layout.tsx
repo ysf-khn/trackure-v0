@@ -7,7 +7,7 @@ export default function OnboardingLayout({
 }) {
   return (
     <div className="min-h-screen bg-black">
-      <div className="w-full p-8 space-y-6 rounded-lg shadow-md">
+      <div className="w-full">
         {/* Optional: Add a logo or onboarding progress indicator here */}
         {children}
       </div>

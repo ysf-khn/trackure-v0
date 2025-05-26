@@ -1,3 +1,4 @@
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 export function CTA() {
@@ -16,12 +17,15 @@ export function CTA() {
           </p>
           <div className="flex flex-col items-center gap-4">
             <Link
-              href="/sign-up"
-              className="px-8 py-3 text-lg font-semibold text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
+              href="/pricing"
+              className="group flex items-center gap-2 px-8 py-3 text-lg font-semibold text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
             >
-              Start 14-Day Free Trial
+              Start 14-Day Free Trial{" "}
+              <ArrowRight className="ml-2 h-4 w-4  transition-transform duration-200 group-hover:translate-x-1" />
             </Link>
-            <p className="text-sm text-gray-500">No credit card required.</p>
+            <p className="text-sm text-gray-500">
+              ₹0.00 due today, cancel anytime.
+            </p>
           </div>
         </div>
       </div>

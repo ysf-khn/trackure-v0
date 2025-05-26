@@ -48,7 +48,8 @@ interface ItemListTableMeta {
   onViewDetails?: (details: Record<string, unknown>, itemName: string) => void;
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
-    targetStageId?: string | null
+    targetStageId?: string | null,
+    sourceStageId?: string | null
   ) => void;
   isMovingItems: boolean;
   isReworkingItems: boolean;

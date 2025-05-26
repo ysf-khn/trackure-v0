@@ -2,6 +2,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 export const Hero = () => {
   return (
@@ -35,15 +36,14 @@ export const Hero = () => {
             </p>
 
             <div className="mt-10 flex flex-col items-center gap-4">
-              <Button
-                size="lg"
-                className="group bg-blue-600 px-6 text-white hover:bg-blue-700"
-              >
-                Start Free Trial
-                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
-              </Button>
+              <Link href="/pricing">
+                <Button className="group bg-blue-600 text-white hover:bg-blue-700">
+                  Start Free Trial
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+                </Button>
+              </Link>
               <span className="text-sm text-gray-500">
-                No credit card needed.
+                ₹0.00 due today, cancel anytime.
               </span>
             </div>
           </div>

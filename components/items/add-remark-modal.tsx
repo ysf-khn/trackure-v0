@@ -180,6 +180,13 @@ export function AddRemarkModal({ itemId, children }: AddRemarkModalProps) {
                   remarkId={createdRemarkId}
                   onUploadComplete={() => {
                     toast.info("Image attached successfully.");
+                    // Invalidate queries to refresh the image data
+                    queryClient.invalidateQueries({
+                      queryKey: ["itemImages", itemId],
+                    });
+                    queryClient.invalidateQueries({
+                      queryKey: ["itemHistory", itemId],
+                    });
                   }}
                   disabled={mutation.isPending}
                 />

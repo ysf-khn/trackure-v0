@@ -11,7 +11,7 @@ export interface ItemImage {
   file_name: string | null;
   uploaded_at: string;
   uploaded_by: string; // User UUID
-  remark_id: string | null; // UUID of the remark it's linked to
+  remark_id: number | null; // BIGINT of the remark it's linked to (remarks.id is bigserial/BIGINT)
   content_type: string | null;
 }
 
@@ -20,6 +20,8 @@ async function fetchItemImages(
   supabase: SupabaseClient,
   itemId: string
 ): Promise<ItemImage[]> {
+  console.log("Fetching images for item:", itemId);
+
   const response = await fetch(`/api/items/${itemId}/images`);
 
   if (!response.ok) {
@@ -29,6 +31,7 @@ async function fetchItemImages(
   }
 
   const images = await response.json();
+  console.log("Fetched images from API:", images);
   return images as ItemImage[];
 }
 
@@ -44,6 +47,7 @@ export function useItemImages(itemId: string | null) {
     queryFn: () => {
       if (!itemId) {
         // If no itemId, return empty array immediately
+        console.log("No itemId provided, returning empty array");
         return Promise.resolve([]);
       }
       // Supabase client instance isn't strictly needed for fetch API call,
