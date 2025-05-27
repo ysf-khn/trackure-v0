@@ -122,10 +122,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();
-  const featureRequestId = params.id;
+  const featureRequestId = (await params).id;
 
   try {
     // Get the current user
