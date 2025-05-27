@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Package, ArrowRight, CheckCircle } from "lucide-react";
 
-interface MoveItemQuantityModalProps {
+export interface MoveItemQuantityModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   item: {
@@ -29,6 +29,7 @@ interface MoveItemQuantityModalProps {
   };
   targetStageName: string;
   targetStageId?: string | null;
+  targetSubStageId?: string | null;
   onConfirmMove: (itemId: string, quantity: number) => void;
   userRole?: string | null;
 }
@@ -39,6 +40,7 @@ export function MoveItemQuantityModal({
   item,
   targetStageName,
   targetStageId,
+  targetSubStageId,
   onConfirmMove,
   userRole,
 }: MoveItemQuantityModalProps) {
