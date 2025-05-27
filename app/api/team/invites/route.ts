@@ -15,8 +15,9 @@ if (!supabaseServiceRoleKey) {
 
 const inviteSchema = z.object({
   email: z.string().email("Invalid email address."),
-  role: z.enum(["Worker"], {
-    required_error: "Role must be 'Worker' for invites via this endpoint.",
+  full_name: z.string().min(1, "Full name is required."),
+  role: z.enum(["Worker", "Owner"], {
+    required_error: "Role must be 'Worker' or 'Owner'.",
   }),
 });
 
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
       await supabaseAdmin.auth.admin.inviteUserByEmail(inviteData.email, {
         data: {
           role: inviteData.role,
+          full_name: inviteData.full_name,
           organization_id: inviterProfile.organization_id,
           invited_by: inviterUser.id,
         },

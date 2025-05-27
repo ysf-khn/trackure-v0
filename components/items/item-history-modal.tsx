@@ -24,6 +24,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   MessageSquareText,
   Image as ImageIcon,
@@ -35,6 +36,8 @@ import {
   ChevronsRight,
   X,
   ZoomIn,
+  History,
+  FileText,
 } from "lucide-react";
 import { ItemImage, useItemImages } from "@/hooks/queries/use-item-images";
 import {
@@ -49,18 +52,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-// Update CombinedHistoryItem to potentially include images with remarks
-interface RemarkWithImages extends RemarkWithProfile {
-  images?: ItemImage[];
-  type: "remark";
-}
-
-interface HistoryEntry extends ItemHistoryEntry {
-  type: "history";
-}
-
-type CombinedHistoryItem = HistoryEntry | RemarkWithImages;
 
 interface ItemHistoryModalProps {
   itemId: string | null;
@@ -85,6 +76,7 @@ export function ItemHistoryModal({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("history");
 
   // Image viewer state
   const [viewingImage, setViewingImage] = useState<ImageViewerData | null>(
@@ -105,7 +97,7 @@ export function ItemHistoryModal({
   } = useItemRemarks(itemId);
   const {
     data: images,
-    isLoading: isLoadingImages, // Add loading state for images
+    isLoading: isLoadingImages,
     error: imagesError,
   } = useItemImages(itemId);
 
@@ -118,10 +110,7 @@ export function ItemHistoryModal({
 
     try {
       console.log("Generating proxy URL for storage path:", storagePath);
-
-      // Use proxy URL with item-images bucket to avoid CORS issues
       const proxyUrl = `/api/images/${storagePath}?bucket=item-images`;
-
       console.log("Generated proxy URL:", proxyUrl);
       return proxyUrl;
     } catch (error) {
@@ -130,95 +119,21 @@ export function ItemHistoryModal({
     }
   };
 
-  // Combine and sort data, now including images
-  const combinedData = React.useMemo(() => {
-    // Wait for all data sources
-    if (isLoadingHistory || isLoadingRemarks || isLoadingImages) {
-      return null; // Indicate loading state
-    }
-    // Combine errors if any
-    if (historyError || remarksError || imagesError) {
-      console.error("Data fetching errors:", {
-        historyError,
-        remarksError,
-        imagesError,
-      });
-      return { error: historyError || remarksError || imagesError };
-    }
-    if (!historyResponse?.data || !remarks || !images) {
-      return []; // Should not happen if loading is false and no error, but good practice
-    }
+  // Create image map for remarks
+  const imagesByRemarkId = React.useMemo(() => {
+    if (!images) return new Map<number, ItemImage[]>();
 
-    console.log("Raw images data:", images);
-    console.log("Raw remarks data:", remarks);
-
-    // Create a map of remarkId -> images[] for quick lookup
-    const imagesByRemarkId = new Map<number, ItemImage[]>();
+    const map = new Map<number, ItemImage[]>();
     images.forEach((img) => {
-      console.log(
-        "Processing image:",
-        img.id,
-        "with remark_id:",
-        img.remark_id,
-        "type:",
-        typeof img.remark_id
-      );
       if (img.remark_id) {
-        if (!imagesByRemarkId.has(img.remark_id)) {
-          imagesByRemarkId.set(img.remark_id, []);
+        if (!map.has(img.remark_id)) {
+          map.set(img.remark_id, []);
         }
-        imagesByRemarkId.get(img.remark_id)?.push(img);
+        map.get(img.remark_id)?.push(img);
       }
     });
-
-    console.log("Images by remark ID:", imagesByRemarkId);
-    console.log(
-      "Remark IDs from remarks:",
-      remarks.map((r) => ({ id: r.id, type: typeof r.id }))
-    );
-
-    const typedHistory: CombinedHistoryItem[] = historyResponse.data.map(
-      (entry) => ({
-        ...entry,
-        type: "history",
-      })
-    );
-    // Attach images to remarks
-    const typedRemarks: CombinedHistoryItem[] = remarks.map((remark) => {
-      const attachedImages = imagesByRemarkId.get(remark.id) || [];
-      console.log(
-        `Remark ${remark.id} has ${attachedImages.length} images attached`
-      );
-      return {
-        ...remark,
-        type: "remark",
-        images: attachedImages, // Attach associated images
-      };
-    });
-
-    console.log("Typed remarks with images:", typedRemarks);
-
-    const combined = [...typedHistory, ...typedRemarks];
-
-    // Sort chronologically (newest first)
-    combined.sort((a, b) => {
-      const dateA = new Date(a.type === "history" ? a.moved_at : a.timestamp);
-      const dateB = new Date(b.type === "history" ? b.moved_at : b.timestamp);
-      return dateB.getTime() - dateA.getTime(); // Descending order
-    });
-
-    return combined;
-  }, [
-    historyResponse,
-    remarks,
-    images,
-    isLoadingHistory,
-    isLoadingRemarks,
-    isLoadingImages,
-    historyError,
-    remarksError,
-    imagesError,
-  ]);
+    return map;
+  }, [images]);
 
   // Pagination handlers
   const handlePageChange = (newPage: number) => {
@@ -244,21 +159,20 @@ export function ItemHistoryModal({
   };
 
   const renderHistory = () => {
-    if (combinedData === null)
-      return <p>Loading history, remarks, and images...</p>; // Loading state
-    if (
-      typeof combinedData === "object" &&
-      "error" in combinedData &&
-      combinedData.error
-    ) {
+    if (isLoadingHistory) {
+      return <p>Loading history...</p>;
+    }
+
+    if (historyError) {
       return (
         <p className="text-destructive">
-          Error loading data: {combinedData.error.message}
+          Error loading history: {historyError.message}
         </p>
       );
     }
-    if (!Array.isArray(combinedData) || combinedData.length === 0) {
-      return <p>No history or remarks found for this item.</p>;
+
+    if (!historyResponse?.data || historyResponse.data.length === 0) {
+      return <p>No history found for this item.</p>;
     }
 
     return (
@@ -272,166 +186,189 @@ export function ItemHistoryModal({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {combinedData.map((item) => {
-              if (item.type === "history") {
-                return (
-                  <TableRow key={`hist-${item.id}`}>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span>
-                          {format(new Date(item.moved_at), "MMM d, yyyy")}
-                        </span>
-                        <span className="text-muted-foreground text-sm">
-                          {format(new Date(item.moved_at), "h:mm a")}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={item.rework_reason ? "destructive" : "default"}
-                        className={
-                          item.rework_reason
-                            ? "bg-red-100 text-red-800 hover:bg-red-100"
-                            : "bg-green-100 text-green-800 hover:bg-green-100"
-                        }
-                      >
-                        {item.rework_reason ? "Rework" : "Move Forward"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {item.from_stage_name ? (
-                        <>
-                          Moved <strong>{item.quantity}</strong> items from{" "}
-                          <strong>
-                            {item.from_stage_name}
-                            {item.from_sub_stage_name
-                              ? ` / ${item.from_sub_stage_name}`
-                              : ""}
-                          </strong>{" "}
-                          to{" "}
-                          <strong>
-                            {item.to_stage_name}
-                            {item.to_sub_stage_name
-                              ? ` / ${item.to_sub_stage_name}`
-                              : ""}
-                          </strong>
-                        </>
-                      ) : (
-                        <>
-                          Initially allocated <strong>{item.quantity}</strong>{" "}
-                          items to{" "}
-                          <strong>
-                            {item.to_stage_name}
-                            {item.to_sub_stage_name
-                              ? ` / ${item.to_sub_stage_name}`
-                              : ""}
-                          </strong>
-                        </>
-                      )}
-                      {item.rework_reason && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Rework Reason: {item.rework_reason}
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              } else if (item.type === "remark") {
-                return (
-                  <TableRow
-                    key={`rem-${item.id}`}
-                    className="bg-muted/30 hover:bg-muted/50 align-top" // Align top for remarks with images
+            {historyResponse.data.map((item) => (
+              <TableRow key={`hist-${item.id}`}>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span>
+                      {format(new Date(item.moved_at), "MMM d, yyyy")}
+                    </span>
+                    <span className="text-muted-foreground text-sm">
+                      {format(new Date(item.moved_at), "h:mm a")}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={item.rework_reason ? "destructive" : "default"}
+                    className={
+                      item.rework_reason
+                        ? "bg-red-100 text-red-800 hover:bg-red-100"
+                        : "bg-green-100 text-green-800 hover:bg-green-100"
+                    }
                   >
-                    <TableCell className="pt-2">
-                      <div className="flex flex-col">
-                        <span>
-                          {format(new Date(item.timestamp), "MMM d, yyyy")}
-                        </span>
-                        <span className="text-muted-foreground text-sm">
-                          {format(new Date(item.timestamp), "h:mm a")}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="pt-2">
+                    {item.rework_reason ? "Rework" : "Move Forward"}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {item.from_stage_name ? (
+                    <>
+                      Moved <strong>{item.quantity}</strong> items from{" "}
+                      <strong>
+                        {item.from_stage_name}
+                        {item.from_sub_stage_name
+                          ? ` / ${item.from_sub_stage_name}`
+                          : ""}
+                      </strong>{" "}
+                      to{" "}
+                      <strong>
+                        {item.to_stage_name}
+                        {item.to_sub_stage_name
+                          ? ` / ${item.to_sub_stage_name}`
+                          : ""}
+                      </strong>
+                    </>
+                  ) : (
+                    <>
+                      Initially allocated <strong>{item.quantity}</strong> items
+                      to{" "}
+                      <strong>
+                        {item.to_stage_name}
+                        {item.to_sub_stage_name
+                          ? ` / ${item.to_sub_stage_name}`
+                          : ""}
+                      </strong>
+                    </>
+                  )}
+                  {item.rework_reason && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Rework Reason: {item.rework_reason}
+                    </div>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    );
+  };
+
+  const renderRemarks = () => {
+    if (isLoadingRemarks) {
+      return <p>Loading remarks...</p>;
+    }
+
+    if (remarksError) {
+      return (
+        <p className="text-destructive">
+          Error loading remarks: {remarksError.message}
+        </p>
+      );
+    }
+
+    if (!remarks || remarks.length === 0) {
+      return <p>No remarks found for this item.</p>;
+    }
+
+    return (
+      <ScrollArea className="h-[60vh]">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[150px]">Timestamp</TableHead>
+              <TableHead>User</TableHead>
+              <TableHead>Remark</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {remarks.map((remark) => {
+              const attachedImages = imagesByRemarkId.get(remark.id) || [];
+
+              return (
+                <TableRow key={`remark-${remark.id}`} className="align-top">
+                  <TableCell className="pt-2">
+                    <div className="flex flex-col">
+                      <span>
+                        {format(new Date(remark.timestamp), "MMM d, yyyy")}
+                      </span>
+                      <span className="text-muted-foreground text-sm">
+                        {format(new Date(remark.timestamp), "h:mm a")}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="pt-2">
+                    <div className="flex items-center gap-2">
                       <Badge
                         variant="outline"
                         className="border-blue-500 text-blue-700"
                       >
-                        <MessageSquareText className="h-3 w-3 mr-1" /> Remark
-                        {item.images && item.images.length > 0 && (
-                          <Camera className="h-3 w-3 ml-1 text-muted-foreground" /> // Indicate image attached
-                        )}
+                        <MessageSquareText className="h-3 w-3 mr-1" />
+                        {remark.created_by || "Unknown"}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="whitespace-normal break-words pt-2">
-                      {/* Remark Text */}
-                      <p className="mb-2">{item.text}</p>
-                      {/* Debug info */}
-                      {(() => {
-                        console.log(
-                          `Rendering remark ${item.id} with ${item.images?.length || 0} images`
-                        );
-                        return null;
-                      })()}
-                      {/* Image Thumbnails */}
-                      {item.images && item.images.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {item.images.map((img) => {
-                            const imageUrl = getImageUrl(img.storage_path);
-                            console.log(
-                              "Generated image URL:",
-                              imageUrl,
-                              "for path:",
-                              img.storage_path
-                            );
-
-                            return imageUrl ? (
-                              <button
-                                key={img.id}
-                                onClick={() =>
-                                  handleImageClick(
-                                    imageUrl,
-                                    img.file_name || "Image",
-                                    item.text
-                                  )
-                                }
-                                className="relative w-16 h-16 rounded border overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:opacity-80 transition-opacity group"
-                                title="Click to view full image"
-                              >
-                                <img
-                                  src={imageUrl}
-                                  alt={img.file_name || "Uploaded image"}
-                                  className="w-full h-full object-cover"
-                                  loading="lazy"
-                                  onError={(e) => {
-                                    console.error(
-                                      "Image failed to load:",
-                                      imageUrl
-                                    );
-                                    e.currentTarget.style.display = "none";
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
-                                  <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                                </div>
-                              </button>
-                            ) : (
-                              // Placeholder for broken/missing image URL
-                              <div
-                                key={img.id}
-                                className="w-16 h-16 rounded border flex items-center justify-center bg-secondary"
-                                title="Image not available"
-                              >
-                                <ImageIcon className="w-6 h-6 text-muted-foreground" />
-                              </div>
-                            );
-                          })}
+                      {attachedImages.length > 0 && (
+                        <div
+                          title={`${attachedImages.length} image(s) attached`}
+                        >
+                          <Camera className="h-4 w-4 text-muted-foreground" />
                         </div>
                       )}
-                    </TableCell>
-                  </TableRow>
-                );
-              }
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-normal break-words pt-2">
+                    <p className="mb-2">{remark.text}</p>
+
+                    {/* Image Thumbnails */}
+                    {attachedImages.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {attachedImages.map((img) => {
+                          const imageUrl = getImageUrl(img.storage_path);
+
+                          return imageUrl ? (
+                            <button
+                              key={img.id}
+                              onClick={() =>
+                                handleImageClick(
+                                  imageUrl,
+                                  img.file_name || "Image",
+                                  remark.text
+                                )
+                              }
+                              className="relative w-16 h-16 rounded border overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:opacity-80 transition-opacity group"
+                              title="Click to view full image"
+                            >
+                              <img
+                                src={imageUrl}
+                                alt={img.file_name || "Uploaded image"}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  console.error(
+                                    "Image failed to load:",
+                                    imageUrl
+                                  );
+                                  e.currentTarget.style.display = "none";
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
+                                <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                              </div>
+                            </button>
+                          ) : (
+                            <div
+                              key={img.id}
+                              className="w-16 h-16 rounded border flex items-center justify-center bg-secondary"
+                              title="Image not available"
+                            >
+                              <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
             })}
           </TableBody>
         </Table>
@@ -547,9 +484,39 @@ export function ItemHistoryModal({
               </Button>
             </div>
           </DialogHeader>
+
           <div className="mt-4">
-            {renderHistory()}
-            {renderPaginationControls()}
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger
+                  value="history"
+                  className="flex items-center gap-2"
+                >
+                  <History className="h-4 w-4" />
+                  Movement History
+                </TabsTrigger>
+                <TabsTrigger
+                  value="remarks"
+                  className="flex items-center gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  Remarks ({remarks?.length || 0})
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="history" className="mt-4">
+                {renderHistory()}
+                {activeTab === "history" && renderPaginationControls()}
+              </TabsContent>
+
+              <TabsContent value="remarks" className="mt-4">
+                {renderRemarks()}
+              </TabsContent>
+            </Tabs>
           </div>
         </DialogContent>
       </Dialog>

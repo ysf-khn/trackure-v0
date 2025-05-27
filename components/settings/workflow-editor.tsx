@@ -17,7 +17,7 @@ import {
 } from "@/hooks/queries/use-workflow-structure";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Terminal } from "lucide-react";
+import { Terminal, InfoIcon } from "lucide-react";
 import { AddStageModal } from "./add-stage-modal";
 import { EditStageModal } from "./edit-stage-modal";
 import { DeleteStageDialog } from "./delete-stage-dialog";
@@ -189,6 +189,16 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
   if (isEmpty) {
     return (
       <>
+        <Alert className="mb-4">
+          <InfoIcon className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Workflow Rules:</strong> Sub-stages can only be added during
+            stage creation. Once created, stages with sub-stages must always
+            have at least one sub-stage. Items can only be moved to sub-stages,
+            not to the parent stage when sub-stages exist.
+          </AlertDescription>
+        </Alert>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Workflow Structure</CardTitle>
@@ -254,8 +264,21 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
     setAddingSubStageTo(stage);
   const handleEditSubStage = (subStage: FetchedSubStage) =>
     setEditingSubStage(subStage);
-  const handleDeleteSubStage = (subStage: FetchedSubStage) =>
+  const handleDeleteSubStage = (subStage: FetchedSubStage) => {
+    // Find the parent stage to check if this is the last sub-stage
+    const parentStage = workflowStructure?.find((stage) =>
+      stage.sub_stages.some((ss) => ss.id === subStage.id)
+    );
+
+    if (parentStage && parentStage.sub_stages.length === 1) {
+      toast.error(
+        "Cannot delete the last sub-stage. A stage with sub-stages must have at least one sub-stage."
+      );
+      return;
+    }
+
     setDeletingSubStage(subStage);
+  };
 
   const handleMoveSubStage = (id: string, direction: "up" | "down") => {
     if (reorderSubStageMutation.isPending) return;
@@ -272,6 +295,16 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
 
   return (
     <>
+      <Alert className="mb-4">
+        <InfoIcon className="h-4 w-4" />
+        <AlertDescription>
+          <strong>Workflow Rules:</strong> Sub-stages can only be added during
+          stage creation. Once created, stages with sub-stages must always have
+          at least one sub-stage. Items can only be moved to sub-stages, not to
+          the parent stage when sub-stages exist.
+        </AlertDescription>
+      </Alert>
+
       <Card className="border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Workflow Structure</CardTitle>
@@ -364,19 +397,21 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
                         </Button>
                       )}
 
-                      {/* Add Sub-stage Button */}
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        title="Add Sub-stage"
-                        onClick={() => handleAddSubStage(stage)}
-                        disabled={
-                          reorderStageMutation.isPending ||
-                          reorderSubStageMutation.isPending
-                        }
-                      >
-                        <PlusIcon className="h-4 w-4" />
-                      </Button>
+                      {/* Add Sub-stage Button - Only show for stages that already have sub-stages */}
+                      {stage.sub_stages.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          title="Add Sub-stage"
+                          onClick={() => handleAddSubStage(stage)}
+                          disabled={
+                            reorderStageMutation.isPending ||
+                            reorderSubStageMutation.isPending
+                          }
+                        >
+                          <PlusIcon className="h-4 w-4" />
+                        </Button>
+                      )}
 
                       {/* Edit Button */}
                       <Button
@@ -501,7 +536,8 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
                   )}
                   {stage.sub_stages.length === 0 && (
                     <p className="ml-6 mt-2 text-sm text-muted-foreground">
-                      No sub-stages defined for this stage.
+                      No sub-stages defined for this stage. Sub-stages can only
+                      be added during stage creation.
                     </p>
                   )}
                 </div>

@@ -3,11 +3,31 @@ import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
 import { getUserWithProfile } from "@/utils/supabase/queries";
 
-const createStageSchema = z.object({
-  name: z.string().min(1, "Stage name cannot be empty."),
-  location: z.string().optional(), // Optional location field
-  // sequence_order will be calculated on the server
+const subStageSchema = z.object({
+  name: z.string().min(1, "Sub-stage name cannot be empty."),
+  location: z.string().optional(),
 });
+
+const createStageSchema = z
+  .object({
+    name: z.string().min(1, "Stage name cannot be empty."),
+    location: z.string().optional(), // Optional location field
+    hasSubStages: z.boolean().optional(),
+    subStages: z.array(subStageSchema).optional(),
+    // sequence_order will be calculated on the server
+  })
+  .refine(
+    (data) => {
+      // If hasSubStages is true, must have at least one sub-stage
+      if (data.hasSubStages) {
+        return data.subStages && data.subStages.length > 0;
+      }
+      return true;
+    },
+    {
+      message: "At least one sub-stage is required when sub-stages are enabled",
+    }
+  );
 
 export async function POST(request: Request) {
   // const cookieStore = cookies();
@@ -47,7 +67,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, location } = validation.data;
+    const { name, location, hasSubStages, subStages } = validation.data;
 
     // Calculate next sequence_order using simple max + 1 logic
     // Completed stages now use sequence order 100000, so they won't interfere
@@ -86,11 +106,36 @@ export async function POST(request: Request) {
 
     if (insertError) {
       console.error("Error inserting stage:", insertError);
-      // TODO: Handle potential unique constraint errors if needed
       return NextResponse.json(
         { error: "Failed to create stage." },
         { status: 500 }
       );
+    }
+
+    // If sub-stages are provided, create them
+    if (hasSubStages && subStages && subStages.length > 0) {
+      const subStageInserts = subStages.map((subStage, index) => ({
+        name: subStage.name,
+        location: subStage.location,
+        sequence_order: index + 1,
+        stage_id: newStage.id,
+        organization_id: organization_id,
+      }));
+
+      const { error: subStageError } = await supabase
+        .from("workflow_sub_stages")
+        .insert(subStageInserts);
+
+      if (subStageError) {
+        console.error("Error inserting sub-stages:", subStageError);
+        // Clean up the stage if sub-stage creation fails
+        await supabase.from("workflow_stages").delete().eq("id", newStage.id);
+
+        return NextResponse.json(
+          { error: "Failed to create sub-stages." },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json(newStage, { status: 201 });

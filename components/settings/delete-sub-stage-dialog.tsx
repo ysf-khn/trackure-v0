@@ -19,6 +19,7 @@ import {
   type FetchedSubStage,
   getWorkflowQueryKey,
 } from "@/hooks/queries/use-workflow-structure";
+import { getSidebarWorkflowKey } from "@/hooks/queries/use-workflow";
 
 // Define a custom error type to mimic AxiosError structure for easier migration
 interface ApiErrorData {
@@ -78,6 +79,9 @@ export function DeleteSubStageDialog({
       );
       queryClient.invalidateQueries({
         queryKey: getWorkflowQueryKey(organizationId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getSidebarWorkflowKey(organizationId),
       });
       onClose();
     },

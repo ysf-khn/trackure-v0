@@ -23,6 +23,11 @@ const reworkInputSchema = z.object({
     .min(3, "Rework reason must be at least 3 characters long.")
     .max(255, "Rework reason must be at most 255 characters long."),
   target_rework_stage_id: z.string().uuid("Invalid target stage ID."),
+  target_rework_sub_stage_id: z
+    .string()
+    .uuid("Invalid target sub-stage ID.")
+    .nullable()
+    .optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -87,6 +92,7 @@ export async function POST(request: NextRequest) {
     items: itemsToRework,
     rework_reason,
     target_rework_stage_id,
+    target_rework_sub_stage_id,
   } = parseResult.data;
 
   try {
@@ -192,12 +198,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Get target stage's first sub-stage if it has any
-      const targetStage = workflowStagesData.find(
-        (stage) => stage.id === target_rework_stage_id
-      );
-      const targetSubStageId = targetStage?.sub_stages?.[0]?.id || null;
-
       // Handle the source allocation for Rework
       if (requestedQuantity === currentAllocation.quantity) {
         console.log("Full rework - deleting source allocation:", {
@@ -251,12 +251,12 @@ export async function POST(request: NextRequest) {
         .eq("organization_id", organizationId)
         .eq("stage_id", target_rework_stage_id);
 
-      if (targetSubStageId === null) {
+      if (target_rework_sub_stage_id === null) {
         targetAllocationQuery = targetAllocationQuery.is("sub_stage_id", null);
       } else {
         targetAllocationQuery = targetAllocationQuery.eq(
           "sub_stage_id",
-          targetSubStageId
+          target_rework_sub_stage_id
         );
       }
 
@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
           item_id: itemId,
           organization_id: organizationId,
           stage_id: target_rework_stage_id,
-          sub_stage_id: targetSubStageId,
+          sub_stage_id: target_rework_sub_stage_id,
           quantity: requestedQuantity,
           created_at: timestamp,
           updated_at: timestamp,
@@ -325,7 +325,7 @@ export async function POST(request: NextRequest) {
           from_stage_id: currentAllocation.stage_id,
           from_sub_stage_id: currentAllocation.sub_stage_id,
           to_stage_id: target_rework_stage_id,
-          to_sub_stage_id: targetSubStageId,
+          to_sub_stage_id: target_rework_sub_stage_id,
           quantity: requestedQuantity,
           moved_at: timestamp,
           moved_by: user.id,
@@ -345,7 +345,7 @@ export async function POST(request: NextRequest) {
         itemId,
         status: "success",
         reworkedToStageId: target_rework_stage_id,
-        reworkedToSubStageId: targetSubStageId,
+        reworkedToSubStageId: target_rework_sub_stage_id,
         quantity: requestedQuantity,
       });
     }

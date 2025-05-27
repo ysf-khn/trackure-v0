@@ -49,6 +49,7 @@ interface ItemListTableMeta {
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
     targetStageId?: string | null,
+    targetSubStageId?: string | null,
     sourceStageId?: string | null
   ) => void;
   isMovingItems: boolean;
@@ -58,12 +59,19 @@ interface ItemListTableMeta {
   isWorkflowLoading: boolean;
   currentStageId: string;
   currentSubStageId: string | null;
-  subsequentStages?: { id: string; name: string | null }[];
+  subsequentStages?: {
+    id: string;
+    name: string | null;
+    isSubStage?: boolean;
+    parentStageId?: string;
+    parentStageName?: string | null;
+  }[];
   handleOpenMoveQuantityModal?: (details: {
     id: string;
     sku: string | null;
     currentQuantity: number;
     targetStageId?: string | null;
+    targetSubStageId?: string | null;
     targetStageName: string;
   }) => void;
   handleOpenSingleReworkQuantityModal?: (details: {
@@ -88,7 +96,9 @@ interface ItemTableCoreProps {
   onViewDetails: (details: Record<string, unknown>, itemName: string) => void;
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
-    targetStageId?: string | null
+    targetStageId?: string | null,
+    targetSubStageId?: string | null,
+    sourceStageId?: string | null
   ) => void;
   // Ensure handleOpenMoveQuantityModal is defined only once
   handleOpenMoveQuantityModal?: (details: {
@@ -96,6 +106,7 @@ interface ItemTableCoreProps {
     sku: string | null;
     currentQuantity: number;
     targetStageId?: string | null;
+    targetSubStageId?: string | null;
     targetStageName: string;
   }) => void;
   // Ensure handleOpenSingleReworkQuantityModal is defined only once
@@ -121,7 +132,13 @@ interface ItemTableCoreProps {
   currentStageId: string;
   currentSubStageId: string | null;
   // Accept calculated subsequent stages
-  subsequentStages?: { id: string; name: string | null }[];
+  subsequentStages?: {
+    id: string;
+    name: string | null;
+    isSubStage?: boolean;
+    parentStageId?: string;
+    parentStageName?: string | null;
+  }[];
 }
 
 // Define the interface for the functions exposed via ref
@@ -243,7 +260,8 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       itemId: string,
       quantity: number,
       reason: string,
-      targetStageId: string
+      targetStageId: string,
+      targetSubStageId: string | null
     ) => {
       if (!organizationId) return;
       reworkItems(
@@ -258,6 +276,7 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
           ],
           rework_reason: reason,
           target_rework_stage_id: targetStageId,
+          target_rework_sub_stage_id: targetSubStageId,
           organizationId,
         },
         {
@@ -276,7 +295,8 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
     const handleConfirmBulkRework = (
       reworkedItems: { id: string; quantity: number }[],
       reason: string,
-      targetStageId: string
+      targetStageId: string,
+      targetSubStageId: string | null
     ) => {
       if (!organizationId) return;
       reworkItems(
@@ -288,6 +308,7 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
           })),
           rework_reason: reason,
           target_rework_stage_id: targetStageId,
+          target_rework_sub_stage_id: targetSubStageId,
           organizationId,
         },
         {

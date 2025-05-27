@@ -159,6 +159,9 @@ import { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure"; /
 interface SubsequentStageInfo {
   id: string;
   name: string | null;
+  isSubStage?: boolean;
+  parentStageId?: string;
+  parentStageName?: string | null;
 }
 
 export function getSubsequentStages(
@@ -181,12 +184,59 @@ export function getSubsequentStages(
     return [];
   }
 
-  // 2. Add all subsequent main stages (excluding the current stage)
+  const currentStage = workflowData[currentStageIndex];
+
+  // If we're currently in a sub-stage, check if there are more sub-stages in the current stage
+  if (
+    currentSubStageId &&
+    currentStage.sub_stages &&
+    currentStage.sub_stages.length > 0
+  ) {
+    const currentSubStageIndex = currentStage.sub_stages.findIndex(
+      (subStage) => subStage.id === currentSubStageId
+    );
+
+    if (currentSubStageIndex !== -1) {
+      // Add remaining sub-stages in the current stage
+      for (
+        let i = currentSubStageIndex + 1;
+        i < currentStage.sub_stages.length;
+        i++
+      ) {
+        const subStage = currentStage.sub_stages[i];
+        subsequent.push({
+          id: subStage.id,
+          name: `${currentStage.name} > ${subStage.name}`,
+          isSubStage: true,
+          parentStageId: currentStage.id,
+          parentStageName: currentStage.name,
+        });
+      }
+    }
+  }
+
+  // Add all subsequent main stages and their sub-stages
   for (let i = currentStageIndex + 1; i < workflowData.length; i++) {
     const stage = workflowData[i];
-    if (stage.id !== currentStageId) {
-      // Add this check to ensure we don't include the current stage
-      subsequent.push({ id: stage.id, name: stage.name });
+
+    // If the stage has sub-stages, add each sub-stage as an option
+    if (stage.sub_stages && stage.sub_stages.length > 0) {
+      stage.sub_stages.forEach((subStage) => {
+        subsequent.push({
+          id: subStage.id,
+          name: `${stage.name} > ${subStage.name}`,
+          isSubStage: true,
+          parentStageId: stage.id,
+          parentStageName: stage.name,
+        });
+      });
+    } else {
+      // If no sub-stages, add the stage itself
+      subsequent.push({
+        id: stage.id,
+        name: stage.name,
+        isSubStage: false,
+      });
     }
   }
 

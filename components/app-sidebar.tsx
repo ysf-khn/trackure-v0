@@ -42,6 +42,7 @@ import { Badge } from "@/components/ui/badge";
 import { useWorkflow } from "@/hooks/queries/use-workflow";
 import { useNewItemsCount } from "@/hooks/queries/use-new-items-count";
 import { useCompletedItemsCount } from "@/hooks/queries/use-completed-items-count";
+import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 
 interface SubStage {
   id: string;
@@ -58,11 +59,11 @@ interface Stage {
 
 const data = {
   navSecondary: [
-    {
-      title: "Feature Requests",
-      url: "/feature-requests",
-      icon: Lightbulb,
-    },
+    // {
+    //   title: "Feature Requests",
+    //   url: "/feature-requests",
+    //   icon: Lightbulb,
+    // },
     {
       title: "Settings",
       url: "/settings",
@@ -75,12 +76,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // Get organization ID for proper query key synchronization
+  const { organizationId } = useProfileAndOrg();
+
   const {
     data: workflowDataUntyped,
     isLoading: isLoadingWorkflow,
     isError: isErrorWorkflow,
     error: errorWorkflow,
-  } = useWorkflow();
+  } = useWorkflow(organizationId || undefined);
 
   const {
     data: newItemsCount,

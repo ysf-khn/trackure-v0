@@ -30,6 +30,7 @@ interface ReworkItemsVariables {
   }[];
   rework_reason: string;
   target_rework_stage_id: string;
+  target_rework_sub_stage_id?: string | null; // Add optional target sub-stage ID
   organizationId: string; // Needed for query invalidation
 }
 

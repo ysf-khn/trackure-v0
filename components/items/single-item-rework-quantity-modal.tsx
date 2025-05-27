@@ -14,8 +14,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea"; // For rework reason
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Select,
@@ -24,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RotateCcw, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
 
 interface SingleItemReworkQuantityModalProps {
   isOpen: boolean;
@@ -31,7 +33,7 @@ interface SingleItemReworkQuantityModalProps {
   item: {
     id: string;
     sku?: string | null;
-    currentQuantity: number; // Max quantity available
+    currentQuantity: number;
     currentStageId: string;
     currentSubStageId: string | null;
   };
@@ -50,6 +52,7 @@ interface SingleItemReworkQuantityModalProps {
     quantity: number,
     reason: string,
     targetStageId: string,
+    targetSubStageId: string | null,
     sourceStageId: string,
     sourceSubStageId: string | null
   ) => void;
@@ -116,7 +119,7 @@ export function SingleItemReworkQuantityModal({
       setReworkReason("");
       setReasonError(null);
       setSelectedStageId(reworkTargetOptions[0]?.id || "");
-      setDownloadVoucher(false); // Reset voucher option
+      setDownloadVoucher(false);
     }
   }, [isOpen, reworkTargetOptions]);
 
@@ -168,7 +171,7 @@ export function SingleItemReworkQuantityModal({
 
     // Find the selected stage/substage in the available stages
     let targetStageId = selectedStageId;
-    let targetStageIdForVoucher = selectedStageId; // For voucher generation
+    let targetStageIdForVoucher = selectedStageId;
     let isSubStage = false;
 
     // Look through all stages and their substages to find the selected ID
@@ -199,33 +202,15 @@ export function SingleItemReworkQuantityModal({
       item.id,
       quantityToRework,
       reworkReason.trim(),
-      targetStageId, // Use the parent stage ID
+      targetStageId,
+      isSubStage ? selectedStageId : null,
       item.currentStageId,
       item.currentSubStageId
     );
 
-    console.log("USER ROLE==", userRole);
-
     // Download voucher if user is Owner AND they chose to download
-    console.log(
-      `[VoucherDebug] handleSubmit: Checking userRole. Value: '${userRole}' (Type: ${typeof userRole})`
-    );
-    console.log(
-      `[VoucherDebug] handleSubmit: userRole === "Owner": ${userRole === "Owner"}`
-    );
-    console.log(
-      `[VoucherDebug] handleSubmit: downloadVoucher: ${downloadVoucher}`
-    );
-
     if (userRole === "Owner" && downloadVoucher) {
-      console.log(
-        "[VoucherDebug] handleSubmit: Voucher download condition met."
-      );
-      console.log("REWORKKKK");
       try {
-        console.log(
-          `[VoucherDebug] handleSubmit: About to fetch voucher for item ${item.id} with quantity ${quantityToRework}`
-        );
         const response = await fetch(`/api/vouchers/${item.id}`, {
           method: "POST",
           headers: {
@@ -238,62 +223,105 @@ export function SingleItemReworkQuantityModal({
             reworkReason: reworkReason.trim(),
           }),
         });
-        console.log(
-          `[VoucherDebug] handleSubmit: Fetch response - Status: ${response.status}, OK: ${response.ok}`
-        );
         if (!response.ok) {
           const errorText = await response.text();
           console.error(
-            `[VoucherDebug] handleSubmit: Response not OK. Status: ${response.status}, Body: ${errorText}`
+            `Response not OK. Status: ${response.status}, Body: ${errorText}`
           );
           throw new Error("Failed to generate voucher");
         }
         const blob = await response.blob();
-        console.log(
-          `[VoucherDebug] handleSubmit: Blob created, size: ${blob.size} bytes`
-        );
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
         a.download = `rework_voucher_${item.sku || item.id}_${new Date().toISOString().replace(/[:.]/g, "-")}.pdf`;
         document.body.appendChild(a);
         a.click();
-        console.log(
-          `[VoucherDebug] handleSubmit: Download triggered for ${a.download}`
-        );
         window.URL.revokeObjectURL(url);
         a.remove();
+        toast.success("Rework voucher downloaded successfully");
       } catch (error) {
         console.error("Error downloading voucher:", error);
         toast.error("Failed to download rework voucher");
       }
-    } else {
-      console.log(
-        `[VoucherDebug] handleSubmit: Voucher download condition NOT met. User role: '${userRole}' (Type: ${typeof userRole}) - was not "Owner" or downloadVoucher was ${downloadVoucher}.`
-      );
     }
   };
 
   if (!item) return null;
 
+  const selectedTargetStage = reworkTargetOptions.find(
+    (stage) => stage.id === selectedStageId
+  );
+
+  const isValid =
+    !quantityError &&
+    !reasonError &&
+    quantityToRework > 0 &&
+    reworkReason.trim().length >= 3 &&
+    selectedStageId;
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Send Item for Rework</DialogTitle>
-          <DialogDescription>
-            Specify quantity and reason for reworking item{" "}
-            <strong>{item.sku || item.id}</strong> (Available:{" "}
-            {item.currentQuantity}).
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-100 dark:bg-orange-950/20 rounded-lg">
+              <RotateCcw className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div className="flex-1">
+              <DialogTitle className="text-xl">
+                Send Item for Rework
+              </DialogTitle>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="secondary" className="text-xs font-mono">
+                  {item.sku || item.id}
+                </Badge>
+                <ArrowLeft className="h-3 w-3 text-muted-foreground" />
+                <Badge variant="outline" className="text-xs">
+                  {selectedTargetStage?.name || "Select target stage"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Send this item back to an earlier stage for rework. Specify the
+            quantity, target stage, and reason for rework.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="target-stage" className="text-right">
-              Target Stage
+
+        <div className="flex-1 space-y-6 py-4 overflow-y-auto">
+          {/* Item Information Card */}
+          <div className="p-4 border rounded-lg bg-muted/20">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Item Details</Label>
+                <Badge variant="outline" className="text-xs">
+                  Available: {item.currentQuantity}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">SKU:</span>
+                  <div className="font-medium">{item.sku || item.id}</div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">
+                    Available Quantity:
+                  </span>
+                  <div className="font-medium">{item.currentQuantity}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Target Stage Selection */}
+          <div className="space-y-3">
+            <Label htmlFor="target-stage" className="text-sm font-medium">
+              Target Stage for Rework
             </Label>
             <Select value={selectedStageId} onValueChange={setSelectedStageId}>
-              <SelectTrigger className="col-span-3">
+              <SelectTrigger className="h-12">
                 <SelectValue placeholder="Select target stage" />
               </SelectTrigger>
               <SelectContent>
@@ -306,49 +334,81 @@ export function SingleItemReworkQuantityModal({
             </Select>
           </div>
 
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="rework-quantity" className="text-right">
-              Quantity
+          {/* Quantity Input */}
+          <div className="space-y-3">
+            <Label htmlFor="rework-quantity" className="text-sm font-medium">
+              Quantity to Rework
             </Label>
-            <Input
-              id="rework-quantity"
-              type="number"
-              value={
-                quantityToRework === 0 && quantityError ? "" : quantityToRework
-              }
-              onChange={handleQuantityChange}
-              min="1"
-              max={item.currentQuantity}
-              className={`col-span-3 ${quantityError ? "border-destructive" : ""}`}
-              autoFocus
-            />
+            <div className="space-y-2">
+              <Input
+                id="rework-quantity"
+                type="number"
+                value={
+                  quantityToRework === 0 && quantityError
+                    ? ""
+                    : quantityToRework
+                }
+                onChange={handleQuantityChange}
+                min="1"
+                max={item.currentQuantity}
+                className={`text-lg h-12 ${quantityError ? "border-destructive" : ""}`}
+                placeholder="Enter quantity"
+              />
+              {quantityError && (
+                <p className="text-sm text-destructive flex items-center gap-2">
+                  <span className="w-1 h-1 bg-destructive rounded-full"></span>
+                  {quantityError}
+                </p>
+              )}
+            </div>
           </div>
-          {quantityError && (
-            <p className="col-start-2 col-span-3 text-sm text-destructive pl-1">
-              {quantityError}
-            </p>
-          )}
 
-          <div className="grid grid-cols-4 items-start gap-4 mt-2">
-            <Label htmlFor="rework-reason" className="text-right pt-2">
-              Reason
+          {/* Rework Reason */}
+          <div className="space-y-3">
+            <Label htmlFor="rework-reason" className="text-sm font-medium">
+              Rework Reason
             </Label>
-            <Textarea
-              id="rework-reason"
-              value={reworkReason}
-              onChange={handleReasonChange}
-              placeholder="Describe why this item needs rework..."
-              className={`col-span-3 min-h-[80px] ${reasonError ? "border-destructive" : ""}`}
-            />
+            <div className="space-y-2">
+              <Textarea
+                id="rework-reason"
+                value={reworkReason}
+                onChange={handleReasonChange}
+                placeholder="Describe why this item needs rework... (minimum 3 characters)"
+                className={`min-h-[100px] resize-none ${reasonError ? "border-destructive" : ""}`}
+              />
+              {reasonError && (
+                <p className="text-sm text-destructive flex items-center gap-2">
+                  <span className="w-1 h-1 bg-destructive rounded-full"></span>
+                  {reasonError}
+                </p>
+              )}
+              <div className="text-xs text-muted-foreground">
+                {reworkReason.length}/3 characters minimum
+              </div>
+            </div>
           </div>
-          {reasonError && (
-            <p className="col-start-2 col-span-3 text-sm text-destructive pl-1">
-              {reasonError}
-            </p>
-          )}
 
+          {/* Summary */}
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div className="text-sm">
+              <span className="text-muted-foreground">Reworking:</span>
+              <span className="ml-2 font-medium">{quantityToRework} units</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {isValid ? (
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-orange-600" />
+              )}
+              <Badge variant={isValid ? "default" : "secondary"}>
+                {isValid ? "Ready to rework" : "Complete all fields"}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Voucher option for Owners */}
           {userRole === "Owner" && (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <Checkbox
                 id="download-rework-voucher"
                 checked={downloadVoucher}
@@ -356,16 +416,22 @@ export function SingleItemReworkQuantityModal({
                   setDownloadVoucher(checked as boolean)
                 }
               />
-              <Label
-                htmlFor="download-rework-voucher"
-                className="text-sm font-normal"
-              >
-                Download rework voucher
-              </Label>
+              <div className="flex-1">
+                <Label
+                  htmlFor="download-rework-voucher"
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Download rework voucher
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Generate a PDF voucher for this rework operation
+                </p>
+              </div>
             </div>
           )}
         </div>
-        <DialogFooter>
+
+        <DialogFooter className="mt-6">
           <DialogClose asChild>
             <Button variant="outline" disabled={isProcessing}>
               Cancel
@@ -373,16 +439,17 @@ export function SingleItemReworkQuantityModal({
           </DialogClose>
           <Button
             onClick={handleSubmit}
-            disabled={
-              isProcessing ||
-              !!quantityError ||
-              !!reasonError ||
-              quantityToRework <= 0 ||
-              reworkReason.trim().length < 3 ||
-              !selectedStageId
-            }
+            disabled={!isValid || isProcessing}
+            className="min-w-[140px]"
           >
-            {isProcessing ? "Processing..." : "Confirm Rework"}
+            {isProcessing ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                Processing...
+              </div>
+            ) : (
+              `Rework ${quantityToRework} ${quantityToRework === 1 ? "Item" : "Items"}`
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

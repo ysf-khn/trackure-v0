@@ -99,6 +99,7 @@ interface ItemToMoveDetails {
   sku: string | null;
   currentQuantity: number;
   targetStageId?: string | null;
+  targetSubStageId?: string | null;
   targetStageName: string;
 }
 
@@ -108,6 +109,7 @@ interface ItemListTableMeta {
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
     targetStageId?: string | null,
+    targetSubStageId?: string | null,
     sourceStageId?: string | null
   ) => void;
   handleOpenSingleReworkQuantityModal?: (item: ItemForSingleRework) => void;
@@ -118,7 +120,13 @@ interface ItemListTableMeta {
   isWorkflowLoading: boolean;
   currentStageId: string;
   currentSubStageId: string | null;
-  subsequentStages?: { id: string; name: string | null }[];
+  subsequentStages?: {
+    id: string;
+    name: string | null;
+    isSubStage?: boolean;
+    parentStageId?: string;
+    parentStageName?: string | null;
+  }[];
   handleOpenMoveQuantityModal?: (details: ItemToMoveDetails) => void;
 }
 
@@ -372,10 +380,65 @@ export const columns: ColumnDef<ItemInStage>[] = [
         }
       };
 
-      const handleOpenMoveModal = (targetStageId?: string | null) => {
-        const targetStage = targetStageId
-          ? subsequentStages?.find((s) => s.id === targetStageId)
-          : { id: null, name: "Immediate Next Stage" }; // Simplified for immediate next
+      const handleOpenMoveModal = (targetId?: string | null) => {
+        let targetStageId: string | null = null;
+        let targetSubStageId: string | null = null;
+        let targetStageName: string;
+
+        if (!targetId) {
+          // Immediate next stage
+          targetStageName = "Immediate Next Stage";
+        } else {
+          // Find the target in subsequent stages
+          const targetStage = subsequentStages?.find((s) => s.id === targetId);
+
+          console.log("handleOpenMoveModal - Debug:", {
+            targetId,
+            targetStage,
+            subsequentStages: subsequentStages?.map((s) => ({
+              id: s.id,
+              name: s.name,
+              isSubStage: s.isSubStage,
+              parentStageId: (s as any).parentStageId,
+            })),
+          });
+
+          if (targetStage) {
+            // Check if this is a sub-stage (has isSubStage property)
+            if ("isSubStage" in targetStage && targetStage.isSubStage) {
+              targetSubStageId = targetId;
+              targetStageId = targetStage.parentStageId || null;
+              targetStageName =
+                targetStage.name || `Sub-stage ${targetId.substring(0, 6)}`;
+
+              console.log("handleOpenMoveModal - Sub-stage selected:", {
+                targetSubStageId,
+                targetStageId,
+                targetStageName,
+                parentStageId: targetStage.parentStageId,
+              });
+            } else {
+              // It's a main stage
+              targetStageId = targetId;
+              targetStageName =
+                targetStage.name || `Stage ${targetId.substring(0, 6)}`;
+
+              console.log("handleOpenMoveModal - Main stage selected:", {
+                targetStageId,
+                targetStageName,
+              });
+            }
+          } else {
+            // Fallback
+            targetStageId = targetId;
+            targetStageName = `Stage ${targetId.substring(0, 6)}`;
+
+            console.log("handleOpenMoveModal - Fallback:", {
+              targetStageId,
+              targetStageName,
+            });
+          }
+        }
 
         if (meta?.handleOpenMoveQuantityModal) {
           meta.handleOpenMoveQuantityModal({
@@ -383,11 +446,8 @@ export const columns: ColumnDef<ItemInStage>[] = [
             sku: item.sku,
             currentQuantity: item.quantity,
             targetStageId: targetStageId,
-            targetStageName:
-              targetStage?.name ||
-              (targetStageId
-                ? `Stage ${targetStageId.substring(0, 6)}`
-                : "Next Stage"),
+            targetSubStageId: targetSubStageId,
+            targetStageName: targetStageName,
           });
         }
       };
@@ -618,34 +678,44 @@ export function ItemListTable({
   const handleMoveForward = (
     itemsToMove: { id: string; quantity: number }[], // Updated signature
     targetStageId?: string | null, // Add optional targetStageId
+    targetSubStageId?: string | null, // Add optional targetSubStageId
     sourceStageId?: string | null // Add optional sourceStageId
   ) => {
-    console.log("hereee", itemsToMove, targetStageId, sourceStageId);
+    console.log("handleMoveForward - Debug:", {
+      itemsToMove,
+      targetStageId,
+      targetSubStageId,
+      sourceStageId,
+      organizationId,
+    });
 
     if (!organizationId) {
       // organizationId from useProfileAndOrg
       toast.error("Organization ID is missing. Cannot move items.");
       return;
     }
-    moveItems(
-      {
-        items: itemsToMove, // Updated payload
-        organizationId: organizationId, // organizationId from useProfileAndOrg
-        targetStageId: targetStageId, // Pass it here
-        sourceStageId: sourceStageId || stageId, // Use provided sourceStageId or current stageId
+
+    const mutationPayload = {
+      items: itemsToMove, // Updated payload
+      organizationId: organizationId, // organizationId from useProfileAndOrg
+      targetStageId: targetStageId, // Pass it here
+      targetSubStageId: targetSubStageId, // Pass target sub-stage ID
+      sourceStageId: sourceStageId || stageId, // Use provided sourceStageId or current stageId
+    };
+
+    console.log("handleMoveForward - Mutation payload:", mutationPayload);
+
+    moveItems(mutationPayload, {
+      onSuccess: () => {
+        // rowSelection state will be reset by table instance if data re-fetches
+        // and selected rows are no longer present, or manually:
+        setRowSelection({});
       },
-      {
-        onSuccess: () => {
-          // rowSelection state will be reset by table instance if data re-fetches
-          // and selected rows are no longer present, or manually:
-          setRowSelection({});
-        },
-        onError: (error) => {
-          // Error toast is handled by the mutation hook
-          console.error("Failed to move items forward:", error);
-        },
-      }
-    );
+      onError: (error) => {
+        // Error toast is handled by the mutation hook
+        console.error("Failed to move items forward:", error);
+      },
+    });
   };
 
   const handleReworkSuccess = () => {
@@ -702,7 +772,7 @@ export function ItemListTable({
       const a = document.createElement("a");
       a.href = url;
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      a.download = `items_${stageId}_${timestamp}.pdf`;
+      a.download = `items_export_report_${new Date().toISOString().split("T")[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -738,9 +808,23 @@ export function ItemListTable({
 
   const handleConfirmMoveItem = (itemId: string, quantity: number) => {
     if (!itemToMoveDetails) return; // Should not happen if modal was opened correctly
+
+    console.log("handleConfirmMoveItem - Debug:", {
+      itemId,
+      quantity,
+      itemToMoveDetails: {
+        targetStageId: itemToMoveDetails.targetStageId,
+        targetSubStageId: itemToMoveDetails.targetSubStageId,
+        targetStageName: itemToMoveDetails.targetStageName,
+      },
+      stageId,
+    });
+
     handleMoveForward(
       [{ id: itemId, quantity: quantity }],
-      itemToMoveDetails.targetStageId
+      itemToMoveDetails.targetStageId,
+      itemToMoveDetails.targetSubStageId,
+      stageId
     );
     setIsMoveQuantityModalOpen(false); // Close modal after initiating move
   };
@@ -769,7 +853,7 @@ export function ItemListTable({
     movedItems: { id: string; quantity: number }[],
     targetStageId: string | null
   ) => {
-    handleMoveForward(movedItems, targetStageId);
+    handleMoveForward(movedItems, targetStageId, null, stageId);
     setIsBulkMoveModalOpen(false);
   };
 
@@ -784,6 +868,7 @@ export function ItemListTable({
     quantity: number,
     reason: string,
     targetStageId: string,
+    targetSubStageId: string | null,
     sourceStageId: string,
     sourceSubStageId: string | null
   ) => {
@@ -800,6 +885,7 @@ export function ItemListTable({
         ],
         rework_reason: reason,
         target_rework_stage_id: targetStageId,
+        target_rework_sub_stage_id: targetSubStageId,
         organizationId,
       },
       {
@@ -832,7 +918,8 @@ export function ItemListTable({
   const handleConfirmBulkRework = (
     reworkedItemsToSubmit: { id: string; quantity: number }[],
     reason: string,
-    targetStageId: string
+    targetStageId: string,
+    targetSubStageId: string | null
   ) => {
     if (!organizationId || !stageId) return;
     reworkItems(
@@ -844,6 +931,7 @@ export function ItemListTable({
         })),
         rework_reason: reason,
         target_rework_stage_id: targetStageId,
+        target_rework_sub_stage_id: targetSubStageId,
         organizationId,
       },
       {
@@ -1059,6 +1147,7 @@ export function ItemListTable({
           }}
           targetStageName={itemToMoveDetails.targetStageName}
           targetStageId={itemToMoveDetails.targetStageId}
+          targetSubStageId={itemToMoveDetails.targetSubStageId}
           onConfirmMove={handleConfirmMoveItem}
           userRole={userRole}
         />
@@ -1073,6 +1162,7 @@ export function ItemListTable({
           targetStage={targetStageForBulkMove}
           onConfirmBulkMove={handleConfirmBulkMoveItems}
           isMovingItems={isMovingItems}
+          userRole={userRole}
         />
       )}
 

@@ -16,6 +16,7 @@ export interface Database {
           role: string;
           full_name: string;
           updated_at: string;
+          created_at: string;
           onboarding_status: string;
         };
         Insert: {
@@ -24,6 +25,7 @@ export interface Database {
           role?: string;
           full_name?: string;
           updated_at?: string;
+          created_at?: string;
           onboarding_status?: string;
         };
         Update: {
@@ -32,6 +34,7 @@ export interface Database {
           role?: string;
           full_name?: string;
           updated_at?: string;
+          created_at?: string;
           onboarding_status?: string;
         };
         Relationships: [

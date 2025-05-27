@@ -21,6 +21,7 @@ const moveForwardSchema = z.object({
     )
     .min(1, "At least one item is required."),
   target_stage_id: z.string().uuid().optional().nullable(), // Optional target stage
+  target_sub_stage_id: z.string().uuid().optional().nullable(), // Optional target sub-stage
   source_stage_id: z.string().uuid().optional().nullable(), // Optional source stage to prioritize
 });
 
@@ -28,15 +29,55 @@ export async function POST(request: Request) {
   // const cookieStore = cookies();
   const supabase = await createClient();
 
-  // 1. Verify Authentication & Authorization
+  // Get the authenticated user
   const {
     data: { user },
-    error: authError,
+    error: userError,
   } = await supabase.auth.getUser();
-  if (authError || !user) {
-    console.error("Move Forward Auth Error:", authError);
+
+  if (userError || !user) {
+    console.error("Move Forward: Authentication error:", userError);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Parse and validate the request body
+  let body;
+  try {
+    body = await request.json();
+    console.log(
+      "Move Forward API - Received body:",
+      JSON.stringify(body, null, 2)
+    );
+  } catch (parseError) {
+    console.error("Move Forward: JSON parsing error:", parseError);
+    return NextResponse.json(
+      { error: "Invalid JSON in request body" },
+      { status: 400 }
+    );
+  }
+
+  // Validate the request body against the schema
+  const validationResult = moveForwardSchema.safeParse(body);
+  if (!validationResult.success) {
+    console.error("Move Forward: Validation error:", validationResult.error);
+    return NextResponse.json(
+      {
+        error: "Invalid request body",
+        details: validationResult.error.errors,
+      },
+      { status: 400 }
+    );
+  }
+
+  const { items, target_stage_id, target_sub_stage_id, source_stage_id } =
+    validationResult.data;
+
+  console.log("Move Forward API - Parsed values:", {
+    target_stage_id,
+    target_sub_stage_id,
+    source_stage_id,
+    itemsCount: items.length,
+  });
 
   // Fetch user profile to get organization_id and role (adjust table/column names)
   const { data: profile, error: profileError } = await supabase
@@ -62,19 +103,6 @@ export async function POST(request: Request) {
   }
 
   const organizationId = profile.organization_id;
-
-  // 2. Validate Request Body
-  const body = await request.json();
-  const validation = moveForwardSchema.safeParse(body);
-
-  if (!validation.success) {
-    return NextResponse.json(
-      { error: "Invalid input.", details: validation.error.format() },
-      { status: 400 }
-    );
-  }
-
-  const { items, target_stage_id, source_stage_id } = validation.data;
 
   try {
     // Fetch workflow configuration for the organization once
@@ -132,14 +160,62 @@ export async function POST(request: Request) {
       } | null = null;
       let fetchError: { message: string } | null = null;
 
-      if (target_stage_id) {
-        const targetStageInWorkflow = workflowStages.find(
-          (s) => s.id === target_stage_id
+      if (target_stage_id || target_sub_stage_id) {
+        // Determine the target stage for validation
+        let targetStageForValidation: WorkflowStage | undefined;
+
+        console.log(
+          "Move Forward API - Determining target stage for validation:",
+          {
+            target_sub_stage_id,
+            target_stage_id,
+            workflowStagesCount: workflowStages.length,
+          }
         );
-        if (!targetStageInWorkflow) {
+
+        if (target_sub_stage_id) {
+          // Find which stage the target sub-stage belongs to
+          console.log(
+            "Move Forward API - Looking for sub-stage in workflow stages..."
+          );
+          for (const stage of workflowStages) {
+            const foundSubStage = stage.sub_stages?.find(
+              (sub) => sub.id === target_sub_stage_id
+            );
+            if (foundSubStage) {
+              targetStageForValidation = stage;
+              console.log("Move Forward API - Found sub-stage in stage:", {
+                stageId: stage.id,
+                subStageId: foundSubStage.id,
+                subStageSequence: foundSubStage.sequence_order,
+              });
+              break;
+            }
+          }
+          if (!targetStageForValidation) {
+            console.log(
+              "Move Forward API - Sub-stage not found in any workflow stage!"
+            );
+          }
+        } else if (target_stage_id) {
+          console.log("Move Forward API - Looking for stage by ID...");
+          targetStageForValidation = workflowStages.find(
+            (s) => s.id === target_stage_id
+          );
+          if (targetStageForValidation) {
+            console.log("Move Forward API - Found stage:", {
+              stageId: targetStageForValidation.id,
+              subStagesCount: targetStageForValidation.sub_stages?.length || 0,
+            });
+          } else {
+            console.log("Move Forward API - Stage not found!");
+          }
+        }
+
+        if (!targetStageForValidation) {
           errors.push({
             itemId,
-            error: `Target stage ID ${target_stage_id} not found in workflow.`,
+            error: `Target ${target_sub_stage_id ? "sub-stage" : "stage"} ID ${target_sub_stage_id || target_stage_id} not found in workflow.`,
           });
           continue;
         }
@@ -168,13 +244,47 @@ export async function POST(request: Request) {
               );
               return { ...alloc, stage: stageDetails };
             })
-            .filter(
-              (alloc) =>
-                alloc.stage &&
+            .filter((alloc) => {
+              if (!alloc.stage || alloc.quantity < requestedQuantity) {
+                return false;
+              }
+
+              // If moving to a different stage, require source stage to be before target stage
+              if (
                 alloc.stage.sequence_order <
-                  targetStageInWorkflow.sequence_order &&
-                alloc.quantity >= requestedQuantity
-            );
+                targetStageForValidation.sequence_order
+              ) {
+                return true;
+              }
+
+              // If moving within the same stage (substage movement), allow it
+              if (
+                alloc.stage.sequence_order ===
+                targetStageForValidation.sequence_order
+              ) {
+                // For same stage movements, we need to check if it's a valid substage progression
+                if (target_sub_stage_id && alloc.sub_stage_id) {
+                  const currentSubStage = alloc.stage.sub_stages?.find(
+                    (sub) => sub.id === alloc.sub_stage_id
+                  );
+                  const targetSubStage = alloc.stage.sub_stages?.find(
+                    (sub) => sub.id === target_sub_stage_id
+                  );
+
+                  // Allow if target substage has higher sequence order than current
+                  return (
+                    currentSubStage &&
+                    targetSubStage &&
+                    targetSubStage.sequence_order >
+                      currentSubStage.sequence_order
+                  );
+                }
+                // If no substages involved, allow same stage movement
+                return !target_sub_stage_id && !alloc.sub_stage_id;
+              }
+
+              return false;
+            });
 
           if (validSourceAllocations.length === 0) {
             // Check for a more specific reason for failure
@@ -186,17 +296,35 @@ export async function POST(request: Request) {
                 return (
                   stageDetails &&
                   stageDetails.sequence_order <
-                    targetStageInWorkflow.sequence_order
+                    targetStageForValidation.sequence_order
                 );
               }
             );
+
+            const anySameStageAllocations = potentialSourceAllocations.some(
+              (alloc) => {
+                const stageDetails = workflowStages.find(
+                  (s) => s.id === alloc.stage_id
+                );
+                return (
+                  stageDetails &&
+                  stageDetails.sequence_order ===
+                    targetStageForValidation.sequence_order
+                );
+              }
+            );
+
             if (anyBeforeAllocations) {
               fetchError = {
-                message: `Sufficient quantity (${requestedQuantity}) not found in any single allocation before target stage ${target_stage_id}.`,
+                message: `Sufficient quantity (${requestedQuantity}) not found in any single allocation before target stage ${target_stage_id || targetStageForValidation.id}.`,
+              };
+            } else if (anySameStageAllocations && target_sub_stage_id) {
+              fetchError = {
+                message: `No valid allocation found for substage movement. Item may not be in a substage that comes before the target substage ${target_sub_stage_id}.`,
               };
             } else {
               fetchError = {
-                message: `No allocation for item ${itemId} found in a stage before target stage ${target_stage_id}.`,
+                message: `No allocation for item ${itemId} found in a stage before target stage ${target_stage_id || targetStageForValidation.id}.`,
               };
             }
           } else {
@@ -256,25 +384,41 @@ export async function POST(request: Request) {
         null;
 
       // --- Determine Target Location --- //
-      if (target_stage_id) {
-        // Validate the target_stage_id
-        const currentStageIndex = workflowStages.findIndex(
-          (s) => s.id === currentAllocation.stage_id
-        );
-        const targetStageIndex = workflowStages.findIndex(
-          (s) => s.id === target_stage_id
-        );
+      if (target_stage_id || target_sub_stage_id) {
+        // Determine the target stage for validation
+        let targetStageForValidation: WorkflowStage | undefined;
 
-        if (targetStageIndex === -1) {
+        if (target_sub_stage_id) {
+          // Find which stage the target sub-stage belongs to
+          for (const stage of workflowStages) {
+            const foundSubStage = stage.sub_stages?.find(
+              (sub) => sub.id === target_sub_stage_id
+            );
+            if (foundSubStage) {
+              targetStageForValidation = stage;
+              break;
+            }
+          }
+        } else if (target_stage_id) {
+          targetStageForValidation = workflowStages.find(
+            (s) => s.id === target_stage_id
+          );
+        }
+
+        if (!targetStageForValidation) {
           errors.push({
             itemId,
-            error: `Target stage ID ${target_stage_id} not found in workflow.`,
+            error: `Target ${target_sub_stage_id ? "sub-stage" : "stage"} ID ${target_sub_stage_id || target_stage_id} not found in workflow.`,
           });
           continue;
         }
 
+        // Validate the target stage exists
+        const currentStageIndex = workflowStages.findIndex(
+          (s) => s.id === currentAllocation.stage_id
+        );
+
         if (currentStageIndex === -1) {
-          // This should be unlikely if currentAllocation.stage_id is valid
           errors.push({
             itemId,
             error: `Current stage ID ${currentAllocation.stage_id} (from allocation) not found in workflow.`,
@@ -282,58 +426,116 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Compare sequence_order instead of array indices
         const currentStage = workflowStages[currentStageIndex];
-        const targetStage = workflowStages[targetStageIndex];
 
-        // console.log("Debug - Current Stage:", {
-        //   id: currentStage.id,
-        //   sequence_order: currentStage.sequence_order,
-        //   index: currentStageIndex,
-        // });
-        // console.log("Debug - Target Stage:", {
-        //   id: targetStage.id,
-        //   sequence_order: targetStage.sequence_order,
-        //   index: targetStageIndex,
-        // });
-        // console.log(
-        //   "Debug - All Stages:",
-        //   workflowStages.map((s, i) => ({
-        //     id: s.id,
-        //     sequence_order: s.sequence_order,
-        //     index: i,
-        //   }))
-        // );
-
-        // Check if the stages are the same
-        if (currentStage.id === targetStage.id) {
+        // Check if we're trying to move to the same stage and sub-stage
+        if (
+          currentStage.id === targetStageForValidation.id &&
+          currentAllocation.sub_stage_id === target_sub_stage_id
+        ) {
           errors.push({
             itemId,
-            error: `Cannot move to the same stage (${currentStage.id}).`,
+            error: `Cannot move to the same location (stage: ${currentStage.id}, sub-stage: ${target_sub_stage_id || "none"}).`,
           });
           continue;
         }
 
-        // Compare sequence orders
-        if (targetStage.sequence_order <= currentStage.sequence_order) {
+        // Compare sequence orders for stages
+        if (
+          targetStageForValidation.sequence_order < currentStage.sequence_order
+        ) {
           errors.push({
             itemId,
-            error: `Target stage ${target_stage_id} (sequence: ${targetStage.sequence_order}) is not after the current stage ${currentAllocation.stage_id} (sequence: ${currentStage.sequence_order}).`,
+            error: `Target stage ${targetStageForValidation.id} (sequence: ${targetStageForValidation.sequence_order}) is before the current stage ${currentAllocation.stage_id} (sequence: ${currentStage.sequence_order}).`,
           });
           continue;
         }
 
-        // Target is valid, determine its first sub-stage (if any)
-        const targetSubStages = targetStage.sub_stages ?? [];
-        const nextSubStageId =
-          targetSubStages.length > 0 ? targetSubStages[0].id : null;
+        // If same stage, check sub-stage sequence order
+        if (
+          targetStageForValidation.sequence_order ===
+            currentStage.sequence_order &&
+          currentAllocation.sub_stage_id &&
+          target_sub_stage_id
+        ) {
+          const currentSubStage = currentStage.sub_stages?.find(
+            (sub) => sub.id === currentAllocation.sub_stage_id
+          );
+          const targetSubStage = targetStageForValidation.sub_stages?.find(
+            (sub) => sub.id === target_sub_stage_id
+          );
+
+          if (
+            currentSubStage &&
+            targetSubStage &&
+            targetSubStage.sequence_order <= currentSubStage.sequence_order
+          ) {
+            errors.push({
+              itemId,
+              error: `Target sub-stage ${target_sub_stage_id} (sequence: ${targetSubStage.sequence_order}) is not after the current sub-stage ${currentAllocation.sub_stage_id} (sequence: ${currentSubStage.sequence_order}).`,
+            });
+            continue;
+          }
+        }
+
+        // Determine the final target location
+        let finalTargetStageId: string;
+        let finalTargetSubStageId: string | null = null;
+
+        console.log("Move Forward API - Target location determination:", {
+          target_sub_stage_id,
+          target_stage_id,
+          targetStageForValidation: {
+            id: targetStageForValidation.id,
+            sub_stages: targetStageForValidation.sub_stages?.map((s) => ({
+              id: s.id,
+              sequence_order: s.sequence_order,
+            })),
+          },
+        });
+
+        // Priority 1: If a specific sub-stage is requested, use it
+        if (target_sub_stage_id) {
+          finalTargetStageId = targetStageForValidation.id;
+          finalTargetSubStageId = target_sub_stage_id;
+          console.log("Move Forward API - Using specific sub-stage:", {
+            finalTargetStageId,
+            finalTargetSubStageId,
+          });
+        }
+        // Priority 2: If only a stage is requested, determine the appropriate sub-stage
+        else if (target_stage_id) {
+          finalTargetStageId = target_stage_id;
+          // If target stage has sub-stages, default to the first one
+          const targetSubStages = targetStageForValidation.sub_stages ?? [];
+          finalTargetSubStageId =
+            targetSubStages.length > 0 ? targetSubStages[0].id : null;
+          console.log(
+            "Move Forward API - Using stage with default sub-stage:",
+            {
+              finalTargetStageId,
+              finalTargetSubStageId,
+              targetSubStages: targetSubStages.map((s) => s.id),
+            }
+          );
+        }
+        // Priority 3: Fallback (shouldn't happen)
+        else {
+          finalTargetStageId = targetStageForValidation.id;
+          console.log("Move Forward API - Using fallback:", {
+            finalTargetStageId,
+            finalTargetSubStageId,
+          });
+        }
 
         nextLocation = {
-          stageId: target_stage_id,
-          subStageId: nextSubStageId,
+          stageId: finalTargetStageId,
+          subStageId: finalTargetSubStageId,
         };
+
+        console.log("Move Forward API - Final nextLocation:", nextLocation);
       } else {
-        // No target_stage_id provided, use the default next stage logic
+        // No target_stage_id or target_sub_stage_id provided, use the default next stage logic
         nextLocation = determineNextStage(
           currentAllocation.stage_id,
           currentAllocation.sub_stage_id,

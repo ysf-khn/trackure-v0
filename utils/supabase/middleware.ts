@@ -18,7 +18,13 @@ const ONBOARDING_ROUTES = new Set([
   "/setup-workflow",
   "/invite",
 ]);
-const AUTH_ROUTES = new Set(["/login", "/sign-up", "/sign-in"]);
+const AUTH_ROUTES = new Set([
+  "/login",
+  "/sign-up",
+  "/sign-in",
+  "/reset-password",
+  "/forgot-password",
+]);
 const PUBLIC_ROUTES = new Set([
   "/",
   "/privacy-policy",
@@ -103,7 +109,8 @@ export const updateSession = async (request: NextRequest) => {
     // --- Handle authenticated users ---
 
     // Optimize by checking auth routes first (most common redirect case)
-    if (isAuthPath) {
+    // Exception: Allow authenticated users to access reset-password page
+    if (isAuthPath && pathname !== "/reset-password") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 

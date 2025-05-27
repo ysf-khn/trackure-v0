@@ -2,6 +2,7 @@
 
 import {
   BellIcon,
+  BuildingIcon,
   CreditCardIcon,
   LogOutIcon,
   MoreVerticalIcon,
@@ -117,6 +118,12 @@ export function NavUser() {
                 <Link href="/settings/account">
                   <UserCircleIcon className="h-4 w-4 mr-2" />
                   Account
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings/organization">
+                  <BuildingIcon className="h-4 w-4 mr-2" />
+                  Organization
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

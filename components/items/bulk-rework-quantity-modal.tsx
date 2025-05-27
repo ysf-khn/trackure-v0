@@ -51,7 +51,8 @@ interface BulkReworkQuantityModalProps {
   onConfirmBulkRework: (
     reworkedItems: { id: string; quantity: number }[],
     reason: string,
-    targetStageId: string
+    targetStageId: string,
+    targetSubStageId: string | null
   ) => void;
   isProcessing: boolean;
   userRole?: string | null;
@@ -152,7 +153,8 @@ export function BulkReworkQuantityModal({
     onConfirmBulkRework(
       itemsToSubmit,
       reworkReason.trim(),
-      targetStageId // Use the parent stage ID
+      targetStageId,
+      isSubStage ? selectedStageId : null
     );
 
     // Download vouchers if user is Owner AND they chose to download

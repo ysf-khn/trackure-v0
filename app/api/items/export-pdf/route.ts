@@ -22,6 +22,8 @@ interface PdfItemData {
   quantity: number;
   current_stage_entered_at: string | null;
   instance_details: Record<string, unknown> | null;
+  stage_id: string;
+  sub_stage_id: string | null;
 }
 
 interface HistoryMovementEntry {
@@ -60,10 +62,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // --- RBAC Check: Only 'Owner' can export ---
+  // Get user profile and organization
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("organization_id, role")
+    .select("organization_id, role, full_name")
     .eq("id", user.id)
     .single();
 
@@ -106,6 +108,48 @@ export async function GET(request: NextRequest) {
   const { stageId, subStageId, orderId, startDate, endDate } = parseResult.data;
 
   try {
+    // Fetch organization name
+    const { data: orgData, error: orgError } = await supabase
+      .from("organizations")
+      .select("name")
+      .eq("id", orgId)
+      .single();
+
+    if (orgError || !orgData) {
+      throw new Error("Failed to fetch organization data");
+    }
+
+    // Fetch workflow stages and sub-stages for name resolution
+    const { data: workflowStages, error: workflowError } = await supabase
+      .from("workflow_stages")
+      .select(
+        `
+        id,
+        name,
+        workflow_sub_stages (
+          id,
+          name
+        )
+      `
+      )
+      .eq("organization_id", orgId);
+
+    if (workflowError) {
+      console.error("Error fetching workflow stages:", workflowError);
+      throw new Error("Failed to fetch workflow data");
+    }
+
+    // Create lookup maps for stage and sub-stage names
+    const stageNameMap = new Map<string, string>();
+    const subStageNameMap = new Map<string, string>();
+
+    workflowStages?.forEach((stage) => {
+      stageNameMap.set(stage.id, stage.name || "Unknown Stage");
+      stage.workflow_sub_stages?.forEach((subStage) => {
+        subStageNameMap.set(subStage.id, subStage.name || "Unknown Sub-Stage");
+      });
+    });
+
     // --- Build Dynamic Query using the same approach as useItemsInStage ---
     let query = supabase
       .from("item_stage_allocations")
@@ -211,136 +255,299 @@ export async function GET(request: NextRequest) {
             quantity: typedAlloc.quantity,
             current_stage_entered_at: enteredAt,
             instance_details: itemDetails.instance_details,
+            stage_id: typedAlloc.stage_id,
+            sub_stage_id: typedAlloc.sub_stage_id,
           };
         })
         .filter(Boolean) || [];
 
     const formattedData = processedData as PdfItemData[];
 
-    // --- Generate PDF ---
-    const doc = new PDFDocument({ margin: 50 });
-    const chunks: Buffer[] = [];
+    // --- Generate PDF with Modern Styling ---
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const buffers: Buffer[] = [];
 
-    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("data", buffers.push.bind(buffers));
 
-    // PDF Header
-    doc.fontSize(20).text("Items Export Report", { align: "center" });
-    doc.moveDown();
+    // Create a promise that resolves when the PDF is finished
+    const pdfPromise = new Promise<Buffer>((resolve) => {
+      doc.on("end", () => {
+        resolve(Buffer.concat(buffers));
+      });
+    });
 
-    // Export details
-    doc.fontSize(12);
-    doc.text(`Export Date: ${format(new Date(), "PPP")}`, { align: "left" });
-    doc.text(`Total Items: ${formattedData.length}`, { align: "left" });
+    // Define modern color palette
+    const colors = {
+      primary: "#1e40af", // Blue-700
+      secondary: "#64748b", // Slate-500
+      accent: "#0ea5e9", // Sky-500
+      success: "#059669", // Emerald-600
+      danger: "#dc2626", // Red-600
+      warning: "#d97706", // Amber-600
+      light: "#f8fafc", // Slate-50
+      border: "#e2e8f0", // Slate-200
+      text: "#0f172a", // Slate-900
+      textMuted: "#64748b", // Slate-500
+    };
 
+    // Header with Trakure branding
+    doc
+      .fillColor(colors.primary)
+      .font("Helvetica-Bold")
+      .fontSize(24)
+      .text("TRAKURE", 50, 50, { align: "left" })
+      .fontSize(10)
+      .fillColor(colors.textMuted)
+      .text("Export Workflows, Perfected", 50, 80)
+      .text("www.trakure.com", 50, 95);
+
+    // Add a modern header line
+    doc
+      .moveTo(50, 120)
+      .lineTo(545, 120)
+      .strokeColor(colors.accent)
+      .lineWidth(3)
+      .stroke();
+
+    // Report title
+    doc
+      .fillColor(colors.text)
+      .font("Helvetica-Bold")
+      .fontSize(18)
+      .text("Items Export Report", 50, 140)
+      .moveDown(0.3);
+
+    // Organization and generation info
+    doc
+      .fontSize(11)
+      .fillColor(colors.textMuted)
+      .text(`Organization: ${orgData.name}`, 50, 170)
+      .text(
+        `Generated on ${format(new Date(), "EEEE, MMMM do, yyyy 'at' h:mm a")}`,
+        50,
+        185
+      )
+      .text(`Generated by ${profile.full_name}`, 50, 200);
+
+    let currentY = 230;
+
+    // Export criteria section
+    doc
+      .rect(50, currentY, 495, 100)
+      .fillColor(colors.light)
+      .fill()
+      .strokeColor(colors.border)
+      .lineWidth(1)
+      .stroke();
+
+    doc
+      .fillColor(colors.primary)
+      .font("Helvetica-Bold")
+      .fontSize(14)
+      .text("Export Criteria", 65, currentY + 15);
+
+    doc
+      .font("Helvetica")
+      .fontSize(11)
+      .fillColor(colors.text)
+      .text(`Total Items: ${formattedData.length}`, 65, currentY + 35);
+
+    let criteriaY = currentY + 35;
     if (stageId) {
-      doc.text(`Stage ID: ${stageId}`, { align: "left" });
+      const stageName = stageNameMap.get(stageId) || "Unknown Stage";
+      doc.text(`Stage: ${stageName}`, 300, criteriaY);
+      criteriaY += 15;
     }
 
     if (subStageId) {
-      doc.text(`Sub-Stage ID: ${subStageId}`, { align: "left" });
+      const subStageName =
+        subStageNameMap.get(subStageId) || "Unknown Sub-Stage";
+      doc.text(`Sub-Stage: ${subStageName}`, 300, criteriaY);
+      criteriaY += 15;
     }
 
     if (startDate || endDate) {
       const dateRangeText = `Date Range: ${startDate ? format(new Date(startDate), "PP") : "Start"} - ${endDate ? format(new Date(endDate), "PP") : "End"}`;
-      doc.text(dateRangeText, { align: "left" });
+      doc.text(dateRangeText, 65, currentY + 50);
     }
 
-    doc.moveDown(2);
+    if (orderId) {
+      doc.text(`Order ID Filter: ${orderId}`, 65, currentY + 65);
+    }
+
+    currentY += 120;
+
+    // Items Section
+    doc
+      .fillColor(colors.primary)
+      .font("Helvetica-Bold")
+      .fontSize(16)
+      .text("Items List", 50, currentY);
+
+    // Add decorative line under section title
+    doc
+      .moveTo(50, currentY + 20)
+      .lineTo(150, currentY + 20)
+      .strokeColor(colors.accent)
+      .lineWidth(2)
+      .stroke();
+
+    currentY += 35;
 
     if (formattedData.length === 0) {
       doc
-        .fontSize(14)
-        .text("No items found matching the criteria.", { align: "center" });
+        .rect(50, currentY, 495, 40)
+        .fillColor("#f1f5f9") // Slate-100
+        .fill()
+        .strokeColor(colors.border)
+        .lineWidth(1)
+        .stroke();
+
+      doc
+        .font("Helvetica")
+        .fontSize(11)
+        .fillColor(colors.textMuted)
+        .text(
+          "No items found matching the specified criteria.",
+          65,
+          currentY + 15
+        );
+
+      currentY += 60;
     } else {
-      // Table headers
-      const tableTop = doc.y;
-      const itemHeight = 20;
-      let currentY = tableTop;
-
-      // Define column positions and widths
-      const columns = [
-        { header: "SKU", x: 50, width: 80 },
-        { header: "Order #", x: 130, width: 80 },
-        { header: "Quantity", x: 210, width: 60 },
-        { header: "Entered At", x: 270, width: 100 },
-      ];
-
-      // Draw table headers
-      doc.fontSize(10).fillColor("black");
-      columns.forEach((col) => {
-        doc.rect(col.x, currentY, col.width, itemHeight).stroke();
-        doc.text(col.header, col.x + 5, currentY + 5, {
-          width: col.width - 10,
-          height: itemHeight - 10,
-          align: "left",
-        });
-      });
-
-      currentY += itemHeight;
-
-      // Draw table rows
+      // Modern table with improved styling
       formattedData.forEach((item, index) => {
         // Check if we need a new page
-        if (currentY + itemHeight > doc.page.height - 50) {
+        if (currentY > 700) {
           doc.addPage();
           currentY = 50;
-
-          // Redraw headers on new page
-          columns.forEach((col) => {
-            doc.rect(col.x, currentY, col.width, itemHeight).stroke();
-            doc.text(col.header, col.x + 5, currentY + 5, {
-              width: col.width - 10,
-              height: itemHeight - 10,
-              align: "left",
-            });
-          });
-          currentY += itemHeight;
         }
 
-        // Alternate row colors
-        if (index % 2 === 1) {
+        const bgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc"; // Alternating row colors
+
+        // Item container
+        doc
+          .rect(50, currentY, 495, 80)
+          .fillColor(bgColor)
+          .fill()
+          .strokeColor(colors.border)
+          .lineWidth(1)
+          .stroke();
+
+        // Item number badge
+        doc
+          .fillColor(colors.primary)
+          .font("Helvetica-Bold")
+          .fontSize(11)
+          .text(`#${index + 1}`, 65, currentY + 15);
+
+        // SKU
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(12)
+          .fillColor(colors.text)
+          .text(`SKU: ${item.sku || "N/A"}`, 100, currentY + 15);
+
+        // Order number
+        if (item.order_number) {
           doc
-            .rect(50, currentY, 370, itemHeight)
-            .fillAndStroke("#f8f9fa", "#000000");
+            .font("Helvetica")
+            .fontSize(10)
+            .fillColor(colors.textMuted)
+            .text(`Order: ${item.order_number}`, 350, currentY + 15);
         }
 
-        // Draw row data
-        const rowData = [
-          item.sku || "-",
-          item.order_number || "-",
-          item.quantity.toString(),
-          item.current_stage_entered_at
-            ? format(new Date(item.current_stage_entered_at), "MM/dd/yy")
-            : "-",
-        ];
+        // Quantity
+        doc
+          .font("Helvetica")
+          .fontSize(10)
+          .fillColor(colors.text)
+          .text(`Qty: ${item.quantity}`, 450, currentY + 15);
 
-        columns.forEach((col, colIndex) => {
-          doc.rect(col.x, currentY, col.width, itemHeight).stroke();
+        // Current stage and sub-stage
+        const stageName = stageNameMap.get(item.stage_id) || "Unknown Stage";
+        const locationText = item.sub_stage_id
+          ? `${stageName} > ${subStageNameMap.get(item.sub_stage_id) || "Unknown Sub-Stage"}`
+          : stageName;
+
+        doc
+          .font("Helvetica")
+          .fontSize(10)
+          .fillColor(colors.text)
+          .text(`Location: ${locationText}`, 65, currentY + 35);
+
+        // Entered at timestamp
+        if (item.current_stage_entered_at) {
           doc
-            .fillColor("black")
-            .text(rowData[colIndex], col.x + 5, currentY + 5, {
-              width: col.width - 10,
-              height: itemHeight - 10,
-              align: "left",
-            });
-        });
+            .font("Helvetica")
+            .fontSize(9)
+            .fillColor(colors.textMuted)
+            .text(
+              `Entered: ${format(new Date(item.current_stage_entered_at), "MMM d, yyyy 'at' h:mm a")}`,
+              65,
+              currentY + 50
+            );
+        }
 
-        currentY += itemHeight;
+        // Instance details (if any)
+        if (
+          item.instance_details &&
+          Object.keys(item.instance_details).length > 0
+        ) {
+          const detailsText = Object.entries(item.instance_details)
+            .slice(0, 3) // Limit to first 3 details to avoid overflow
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(", ");
+
+          doc
+            .font("Helvetica")
+            .fontSize(9)
+            .fillColor(colors.textMuted)
+            .text(`Details: ${detailsText}`, 65, currentY + 65, { width: 400 });
+        }
+
+        currentY += 95;
       });
     }
 
-    // Finalize the PDF
-    doc.end();
+    // Modern footer
+    currentY += 20;
 
-    // Wait for the PDF to be generated
-    const pdfBuffer = await new Promise<Buffer>((resolve) => {
-      doc.on("end", () => {
-        resolve(Buffer.concat(chunks));
-      });
+    // Check if we have enough space for footer (need at least 80 points)
+    if (currentY > 720) {
+      doc.addPage();
+      currentY = 50;
+    }
+
+    doc
+      .moveTo(50, currentY)
+      .lineTo(545, currentY)
+      .strokeColor(colors.accent)
+      .lineWidth(3)
+      .stroke();
+
+    currentY += 15;
+
+    // Footer content with Trakure branding
+    doc
+      .fillColor(colors.textMuted)
+      .font("Helvetica")
+      .fontSize(9)
+      .text("Generated by Trakure - Export Workflows, Perfected", 50, currentY)
+      .text("www.trakure.com", 50, currentY + 12);
+
+    // Statistics on the right
+    doc.text(`Total Items Exported: ${formattedData.length}`, 350, currentY, {
+      align: "right",
     });
 
-    // --- Return Response ---
-    const filename = `items_export_${format(new Date(), "yyyy-MM-dd")}.pdf`;
+    // Finalize PDF
+    doc.end();
+
+    // Wait for PDF to be generated
+    const pdfBuffer = await pdfPromise;
+
+    const filename = `items_export_report_${format(new Date(), "HHmmss")}.pdf`;
 
     return new Response(pdfBuffer, {
       status: 200,

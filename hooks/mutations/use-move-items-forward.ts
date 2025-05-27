@@ -24,16 +24,20 @@ interface MoveItemsForwardVariables {
   items: { id: string; quantity: number }[]; // Updated from itemIds
   organizationId: string;
   targetStageId?: string | null; // Add optional target stage ID
+  targetSubStageId?: string | null; // Add optional target sub-stage ID
   sourceStageId?: string | null; // Add optional source stage ID
 }
 
 async function moveItemsForwardAPI(
   variables: MoveItemsForwardVariables
 ): Promise<MoveForwardSuccessResponse> {
-  // Construct the body, including target_stage_id and source_stage_id if present
+  console.log("moveItemsForwardAPI - Input variables:", variables);
+
+  // Construct the body, including target_stage_id, target_sub_stage_id and source_stage_id if present
   const body: {
     items: { id: string; quantity: number }[];
     target_stage_id?: string | null;
+    target_sub_stage_id?: string | null;
     source_stage_id?: string | null;
   } = {
     // Updated property name
@@ -42,9 +46,14 @@ async function moveItemsForwardAPI(
   if (variables.targetStageId !== undefined) {
     body.target_stage_id = variables.targetStageId;
   }
+  if (variables.targetSubStageId !== undefined) {
+    body.target_sub_stage_id = variables.targetSubStageId;
+  }
   if (variables.sourceStageId !== undefined) {
     body.source_stage_id = variables.sourceStageId;
   }
+
+  console.log("moveItemsForwardAPI - Request body:", body);
 
   const response = await fetch("/api/items/move/forward", {
     method: "POST",
@@ -55,6 +64,11 @@ async function moveItemsForwardAPI(
   });
 
   const data = await response.json();
+
+  console.log("moveItemsForwardAPI - Response:", {
+    status: response.status,
+    data,
+  });
 
   if (!response.ok) {
     // Try to parse the error message from the response

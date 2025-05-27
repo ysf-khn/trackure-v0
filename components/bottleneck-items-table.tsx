@@ -96,20 +96,12 @@ export function BottleneckItemsTable({
                 {bottleneckItems.map((item) => (
                   <TableRow key={`${item.item_id}-${item.current_stage_name}`}>
                     <TableCell>
-                      <Link
-                        href={`/orders/${item.order_number?.split("-")[0]}`}
-                        className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
-                      >
-                        {item.sku}
-                      </Link>
+                      <div className="flex items-center gap-2">{item.sku}</div>
                     </TableCell>
                     <TableCell>
-                      <Link
-                        href={`/orders/${item.order_number?.split("-")[0]}`}
-                        className="text-blue-600 hover:text-blue-800 hover:underline"
-                      >
+                      <div className="flex items-center gap-2">
                         {item.order_number}
-                      </Link>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">

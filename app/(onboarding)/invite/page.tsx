@@ -38,6 +38,7 @@ import { Loader2 } from "lucide-react";
 // Zod schema for form validation
 const inviteFormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
+  full_name: z.string().min(1, "Please enter the member's full name."),
   role: z.enum(["Worker"], { required_error: "Role is required." }), // Only allow 'Worker' for now
 });
 
@@ -85,6 +86,7 @@ export default function InviteTeamPage() {
     resolver: zodResolver(inviteFormSchema),
     defaultValues: {
       email: "",
+      full_name: "",
       role: "Worker", // Default role
     },
   });
@@ -97,6 +99,7 @@ export default function InviteTeamPage() {
         description: `Successfully sent invite to ${form.getValues("email")}.`,
       });
       form.resetField("email"); // Clear email field after successful invite
+      form.resetField("full_name"); // Clear full name field after successful invite
     },
     onError: (error: Error) => {
       toast.error("Invite Failed", {
@@ -154,6 +157,22 @@ export default function InviteTeamPage() {
                     </FormControl>
                     <FormDescription>
                       Enter the email address of the person to invite.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="full_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="John Doe" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Enter the full name of the person to invite.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
