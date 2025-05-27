@@ -12,6 +12,7 @@ import {
   Dot,
   PackageOpenIcon,
   CheckCircle2Icon,
+  Lightbulb,
 } from "lucide-react";
 
 import { NavSecondary } from "@/components/nav-secondary";
@@ -57,6 +58,11 @@ interface Stage {
 
 const data = {
   navSecondary: [
+    {
+      title: "Feature Requests",
+      url: "/feature-requests",
+      icon: Lightbulb,
+    },
     {
       title: "Settings",
       url: "/settings",
