@@ -281,12 +281,9 @@ export default function NewOrdersPage() {
     });
   };
 
-  if (!organizationId && (isLoadingItems || isLoadingWorkflow)) {
-    return (
-      <div className="container mx-auto p-4 flex justify-center items-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+  // Don't render anything while loading - let loading.tsx handle it
+  if (!organizationId || isLoadingItems || isLoadingWorkflow) {
+    return null;
   }
 
   // Add error display for workflow loading

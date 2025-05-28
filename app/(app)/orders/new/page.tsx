@@ -25,15 +25,8 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import { useWorkflowStructure } from "@/hooks/queries/use-workflow-structure";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, Terminal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -137,26 +130,7 @@ export default function NewOrderPage() {
     mutation.mutate(data);
   }
 
-  // --- Loading State --- //
-  if (isAuthLoading) {
-    return (
-      <Card className="max-w-2xl mx-auto">
-        <CardHeader>
-          <Skeleton className="h-6 w-1/3" />
-          <Skeleton className="h-4 w-2/3 mt-1" />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </CardContent>
-        <CardFooter>
-          <Skeleton className="h-10 w-24" />
-        </CardFooter>
-      </Card>
-    );
-  }
+  // Loading state is now handled by loading.tsx
 
   // --- Error States --- //
   if (authError) {
@@ -171,7 +145,7 @@ export default function NewOrderPage() {
     );
   }
 
-  if (!organizationId) {
+  if (!isAuthLoading && !organizationId) {
     return (
       <Alert className="max-w-2xl mx-auto">
         <Terminal className="h-4 w-4" />
@@ -193,6 +167,11 @@ export default function NewOrderPage() {
         </AlertDescription>
       </Alert>
     );
+  }
+
+  // Don't render anything while loading - let loading.tsx handle it
+  if (isAuthLoading || !organizationId || isLoadingWorkflow) {
+    return null;
   }
 
   // --- Form Rendering (Main Content) --- //
