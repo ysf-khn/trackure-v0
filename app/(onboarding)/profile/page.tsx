@@ -1,7 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { ProfileForm } from "./components/profile-form";
-import { headers } from "next/headers";
 
 interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -59,8 +58,7 @@ export default async function OnboardingProfilePage({
         user.user_metadata?.product_id &&
         user.user_metadata?.payment_status === "pending"
       ) {
-        const headersList = await headers();
-        const origin = headersList.get("origin");
+        const origin = process.env.NEXT_PUBLIC_BASE_URL;
         const redirectUrl = encodeURIComponent(`${origin}/profile`);
         const productId = encodeURIComponent(user.user_metadata.product_id);
         const baseUrl =

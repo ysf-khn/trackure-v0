@@ -2,7 +2,6 @@
 
 import { encodedRedirect } from "@/utils/utils";
 import { createClient } from "@/utils/supabase/server";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 export const signUpAction = async (formData: FormData) => {
@@ -10,7 +9,7 @@ export const signUpAction = async (formData: FormData) => {
   const password = formData.get("password")?.toString();
   const productId = formData.get("productId")?.toString();
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
   if (!email || !password) {
     return encodedRedirect(
@@ -24,7 +23,7 @@ export const signUpAction = async (formData: FormData) => {
     email,
     password,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo: `${baseUrl}/auth/callback`,
       data: {
         product_id: productId,
         payment_status: "pending",
@@ -88,10 +87,10 @@ export const signInAction = async (formData: FormData) => {
 
 export const signInWithGoogleAction = async (productId?: string | null) => {
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
   // Build the callback URL with productId if provided
-  let redirectTo = `${origin}/auth/callback`;
+  let redirectTo = `${baseUrl}/auth/callback`;
   if (productId) {
     redirectTo += `?product_id=${encodeURIComponent(productId)}`;
   }
@@ -116,7 +115,7 @@ export const signInWithGoogleAction = async (productId?: string | null) => {
 export const forgotPasswordAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
   const callbackUrl = formData.get("callbackUrl")?.toString();
 
   if (!email) {
@@ -124,7 +123,7 @@ export const forgotPasswordAction = async (formData: FormData) => {
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?redirect_to=/reset-password`,
+    redirectTo: `${baseUrl}/auth/callback?redirect_to=/reset-password`,
   });
 
   if (error) {
@@ -197,7 +196,7 @@ export const signOutAction = async () => {
 export const selectPlanAction = async (formData: FormData) => {
   const productId = formData.get("productId")?.toString();
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
   if (!productId) {
     return encodedRedirect(
@@ -234,14 +233,14 @@ export const selectPlanAction = async (formData: FormData) => {
   }
 
   // Redirect to DodoPayments checkout
-  const redirectUrl = encodeURIComponent(`${origin}/profile`);
+  const redirectUrl = encodeURIComponent(`${baseUrl}/profile`);
   const encodedProductId = encodeURIComponent(productId);
-  const baseUrl =
+  const checkoutBaseUrl =
     process.env.NODE_ENV === "development"
       ? "https://test.checkout.dodopayments.com"
       : "https://checkout.dodopayments.com";
 
   return redirect(
-    `${baseUrl}/buy/${encodedProductId}?quantity=1&redirect_url=${redirectUrl}`
+    `${checkoutBaseUrl}/buy/${encodedProductId}?quantity=1&redirect_url=${redirectUrl}`
   );
 };
