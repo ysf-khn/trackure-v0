@@ -80,8 +80,6 @@ export function PdfDownloadModal({
         params.append("includeRemarks", "true");
       }
 
-      console.log("Sending parameters:", Object.fromEntries(params.entries()));
-
       // Make API call to generate PDF
       const response = await fetch(
         `/api/items/${itemId}/history-pdf?${params.toString()}`,

@@ -89,7 +89,6 @@ export default function OrganizationSetupPage() {
   });
 
   function onSubmit(values: FormData) {
-    console.log("Submitting form:", values); // Log form submission
     mutation.mutate(values);
   }
 

@@ -78,9 +78,6 @@ async function updateProfile(data: ProfileFormValues) {
 
 // API function for uploading avatar
 async function uploadAvatar(file: File, userId: string) {
-  console.log("Starting avatar upload for user:", userId);
-  console.log("Original file:", file.name, file.size, file.type);
-
   // Compress the image before upload
   const compressedFile = await compressImage(file, {
     maxSizeMB: 0.5, // Smaller size for avatars
@@ -88,25 +85,14 @@ async function uploadAvatar(file: File, userId: string) {
     initialQuality: 0.8,
   });
 
-  console.log(
-    "Compressed file:",
-    compressedFile.name,
-    compressedFile.size,
-    compressedFile.type
-  );
-
   const formData = new FormData();
   formData.append("avatar", compressedFile);
   formData.append("userId", userId);
-
-  console.log("Sending request to /api/profiles/avatar");
 
   const response = await fetch("/api/profiles/avatar", {
     method: "POST",
     body: formData,
   });
-
-  console.log("Response status:", response.status);
 
   if (!response.ok) {
     const errorData = await response.json();
@@ -115,7 +101,6 @@ async function uploadAvatar(file: File, userId: string) {
   }
 
   const result = await response.json();
-  console.log("Upload successful:", result);
   return result.avatarUrl;
 }
 

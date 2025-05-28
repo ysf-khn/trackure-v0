@@ -41,10 +41,7 @@ export default async function OnboardingProfilePage({
           updateError
         );
       } else {
-        console.log(
-          "Successfully stored subscription_id in user metadata:",
-          subscriptionId
-        );
+        // Redirect to clean URL after storing subscription_id
 
         // Redirect to clean URL after storing subscription_id
         return redirect("/profile");
@@ -63,7 +60,7 @@ export default async function OnboardingProfilePage({
         user.user_metadata?.payment_status === "pending"
       ) {
         const headersList = await headers();
-        const origin = headersList.get("origin") || "http://localhost:3000";
+        const origin = headersList.get("origin");
         const redirectUrl = encodeURIComponent(`${origin}/profile`);
         const productId = encodeURIComponent(user.user_metadata.product_id);
         const baseUrl =

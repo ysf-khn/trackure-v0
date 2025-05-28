@@ -200,10 +200,6 @@ export async function POST(request: NextRequest) {
 
       // Handle the source allocation for Rework
       if (requestedQuantity === currentAllocation.quantity) {
-        console.log("Full rework - deleting source allocation:", {
-          allocationId: currentAllocation.id,
-          quantity: currentAllocation.quantity,
-        });
         // FULL REWORK from source: Delete the source allocation
         const { error: deleteSourceError } = await supabase
           .from("item_stage_allocations")
@@ -219,11 +215,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
       } else {
-        console.log("Partial rework - updating source allocation:", {
-          allocationId: currentAllocation.id,
-          oldQuantity: currentAllocation.quantity,
-          newQuantity: currentAllocation.quantity - requestedQuantity,
-        });
+        console.log("Partial rework - updating source allocation:");
         // PARTIAL REWORK from source: Reduce quantity
         const { error: existingUpdateError } = await supabase
           .from("item_stage_allocations")

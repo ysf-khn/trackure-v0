@@ -44,10 +44,6 @@ export async function POST(request: Request) {
   let body;
   try {
     body = await request.json();
-    console.log(
-      "Move Forward API - Received body:",
-      JSON.stringify(body, null, 2)
-    );
   } catch (parseError) {
     console.error("Move Forward: JSON parsing error:", parseError);
     return NextResponse.json(
@@ -71,13 +67,6 @@ export async function POST(request: Request) {
 
   const { items, target_stage_id, target_sub_stage_id, source_stage_id } =
     validationResult.data;
-
-  console.log("Move Forward API - Parsed values:", {
-    target_stage_id,
-    target_sub_stage_id,
-    source_stage_id,
-    itemsCount: items.length,
-  });
 
   // Fetch user profile to get organization_id and role (adjust table/column names)
   const { data: profile, error: profileError } = await supabase
@@ -164,20 +153,9 @@ export async function POST(request: Request) {
         // Determine the target stage for validation
         let targetStageForValidation: WorkflowStage | undefined;
 
-        console.log(
-          "Move Forward API - Determining target stage for validation:",
-          {
-            target_sub_stage_id,
-            target_stage_id,
-            workflowStagesCount: workflowStages.length,
-          }
-        );
-
         if (target_sub_stage_id) {
           // Find which stage the target sub-stage belongs to
-          console.log(
-            "Move Forward API - Looking for sub-stage in workflow stages..."
-          );
+
           for (const stage of workflowStages) {
             const foundSubStage = stage.sub_stages?.find(
               (sub) => sub.id === target_sub_stage_id
@@ -198,7 +176,6 @@ export async function POST(request: Request) {
             );
           }
         } else if (target_stage_id) {
-          console.log("Move Forward API - Looking for stage by ID...");
           targetStageForValidation = workflowStages.find(
             (s) => s.id === target_stage_id
           );

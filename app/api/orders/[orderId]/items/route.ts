@@ -45,9 +45,7 @@ async function getFirstWorkflowStep(
     firstStage = orgStages[0];
   } else {
     // 2. If no org-specific stage, fetch the first default stage
-    console.log(
-      `No org-specific stages found for ${orgId}, checking defaults...`
-    );
+
     const { data: defaultStages, error: defaultStageError } = await supabase
       .from("workflow_stages")
       .select("id, sequence_order")
@@ -209,7 +207,6 @@ export async function POST(
 
     // 2. If not exists, INSERT into item_master
     if (!masterItem) {
-      console.log(`Item master for SKU ${sku} not found, creating...`);
       const { error: masterInsertError } = await supabase
         .from("item_master")
         .insert({
@@ -235,7 +232,6 @@ export async function POST(
         }
         throw new Error("Failed to create new item master record.");
       }
-      console.log(`Created new item master for SKU: ${sku}`);
     }
 
     // 3. Get the first workflow stage/sub-stage ID for the orgId
@@ -248,9 +244,6 @@ export async function POST(
       );
       throw new Error("Workflow configuration incomplete or missing.");
     }
-    console.log(
-      `Determined first step: Stage ${firstStageId}, Sub-stage ${firstSubStageId}`
-    );
 
     // 4. INSERT into items table
     const { data: newItem, error: itemInsertError } = await supabase
@@ -275,7 +268,6 @@ export async function POST(
       throw new Error("Failed to add item to the order.");
     }
     // const newItemId = newItem.id; // newItem now contains id and total_quantity
-    console.log(`Inserted new item with ID: ${newItem.id}`);
 
     // 5. INSERT into item_movement_history for the initial creation
     const { error: movementHistoryInsertError } = await supabase
@@ -305,10 +297,6 @@ export async function POST(
       // return NextResponse.json({ message: 'Item added, but movement history logging failed', itemId: newItem.id }, { status: 207 });
       throw new Error("Failed to record initial item movement history."); // Fail request for now
     }
-
-    console.log(
-      `Inserted initial movement history record for item ${newItem.id}`
-    );
 
     return NextResponse.json(
       { message: "Item added successfully", itemId: newItem.id },

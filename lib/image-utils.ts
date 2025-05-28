@@ -34,15 +34,9 @@ export async function compressImage(
     // You can fine-tune other options like initialQuality as needed
   };
 
-  console.log(
-    `Original image size: ${(imageFile.size / 1024 / 1024).toFixed(2)} MB`
-  );
-
   try {
     const compressedFile = await imageCompression(imageFile, defaultOptions);
-    console.log(
-      `Compressed image size: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`
-    );
+
     // Return as File object to potentially keep the original filename
     return new File([compressedFile], imageFile.name, {
       type: compressedFile.type,

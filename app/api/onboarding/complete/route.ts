@@ -43,7 +43,6 @@ export async function POST(_request: Request) {
     // It's okay to complete from 'pending_invites' or even earlier steps if they skip
     // but not if already 'complete'.
     if (profile.onboarding_status === "complete") {
-      console.log("User onboarding already complete.");
       // Still return success as the end state is achieved
       return NextResponse.json(
         { message: "Onboarding already complete" },
@@ -65,7 +64,6 @@ export async function POST(_request: Request) {
       );
     }
 
-    console.log(`User ${user.id} onboarding marked as complete.`);
     return NextResponse.json(
       { message: "Onboarding completed successfully" },
       { status: 200 }

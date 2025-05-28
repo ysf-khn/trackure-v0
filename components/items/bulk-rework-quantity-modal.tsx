@@ -157,39 +157,15 @@ export function BulkReworkQuantityModal({
       isSubStage ? selectedStageId : null
     );
 
-    // Download vouchers if user is Owner AND they chose to download
-    console.log(
-      `[VoucherDebug] handleSubmit: Checking userRole. Value: '${userRole}' (Type: ${typeof userRole})`
-    );
-    console.log(
-      `[VoucherDebug] handleSubmit: downloadVouchers: ${downloadVouchers}`
-    );
-
     if (userRole === "Owner" && downloadVouchers) {
-      console.log(
-        "[VoucherDebug] handleSubmit: Voucher download condition met."
-      );
-      console.log(
-        "[VoucherDebug] handleSubmit: itemsToRework:",
-        JSON.stringify(
-          itemsToRework.map((item) => ({ id: item.id, sku: item.sku }))
-        )
-      );
-
       if (!itemsToRework || itemsToRework.length === 0) {
         console.warn(
           "[VoucherDebug] handleSubmit: itemsToRework is empty or undefined. No vouchers to download."
         );
       } else {
         try {
-          console.log(
-            "[VoucherDebug] handleSubmit: Entering voucher download try block."
-          );
           // Download vouchers for each item
           for (const item of itemsToRework) {
-            console.log(
-              `[VoucherDebug] handleSubmit: Processing item ${item.id} (SKU: ${item.sku}) for voucher download.`
-            );
             const response = await fetch(`/api/vouchers/${item.id}`, {
               method: "POST",
               headers: {
@@ -202,9 +178,6 @@ export function BulkReworkQuantityModal({
                 reworkReason: reworkReason.trim(),
               }),
             });
-            console.log(
-              `[VoucherDebug] handleSubmit: Fetch response for item ${item.id} - Status: ${response.status}, OK: ${response.ok}`
-            );
 
             if (!response.ok) {
               let errorBody = "Could not read error body";
@@ -227,17 +200,12 @@ export function BulkReworkQuantityModal({
             a.download = `rework_voucher_${item.sku || item.id}_${new Date().toISOString().replace(/[:.]/g, "-")}.pdf`;
             document.body.appendChild(a);
             a.click();
-            console.log(
-              `[VoucherDebug] handleSubmit: Voucher download triggered for item ${item.id}.`
-            );
+
             window.URL.revokeObjectURL(url);
             a.remove();
             // Add a small delay between downloads to prevent browser issues
             await new Promise((resolve) => setTimeout(resolve, 500));
           }
-          console.log(
-            "[VoucherDebug] handleSubmit: All vouchers processed successfully."
-          );
         } catch (error) {
           console.error(
             "[VoucherDebug] handleSubmit: Error during voucher download process:",
@@ -250,7 +218,7 @@ export function BulkReworkQuantityModal({
       }
     } else {
       console.log(
-        `[VoucherDebug] handleSubmit: Voucher download condition NOT met. User role: '${userRole}' (Type: ${typeof userRole}) - was not "Owner" or downloadVouchers was ${downloadVouchers}.`
+        `[VoucherDebug] handleSubmit: Voucher download condition NOT met. User was not "Owner" or downloadVouchers was ${downloadVouchers}.`
       );
     }
   };

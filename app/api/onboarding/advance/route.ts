@@ -73,7 +73,6 @@ export async function POST() {
       );
     }
 
-    console.log(`User ${user.id} completed onboarding.`);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Advance Onboarding - Unexpected error:", error);

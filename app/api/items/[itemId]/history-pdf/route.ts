@@ -94,8 +94,6 @@ export async function GET(
     includeRemarks: searchParams.get("includeRemarks") || undefined,
   };
 
-  console.log("Received query parameters:", queryParams);
-
   const parseResult = querySchema.safeParse(queryParams);
 
   if (!parseResult.success) {

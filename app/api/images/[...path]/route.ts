@@ -28,8 +28,6 @@ export async function GET(
       });
     }
 
-    console.log(`Downloading image from bucket: ${bucket}, path: ${imagePath}`);
-
     // Download the image from Supabase storage
     const { data, error } = await supabase.storage
       .from(bucket)

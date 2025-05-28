@@ -119,7 +119,6 @@ export default function NewOrderPage() {
   const mutation = useMutation({
     mutationFn: createOrder,
     onSuccess: (data) => {
-      console.log("Order created successfully:", data);
       toast.success(`Order ${data.order_number} created successfully!`);
       // Redirect on success (as per task 1.4)
       // Assuming the API returns the new order with an `id`

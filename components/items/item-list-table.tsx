@@ -392,17 +392,6 @@ export const columns: ColumnDef<ItemInStage>[] = [
           // Find the target in subsequent stages
           const targetStage = subsequentStages?.find((s) => s.id === targetId);
 
-          console.log("handleOpenMoveModal - Debug:", {
-            targetId,
-            targetStage,
-            subsequentStages: subsequentStages?.map((s) => ({
-              id: s.id,
-              name: s.name,
-              isSubStage: s.isSubStage,
-              parentStageId: (s as any).parentStageId,
-            })),
-          });
-
           if (targetStage) {
             // Check if this is a sub-stage (has isSubStage property)
             if ("isSubStage" in targetStage && targetStage.isSubStage) {
@@ -410,33 +399,16 @@ export const columns: ColumnDef<ItemInStage>[] = [
               targetStageId = targetStage.parentStageId || null;
               targetStageName =
                 targetStage.name || `Sub-stage ${targetId.substring(0, 6)}`;
-
-              console.log("handleOpenMoveModal - Sub-stage selected:", {
-                targetSubStageId,
-                targetStageId,
-                targetStageName,
-                parentStageId: targetStage.parentStageId,
-              });
             } else {
               // It's a main stage
               targetStageId = targetId;
               targetStageName =
                 targetStage.name || `Stage ${targetId.substring(0, 6)}`;
-
-              console.log("handleOpenMoveModal - Main stage selected:", {
-                targetStageId,
-                targetStageName,
-              });
             }
           } else {
             // Fallback
             targetStageId = targetId;
             targetStageName = `Stage ${targetId.substring(0, 6)}`;
-
-            console.log("handleOpenMoveModal - Fallback:", {
-              targetStageId,
-              targetStageName,
-            });
           }
         }
 
@@ -681,14 +653,6 @@ export function ItemListTable({
     targetSubStageId?: string | null, // Add optional targetSubStageId
     sourceStageId?: string | null // Add optional sourceStageId
   ) => {
-    console.log("handleMoveForward - Debug:", {
-      itemsToMove,
-      targetStageId,
-      targetSubStageId,
-      sourceStageId,
-      organizationId,
-    });
-
     if (!organizationId) {
       // organizationId from useProfileAndOrg
       toast.error("Organization ID is missing. Cannot move items.");
@@ -702,8 +666,6 @@ export function ItemListTable({
       targetSubStageId: targetSubStageId, // Pass target sub-stage ID
       sourceStageId: sourceStageId || stageId, // Use provided sourceStageId or current stageId
     };
-
-    console.log("handleMoveForward - Mutation payload:", mutationPayload);
 
     moveItems(mutationPayload, {
       onSuccess: () => {
@@ -808,17 +770,6 @@ export function ItemListTable({
 
   const handleConfirmMoveItem = (itemId: string, quantity: number) => {
     if (!itemToMoveDetails) return; // Should not happen if modal was opened correctly
-
-    console.log("handleConfirmMoveItem - Debug:", {
-      itemId,
-      quantity,
-      itemToMoveDetails: {
-        targetStageId: itemToMoveDetails.targetStageId,
-        targetSubStageId: itemToMoveDetails.targetSubStageId,
-        targetStageName: itemToMoveDetails.targetStageName,
-      },
-      stageId,
-    });
 
     handleMoveForward(
       [{ id: itemId, quantity: quantity }],

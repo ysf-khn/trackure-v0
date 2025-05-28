@@ -93,7 +93,6 @@ export function AddRemarkModal({ itemId, children }: AddRemarkModalProps) {
     mutationFn: (data: RemarkFormData) => addRemarkApi(itemId, data),
     onSuccess: (newRemark) => {
       toast.success("Remark text saved successfully!");
-      console.log(newRemark.id);
       setCreatedRemarkId(newRemark.id);
       queryClient.invalidateQueries({ queryKey: ["itemRemarks", itemId] });
       queryClient.invalidateQueries({ queryKey: ["itemHistory", itemId] });

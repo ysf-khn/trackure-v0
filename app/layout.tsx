@@ -14,7 +14,7 @@ const defaultUrl = process.env.VERCEL_URL
 export const metadata = {
   metadataBase: new URL(defaultUrl),
   title: "Trakure",
-  description: "Track your items with ease",
+  description: "Export Workflows, Perfected.",
 };
 
 const geistSans = Geist({

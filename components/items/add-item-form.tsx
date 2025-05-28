@@ -353,7 +353,6 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
 
   // 5. Form Submit Handler
   function onSubmit(values: z.infer<typeof formSchema>) {
-    // console.log('Form submitted:', values);
     mutation.mutate(values);
   }
 

@@ -25,7 +25,6 @@ interface DeleteStageDialogProps {
 }
 
 async function deleteStageApi(stageId: string): Promise<{ message: string }> {
-  // console.log("[DeleteStageDialog] deleteStageApi called with ID:", stageId);
   const response = await fetch(`/api/settings/workflow/stages/${stageId}`, {
     method: "DELETE",
   });
@@ -57,10 +56,6 @@ export function DeleteStageDialog({
     // <TData, TError, TVariables>
     // mutationFn now accepts the stageId as an argument
     mutationFn: (stageId: string) => {
-      console.log(
-        "[DeleteStageDialog] mutationFn - Received stageId:",
-        stageId
-      );
       // No need to check stage?.id here, as we receive the ID directly
       return deleteStageApi(stageId);
     },
@@ -88,10 +83,6 @@ export function DeleteStageDialog({
   const handleDeleteConfirm = () => {
     // Ensure stage and stage.id exist before mutating
     if (stage?.id) {
-      console.log(
-        "[DeleteStageDialog] handleDeleteConfirm - Mutating with stageId:",
-        stage.id
-      );
       mutation.mutate(stage.id); // Pass stage.id directly
     } else {
       console.error(

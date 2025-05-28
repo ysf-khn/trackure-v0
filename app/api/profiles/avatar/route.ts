@@ -2,7 +2,6 @@ import { createClient } from "@/utils/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
-  console.log("Avatar upload API called");
   const supabase = await createClient();
 
   // 1. Authentication
@@ -16,20 +15,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  console.log("User authenticated:", user.id);
-
   try {
     // 2. Parse form data
     const formData = await request.formData();
     const file = formData.get("avatar") as File;
     const userId = formData.get("userId") as string;
-
-    console.log("Form data parsed:", {
-      hasFile: !!file,
-      fileName: file?.name,
-      fileSize: file?.size,
-      userId,
-    });
 
     if (!file) {
       console.error("No file provided in form data");
@@ -65,8 +55,6 @@ export async function POST(request: NextRequest) {
     // Convert File to ArrayBuffer for Supabase upload
     const fileBuffer = await file.arrayBuffer();
 
-    console.log(`Uploading avatar: ${filePath} to profile-images bucket`);
-
     const { error: uploadError } = await supabase.storage
       .from("profile-images")
       .upload(filePath, fileBuffer, {
@@ -82,8 +70,6 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log(`Successfully uploaded avatar: ${filePath}`);
 
     // 5. Get public URL
     const {

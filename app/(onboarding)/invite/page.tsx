@@ -47,8 +47,6 @@ type InviteFormData = z.infer<typeof inviteFormSchema>;
 // Placeholder functions for API calls - replace with actual implementations
 // Assume these functions handle the actual fetch/axios calls
 const sendTeamInvite = async (data: InviteFormData): Promise<void> => {
-  console.log("API CALL: Sending invite:", data);
-
   const response = await fetch("/api/team/invites", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -65,8 +63,6 @@ const sendTeamInvite = async (data: InviteFormData): Promise<void> => {
 };
 
 const completeOnboarding = async (): Promise<void> => {
-  console.log("API CALL: Completing onboarding");
-
   const response = await fetch("/api/onboarding/complete", { method: "POST" });
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));

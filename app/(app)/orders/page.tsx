@@ -29,8 +29,6 @@ async function getOrdersForOrganization(
   supabase: SupabaseClient, // Accept client instance
   organizationId: string
 ): Promise<OrderSummary[]> {
-  console.log(`Fetching orders for organization: ${organizationId}...`);
-
   const { data, error } = await supabase
     .from("orders")
     .select(

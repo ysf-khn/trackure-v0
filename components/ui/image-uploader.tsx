@@ -104,11 +104,9 @@ export function ImageUploader({
 
     const fileExt = fileToUpload.name.split(".").pop();
     const timestamp = Date.now();
-    console.log(organizationId);
     const filePath = `${organizationId}/${itemId}/${timestamp}_${fileToUpload.name.replace(/\.[^/.]+$/, "").slice(0, 50)}.${fileExt}`;
 
     try {
-      console.log("compressed");
       const { error: uploadError } = await supabase.storage
         .from(bucketName)
         .upload(filePath, fileToUpload, {

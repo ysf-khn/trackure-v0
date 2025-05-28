@@ -133,7 +133,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: msg }, { status: 500 });
     }
 
-    console.log(`Invite sent to ${inviteData.email}`);
     return NextResponse.json(
       { message: `Invitation sent to ${inviteData.email}.` },
       { status: 200 }

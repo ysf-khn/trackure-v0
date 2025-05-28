@@ -31,8 +31,6 @@ interface MoveItemsForwardVariables {
 async function moveItemsForwardAPI(
   variables: MoveItemsForwardVariables
 ): Promise<MoveForwardSuccessResponse> {
-  console.log("moveItemsForwardAPI - Input variables:", variables);
-
   // Construct the body, including target_stage_id, target_sub_stage_id and source_stage_id if present
   const body: {
     items: { id: string; quantity: number }[];
@@ -53,8 +51,6 @@ async function moveItemsForwardAPI(
     body.source_stage_id = variables.sourceStageId;
   }
 
-  console.log("moveItemsForwardAPI - Request body:", body);
-
   const response = await fetch("/api/items/move/forward", {
     method: "POST",
     headers: {
@@ -64,11 +60,6 @@ async function moveItemsForwardAPI(
   });
 
   const data = await response.json();
-
-  console.log("moveItemsForwardAPI - Response:", {
-    status: response.status,
-    data,
-  });
 
   if (!response.ok) {
     // Try to parse the error message from the response

@@ -165,9 +165,6 @@ export const updateSession = async (request: NextRequest) => {
             onboardingStatus = "pending_subscription";
           } else {
             onboardingStatus = "pending_profile";
-            console.log(
-              "[Middleware] Google OAuth user detected, setting status to pending_profile"
-            );
           }
         } else {
           console.error(
@@ -204,7 +201,6 @@ export const updateSession = async (request: NextRequest) => {
           user.user_metadata?.payment_status === "pending"
         ) {
           onboardingStatus = "pending_profile";
-          console.log("[Middleware] Fixed Google OAuth user onboarding status");
         }
       } else {
         // Profile exists but no data - determine based on user metadata

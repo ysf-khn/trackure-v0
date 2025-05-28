@@ -104,17 +104,13 @@ export function ItemHistoryModal({
   // Function to get proxy URL to avoid CORS issues
   const getImageUrl = (storagePath: string): string | null => {
     if (!storagePath) {
-      console.warn("Empty storage path provided");
       return null;
     }
 
     try {
-      console.log("Generating proxy URL for storage path:", storagePath);
       const proxyUrl = `/api/images/${storagePath}?bucket=item-images`;
-      console.log("Generated proxy URL:", proxyUrl);
       return proxyUrl;
     } catch (error) {
-      console.error("Error generating proxy URL:", error);
       return null;
     }
   };
