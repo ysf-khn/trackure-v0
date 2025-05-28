@@ -16,7 +16,7 @@ export function SiteHeader() {
           orientation="vertical"
           className="mx-2 data-[orientation=vertical]:h-4"
         />
-        <Link href="/organization">
+        <Link href="/settings/organization">
           <h1 className="text-base font-medium">
             {isLoading ? "Loading..." : organizationName || "My Organization"}
           </h1>
