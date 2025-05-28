@@ -15,6 +15,7 @@ import {
   User,
   Layers,
   CheckCircle,
+  ExternalLink,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrderItems, OrderItem } from "@/hooks/queries/use-order-items";
+import Link from "next/link";
 
 interface OrderItemsDisplayProps {
   orderId: string;
@@ -114,9 +116,22 @@ const ItemCard = ({
               <Package className="h-5 w-5 text-accent-foreground" />
             </div>
             <div>
-              <CardTitle className="text-lg font-semibold">
-                {item.sku}
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg font-semibold">
+                  {item.sku}
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                  className="h-6 w-6 p-0"
+                >
+                  <Link href={`/items/${item.id}`}>
+                    <ExternalLink className="h-3 w-3" />
+                    <span className="sr-only">View item details</span>
+                  </Link>
+                </Button>
+              </div>
               {item.buyer_id && (
                 <div className="flex items-center text-sm text-muted-foreground mt-1">
                   <User className="h-3 w-3 mr-1" />

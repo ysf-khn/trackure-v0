@@ -12,6 +12,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner"; // Import toast
 import { DateRange } from "react-day-picker";
+import Link from "next/link"; // Add this import
 
 import {
   MoreHorizontal,
@@ -22,6 +23,7 @@ import {
   Info, // Import the Info icon
   RotateCcw, // Icon for Rework
   FileText, // Icon for PDF
+  ExternalLink, // Add this import
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -189,7 +191,20 @@ export const columns: ColumnDef<ItemInStage>[] = [
   {
     accessorKey: "sku",
     header: "SKU",
-    cell: ({ row }) => <div className="font-medium">{row.getValue("sku")}</div>,
+    cell: ({ row }) => {
+      const item = row.original;
+      return (
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{row.getValue("sku")}</span>
+          <Button variant="ghost" size="sm" asChild className="h-6 w-6 p-0">
+            <Link href={`/items/${item.id}`}>
+              <ExternalLink className="h-3 w-3" />
+              <span className="sr-only">View item details</span>
+            </Link>
+          </Button>
+        </div>
+      );
+    },
   },
   {
     accessorKey: "order_number",

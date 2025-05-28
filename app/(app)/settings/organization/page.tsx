@@ -86,9 +86,11 @@ type InviteFormData = z.infer<typeof inviteSchema>;
 // API Functions
 async function fetchTeamMembers(organizationId: string): Promise<TeamMember[]> {
   const response = await fetch(`/api/organizations/${organizationId}/members`);
+
   if (!response.ok) {
     throw new Error("Failed to fetch team members");
   }
+
   return response.json();
 }
 
