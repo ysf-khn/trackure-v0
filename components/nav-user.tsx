@@ -4,6 +4,8 @@ import {
   BellIcon,
   BuildingIcon,
   CreditCardIcon,
+  ExternalLink,
+  LightbulbIcon,
   LogOutIcon,
   MoreVerticalIcon,
   UserCircleIcon,
@@ -132,10 +134,17 @@ export function NavUser() {
                   Billing
                 </Link>
               </DropdownMenuItem>
-              {/* <DropdownMenuItem>
-                <BellIcon className="mr-2 h-4 w-4" />
-                Notifications
-              </DropdownMenuItem> */}
+              <DropdownMenuItem asChild>
+                <Link
+                  href="https://trakure.featurebase.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <LightbulbIcon className="mr-2 h-4 w-4" />
+                  Feature Request
+                  <ExternalLink className="h-3 w-3 ml-auto" />
+                </Link>
+              </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={async () => await signOutAction()}>
