@@ -10,7 +10,7 @@ export const SubmitButton = () => {
   return (
     <Button
       type="submit"
-      className="bg-gray-100 text-black hover:bg-white h-12 rounded-md transition-all duration-200 font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+      className="bg-gray-100 text-black hover:bg-white h-11 sm:h-12 rounded-md transition-all duration-200 font-medium disabled:opacity-70 disabled:cursor-not-allowed text-base"
       disabled={pending}
     >
       {pending ? (

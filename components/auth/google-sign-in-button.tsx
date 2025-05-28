@@ -12,14 +12,15 @@ export function GoogleSignInButton() {
     <Button
       type="button"
       variant="outline"
-      className="w-full  h-12  flex items-center justify-center gap-3 max-w-md rounded-lg border border-neutral-700 bg-neutral-900 text-white font-medium transition-all hover:bg-neutral-800 hover:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+      className="w-full h-11 sm:h-12 flex items-center justify-center gap-3 max-w-md rounded-lg border border-neutral-700 bg-neutral-900 text-white font-medium transition-all hover:bg-neutral-800 hover:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 text-base"
       onClick={handleGoogleSignIn}
     >
       <svg
         viewBox="0 0 24 24"
-        width="24"
-        height="24"
+        width="20"
+        height="20"
         xmlns="http://www.w3.org/2000/svg"
+        className="flex-shrink-0"
       >
         <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
           <path
