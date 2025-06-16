@@ -58,13 +58,38 @@ export async function POST(
     );
   }
   const organizationId = profile.organization_id;
-  // const userRole = profile.role; // Commented out as RBAC check is not active
+  const userRole = profile.role;
 
-  // Optional: Add RBAC check if only specific roles can upload/associate
-  // Example: Check if userRole is 'Owner' or 'Worker'
-  // if (userRole !== 'Owner' && userRole !== 'Worker') {
-  //   return NextResponse.json({ error: "Forbidden: Insufficient permissions" }, { status: 403 });
-  // }
+  // RBAC Check: Check permission for workers
+  if (userRole === "Worker") {
+    // Check if worker has permission to upload/associate images
+    const { data: hasPermission, error: permissionError } = await supabase.rpc(
+      "worker_has_permission",
+      {
+        permission_key: "items.images",
+      }
+    );
+
+    if (permissionError) {
+      console.error("Error checking permissions:", permissionError);
+      return NextResponse.json(
+        { error: "Failed to verify permissions" },
+        { status: 500 }
+      );
+    }
+
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: "Forbidden: You don't have permission to upload images" },
+        { status: 403 }
+      );
+    }
+  } else if (userRole !== "Owner") {
+    return NextResponse.json(
+      { error: "Forbidden: Insufficient permissions" },
+      { status: 403 }
+    );
+  }
 
   // 2. Input Validation
   let requestData;

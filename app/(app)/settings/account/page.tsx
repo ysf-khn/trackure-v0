@@ -7,6 +7,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
+import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
 import { useAvatarUrl } from "@/hooks/use-avatar-url";
 import { compressImage } from "@/lib/image-utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -107,6 +108,8 @@ async function uploadAvatar(file: File, userId: string) {
 const AccountSettingsPage = () => {
   const { user, profile, organizationName, isLoading, error, refetch } =
     useProfileAndOrg();
+  const { hasPermission, isLoading: isLoadingPermissions } =
+    useWorkerPermissions();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -118,6 +121,9 @@ const AccountSettingsPage = () => {
     rawAvatarUrl: user?.user_metadata?.avatar_url,
     userId: user?.id,
   });
+
+  // Check if user has permission to access account settings
+  const canAccessAccountSettings = hasPermission("settings.account");
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileUpdateSchema),
@@ -220,58 +226,74 @@ const AccountSettingsPage = () => {
     profileMutation.mutate(data);
   };
 
-  if (isLoading) {
+  // Loading state
+  if (isLoading || isLoadingPermissions) {
     return (
-      <div className="container mx-auto py-8 px-4 md:px-6 space-y-8">
-        <div className="flex items-center space-x-3 mb-8">
-          <UserCircleIcon className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Account Settings</h1>
+      <div className="container mx-auto space-y-8">
+        <div className="border-b">
+          <div className="px-4 md:px-6 py-4">
+            <div className="flex items-center space-x-3">
+              <UserCircleIcon className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold">Account Settings</h1>
+            </div>
+          </div>
         </div>
-        <div className="grid lg:grid-cols-3 gap-8">
-          <Card className="lg:col-span-1">
-            <CardHeader className="text-center">
-              <Skeleton className="h-32 w-32 rounded-full mx-auto mb-4" />
-              <Skeleton className="h-6 w-32 mx-auto mb-2" />
-              <Skeleton className="h-4 w-48 mx-auto" />
-            </CardHeader>
-          </Card>
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <Skeleton className="h-6 w-40 mb-2" />
-              <Skeleton className="h-4 w-64" />
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-10 w-32" />
-            </CardContent>
-          </Card>
+        <div className="px-4 md:px-6 pb-8 space-y-8">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-64 w-full" />
         </div>
       </div>
     );
   }
 
+  // Error state
   if (error) {
     return (
-      <div className="container mx-auto py-8 px-4 md:px-6">
-        <div className="flex items-center space-x-3 mb-8">
-          <UserCircleIcon className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Account Settings</h1>
+      <div className="container mx-auto space-y-8">
+        <div className="border-b">
+          <div className="px-4 md:px-6 py-4">
+            <div className="flex items-center space-x-3">
+              <UserCircleIcon className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold">Account Settings</h1>
+            </div>
+          </div>
         </div>
-        <Alert variant="destructive">
-          <Terminal className="h-4 w-4" />
-          <AlertTitle>Error Loading Account Details</AlertTitle>
-          <AlertDescription>
-            There was a problem fetching your account information: {error}.
-            <Button
-              variant="link"
-              className="p-0 h-auto ml-1"
-              onClick={() => refetch()}
-            >
-              Try again
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <div className="px-4 md:px-6 pb-8">
+          <Alert variant="destructive">
+            <Terminal className="h-4 w-4" />
+            <AlertTitle>Error Loading Account Settings</AlertTitle>
+            <AlertDescription>
+              There was a problem loading your account information: {error}
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
+
+  // Permission check
+  if (!canAccessAccountSettings) {
+    return (
+      <div className="container mx-auto space-y-8">
+        <div className="border-b">
+          <div className="px-4 md:px-6 py-4">
+            <div className="flex items-center space-x-3">
+              <UserCircleIcon className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold">Account Settings</h1>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 md:px-6 pb-8">
+          <Alert variant="destructive">
+            <Shield className="h-4 w-4" />
+            <AlertTitle>Access Denied</AlertTitle>
+            <AlertDescription>
+              You don't have permission to access account settings. Please
+              contact your organization owner to grant you the necessary
+              permissions.
+            </AlertDescription>
+          </Alert>
+        </div>
       </div>
     );
   }

@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import * as z from "zod";
+import { canAddUser } from "@/lib/plan-limits";
 
 // Required ENV vars
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -87,10 +88,48 @@ export async function POST(request: Request) {
       );
     }
 
-    if (inviterProfile.role !== "Owner") {
+    if (inviterProfile.role === "Worker") {
+      // Check if worker has permission to invite members
+      const { data: hasPermission, error: permissionError } =
+        await supabase.rpc("worker_has_permission", {
+          permission_key: "team.invite",
+        });
+
+      if (permissionError) {
+        console.error("Error checking permissions:", permissionError);
+        return NextResponse.json(
+          { error: "Failed to verify permissions" },
+          { status: 500 }
+        );
+      }
+
+      if (!hasPermission) {
+        return NextResponse.json(
+          {
+            error:
+              "Forbidden: You don't have permission to invite team members",
+          },
+          { status: 403 }
+        );
+      }
+    } else if (inviterProfile.role !== "Owner") {
       return NextResponse.json(
-        { error: "Forbidden: Only Owners can invite new users." },
+        {
+          error: "Forbidden: You don't have permission to invite team members",
+        },
         { status: 403 }
+      );
+    }
+
+    // 3.5. Check plan limits before sending invite
+    const limitCheck = await canAddUser(
+      inviterProfile.organization_id,
+      inviterUser.id
+    );
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        { error: limitCheck.reason },
+        { status: 402 } // Payment Required - plan limit exceeded
       );
     }
 

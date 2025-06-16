@@ -3,7 +3,10 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start"
+    "build:analyze": "ANALYZE=true next build",
+    "start": "next start",
+    "type-check": "tsc --noEmit",
+    "lint": "next lint"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -35,6 +38,7 @@
     "@tanstack/react-query": "^5.75.1",
     "@tanstack/react-table": "^8.21.3",
     "@types/pdfkit": "^0.13.9",
+    "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
     "autoprefixer": "10.4.20",
     "browser-image-compression": "^2.0.2",
@@ -61,6 +65,7 @@
     "zod": "^3.24.4"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^15.1.4",
     "@types/node": "22.10.2",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19.0.2",

@@ -5,6 +5,7 @@ import OrderDetailsDisplay from "@/components/orders/order-details-display";
 import PaymentStatusEditor from "@/components/orders/payment-status-editor";
 import OrderItemsDisplay from "@/components/orders/order-items-display";
 import { PaymentStatus } from "@/types";
+import { getUserWithProfile } from "@/utils/supabase/queries";
 // import { headers } from 'next/headers'; // Needed for createClient - REMOVED
 // import { OrderDetails } from '@/components/orders/order-details'; // Hypothetical component
 // import { ItemListTable } from '@/components/items/item-list-table'; // For displaying items later
@@ -32,30 +33,63 @@ export default async function OrderDetailPage({
 }: {
   params: Promise<{ orderId: string }>;
 }) {
-  const { orderId } = await params; // Removed await here
+  const { orderId } = await params;
   const supabase = await createClient();
 
   // Fetch user session and profile server-side
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    user,
+    profile,
+    error: userProfileError,
+  } = await getUserWithProfile(supabase);
 
   let userRole: string | null = null;
   let organizationId: string | null = null;
   let canAddItem = false;
-  let isOwner = false; // Initialize isOwner
+  let canEditPaymentStatus = false;
+  let isOwner = false;
 
-  if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, organization_id") // Fetch org_id too
-      .eq("id", user.id)
-      .single();
+  if (
+    userProfileError ||
+    !user ||
+    !profile?.organization_id ||
+    !profile?.role
+  ) {
+    return (
+      <div className="container mx-auto p-4 text-destructive">
+        {userProfileError?.message ||
+          "Authentication failed or profile incomplete"}
+      </div>
+    );
+  }
 
-    userRole = profile?.role ?? null;
-    organizationId = profile?.organization_id ?? null;
-    isOwner = userRole === "Owner";
-    canAddItem = userRole === "Owner" || userRole === "Worker";
+  userRole = profile.role;
+  organizationId = profile.organization_id;
+  isOwner = userRole === "Owner";
+
+  // Check permissions using the database function
+  if (userRole === "Worker") {
+    // For workers, we need to check their specific permissions
+    // We'll fetch these permissions and check them
+    const { data: itemAddPermission } = await supabase.rpc(
+      "worker_has_permission",
+      {
+        permission_key: "items.add",
+      }
+    );
+    const { data: paymentStatusPermission } = await supabase.rpc(
+      "worker_has_permission",
+      {
+        permission_key: "orders.payment_status",
+      }
+    );
+
+    canAddItem = itemAddPermission || false;
+    canEditPaymentStatus = paymentStatusPermission || false;
+  } else if (userRole === "Owner") {
+    // Owners have all permissions
+    canAddItem = true;
+    canEditPaymentStatus = true;
   }
 
   // Fetch order details - MUST check organizationId for security
@@ -82,16 +116,9 @@ export default async function OrderDetailPage({
     } else {
       order = fetchedOrder;
     }
-  } else if (user) {
-    // User is logged in but has no organization_id in profile
+  } else {
     orderError =
       "User profile is incomplete (missing organization). Access denied.";
-  } else {
-    // User is not logged in
-    // This case should ideally be handled by middleware, but double-check
-    orderError = "Unauthorized. Please log in.";
-    // Consider redirecting here if middleware isn't catching this
-    // redirect("/login");
   }
 
   // Handle error display or redirection
@@ -126,7 +153,7 @@ export default async function OrderDetailPage({
           {/* Payment Status Display/Edit */}
           <div className="mt-4 pt-4 border-t">
             <h3 className="text-md font-semibold mb-2">Payment Status</h3>
-            {isOwner ? (
+            {canEditPaymentStatus ? (
               <PaymentStatusEditor
                 orderId={order.id}
                 initialStatus={order.payment_status ?? undefined} // Pass undefined if null
@@ -138,7 +165,7 @@ export default async function OrderDetailPage({
         </CardContent>
       </Card>
 
-      {/* Section to Add New Items - Conditionally render based on role */}
+      {/* Section to Add New Items - Conditionally render based on permissions */}
       {canAddItem && (
         <Card>
           <CardHeader>

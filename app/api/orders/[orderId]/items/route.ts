@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import * as z from "zod";
 import { type SupabaseClient } from "@supabase/supabase-js";
+import { canAddItems } from "@/lib/plan-limits";
 
 // Zod schema for instance details (matching frontend structure, but parsing numbers)
 const instanceDetailsSchema = z
@@ -167,7 +168,30 @@ export async function POST(
   // --- End Profile Fetch ---
 
   // RBAC Check using role from profiles table
-  if (!userRole || !["Owner", "Worker"].includes(userRole)) {
+  if (userRole === "Worker") {
+    // Check if worker has permission to add items
+    const { data: hasPermission, error: permissionError } = await supabase.rpc(
+      "worker_has_permission",
+      {
+        permission_key: "items.add",
+      }
+    );
+
+    if (permissionError) {
+      console.error("Error checking permissions:", permissionError);
+      return NextResponse.json(
+        { error: "Failed to verify permissions" },
+        { status: 500 }
+      );
+    }
+
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: "Forbidden: You don't have permission to add items" },
+        { status: 403 }
+      );
+    }
+  } else if (!userRole || !["Owner", "Worker"].includes(userRole)) {
     console.warn(`User ${userId} with role ${userRole} attempted to add item.`);
     return NextResponse.json(
       { error: "Forbidden: Insufficient permissions" },
@@ -187,6 +211,16 @@ export async function POST(
       );
     }
     const { sku, instance_details } = validation.data;
+
+    // Check plan limits before creating the item
+    const itemQuantity = instance_details?.total_quantity || 1;
+    const limitCheck = await canAddItems(orgId, userId, itemQuantity);
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        { error: limitCheck.reason },
+        { status: 402 } // Payment Required - plan limit exceeded
+      );
+    }
 
     // --- Database Logic ---
     // Note: Consider using a Supabase Edge Function with pg_transaction for true atomicity.

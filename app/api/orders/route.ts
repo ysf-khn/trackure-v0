@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
+import { canAddOrder } from "@/lib/plan-limits";
 
 // Define the schema for the request body (mirroring the frontend form)
 const createOrderSchema = z.object({
@@ -53,9 +54,29 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. RBAC Check (Task 1.3 & 7.1)
-    // Assuming Worker can create orders based on original comment
-    if (user_role !== "Owner" && user_role !== "Worker") {
+    // 2. RBAC Check - Check permission for workers
+    if (user_role === "Worker") {
+      // Check if worker has permission to create orders
+      const { data: hasPermission, error: permissionError } =
+        await supabase.rpc("worker_has_permission", {
+          permission_key: "orders.create",
+        });
+
+      if (permissionError) {
+        console.error("Error checking permissions:", permissionError);
+        return NextResponse.json(
+          { error: "Failed to verify permissions" },
+          { status: 500 }
+        );
+      }
+
+      if (!hasPermission) {
+        return NextResponse.json(
+          { error: "Forbidden: You don't have permission to create orders" },
+          { status: 403 }
+        );
+      }
+    } else if (user_role !== "Owner") {
       console.warn(`User role '${user_role}' not permitted to create orders.`);
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -71,6 +92,15 @@ export async function POST(request: Request) {
     }
 
     const { order_number, customer_name, total_quantity } = validatedData.data;
+
+    // 2.5. Check plan limits before creating order
+    const limitCheck = await canAddOrder(organization_id, user.id);
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        { error: limitCheck.reason },
+        { status: 402 } // Payment Required - plan limit exceeded
+      );
+    }
 
     // 3. Use Supabase server client to INSERT into orders table (Task 1.3)
     const { data: newOrder, error: dbError } = await supabase

@@ -41,9 +41,37 @@ export async function PATCH(
   }
 
   // Role Check
-  if (profile.role !== "Owner") {
+  if (profile.role === "Worker") {
+    // Check if worker has permission to edit payment status
+    const { data: hasPermission, error: permissionError } = await supabase.rpc(
+      "worker_has_permission",
+      {
+        permission_key: "orders.payment_status",
+      }
+    );
+
+    if (permissionError) {
+      console.error("Error checking permissions:", permissionError);
+      return NextResponse.json(
+        { error: "Failed to verify permissions" },
+        { status: 500 }
+      );
+    }
+
+    if (!hasPermission) {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: You don't have permission to update payment status",
+        },
+        { status: 403 }
+      );
+    }
+  } else if (profile.role !== "Owner") {
     return NextResponse.json(
-      { error: "Forbidden: Only Owners can update payment status." },
+      {
+        error: "Forbidden: You don't have permission to update payment status",
+      },
       { status: 403 }
     );
   }

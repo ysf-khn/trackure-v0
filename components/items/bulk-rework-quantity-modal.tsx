@@ -75,6 +75,62 @@ export function BulkReworkQuantityModal({
   const [selectedStageId, setSelectedStageId] = useState("");
   const [downloadVouchers, setDownloadVouchers] = useState<boolean>(false);
 
+  // Calculate valid rework target options based on the first item (assuming all items are in similar stages for bulk rework)
+  const reworkTargetOptions = React.useMemo(() => {
+    const options: { id: string; name: string | null }[] = [];
+
+    // Use the first item as reference for bulk rework filtering
+    if (itemsToRework.length === 0) return options;
+
+    const referenceItem = itemsToRework[0];
+    const currentStage = availableStages.find(
+      (s) => s.id === referenceItem.currentStageId
+    );
+    const currentStageSequence = currentStage?.sequence_order ?? Infinity;
+
+    // Add all stages before the current stage (and their substages)
+    availableStages
+      .filter((stage) => stage.sequence_order < currentStageSequence)
+      .forEach((stage) => {
+        if (stage.sub_stages && stage.sub_stages.length > 0) {
+          // If stage has substages, add all substages
+          stage.sub_stages.forEach((subStage) => {
+            options.push({
+              id: subStage.id,
+              name: `${stage.name} > ${subStage.name || "Unnamed Substage"}`,
+            });
+          });
+        } else {
+          // If no substages, add the stage itself
+          options.push({
+            id: stage.id,
+            name: stage.name,
+          });
+        }
+      });
+
+    // If the reference item is in a substage, also add earlier substages within the same parent stage
+    if (referenceItem.currentSubStageId && currentStage?.sub_stages) {
+      const currentSubStage = currentStage.sub_stages.find(
+        (sub) => sub.id === referenceItem.currentSubStageId
+      );
+      const currentSubStageSequence =
+        currentSubStage?.sequence_order ?? Infinity;
+
+      // Add substages that come before the current substage within the same parent stage
+      currentStage.sub_stages
+        .filter((sub) => sub.sequence_order < currentSubStageSequence)
+        .forEach((subStage) => {
+          options.push({
+            id: subStage.id,
+            name: `${currentStage.name} > ${subStage.name || "Unnamed Substage"}`,
+          });
+        });
+    }
+
+    return options;
+  }, [availableStages, itemsToRework]);
+
   useEffect(() => {
     if (isOpen) {
       // Reset form state when modal opens
@@ -85,10 +141,10 @@ export function BulkReworkQuantityModal({
       setItemQuantities(initialQuantities);
       setReworkReason("");
       setReasonError(null);
-      setSelectedStageId(availableStages[0]?.id || "");
+      setSelectedStageId(reworkTargetOptions[0]?.id || "");
       setDownloadVouchers(false); // Reset voucher option
     }
-  }, [isOpen, itemsToRework, availableStages]);
+  }, [isOpen, itemsToRework, reworkTargetOptions]);
 
   const handleSubmit = async () => {
     // Validate quantities and reason
@@ -243,9 +299,9 @@ export function BulkReworkQuantityModal({
                 <SelectValue placeholder="Select target stage" />
               </SelectTrigger>
               <SelectContent>
-                {availableStages.map((stage) => (
-                  <SelectItem key={stage.id} value={stage.id}>
-                    {stage.name || stage.id}
+                {reworkTargetOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name || option.id}
                   </SelectItem>
                 ))}
               </SelectContent>

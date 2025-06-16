@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrderItems, OrderItem } from "@/hooks/queries/use-order-items";
+import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
 import Link from "next/link";
 
 interface OrderItemsDisplayProps {
@@ -82,13 +83,14 @@ const ItemCard = ({
   userRole?: string | null;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { hasPermission } = useWorkerPermissions();
 
   const hasInstanceDetails =
     item.instance_details && Object.keys(item.instance_details).length > 0;
   const hasStageAllocations =
     item.stage_allocations && item.stage_allocations.length > 0;
 
-  const canDownloadVoucher = userRole === "Owner" || userRole === "Worker";
+  const canDownloadVoucher = hasPermission("documents.vouchers");
 
   // Calculate quantities properly
   const completedQuantity = item.total_quantity - item.remaining_quantity;

@@ -9,6 +9,7 @@ import {
   LogOutIcon,
   MoreVerticalIcon,
   UserCircleIcon,
+  Shield,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,11 +30,13 @@ import {
 } from "@/components/ui/sidebar";
 import { signOutAction } from "@/app/actions";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
+import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
 import { useAvatarUrl } from "@/hooks/use-avatar-url";
 import Link from "next/link";
 
 export function NavUser() {
   const { user, profile, isLoading, error } = useProfileAndOrg();
+  const { hasPermission } = useWorkerPermissions();
   const { isMobile } = useSidebar();
 
   // Use the avatar URL hook for proper caching
@@ -116,24 +119,38 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem asChild>
-                <Link href="/settings/account">
-                  <UserCircleIcon className="h-4 w-4 mr-2" />
-                  Account
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/settings/organization">
-                  <BuildingIcon className="h-4 w-4 mr-2" />
-                  Organization
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/settings/billing">
-                  <CreditCardIcon className="mr-2 h-4 w-4" />
-                  Billing
-                </Link>
-              </DropdownMenuItem>
+              {hasPermission("settings.account") && (
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/account">
+                    <UserCircleIcon className="h-4 w-4 mr-2" />
+                    Account
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {hasPermission("settings.organization") && (
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/organization">
+                    <BuildingIcon className="h-4 w-4 mr-2" />
+                    Organization
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {profile?.role === "Owner" && (
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/access-control">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Access Control
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {hasPermission("settings.billing") && (
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/billing">
+                    <CreditCardIcon className="mr-2 h-4 w-4" />
+                    Billing
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
                 <Link
                   href="https://trakure.featurebase.app/"

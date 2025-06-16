@@ -32,10 +32,36 @@ export async function DELETE(
       );
     }
 
-    // 3. Check if the requester is an Owner
-    if (requesterProfile.role !== "Owner") {
+    // 3. Check if the requester has permission to remove team members
+    if (requesterProfile.role === "Worker") {
+      // Check if worker has permission to remove members
+      const { data: hasPermission, error: permissionError } =
+        await supabase.rpc("worker_has_permission", {
+          permission_key: "team.remove",
+        });
+
+      if (permissionError) {
+        console.error("Error checking permissions:", permissionError);
+        return NextResponse.json(
+          { error: "Failed to verify permissions" },
+          { status: 500 }
+        );
+      }
+
+      if (!hasPermission) {
+        return NextResponse.json(
+          {
+            error:
+              "Forbidden: You don't have permission to remove team members",
+          },
+          { status: 403 }
+        );
+      }
+    } else if (requesterProfile.role !== "Owner") {
       return NextResponse.json(
-        { error: "Forbidden: Only Owners can remove team members" },
+        {
+          error: "Forbidden: You don't have permission to remove team members",
+        },
         { status: 403 }
       );
     }

@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { getUserWithProfile } from "@/utils/supabase/queries";
 
 export async function GET(
   request: NextRequest,
@@ -296,6 +297,169 @@ export async function GET(
     return NextResponse.json(response);
   } catch (error) {
     console.error("Error fetching item details:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ itemId: string }> }
+) {
+  const { itemId } = await params;
+  const supabase = await createClient();
+
+  try {
+    // Get user and profile
+    const {
+      user,
+      profile,
+      error: userProfileError,
+    } = await getUserWithProfile(supabase);
+
+    if (userProfileError || !user || !profile?.organization_id) {
+      return NextResponse.json(
+        { error: userProfileError?.message || "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const organizationId = profile.organization_id;
+
+    // RBAC Check: Check permission for workers
+    if (profile.role === "Worker") {
+      // Check if worker has permission to delete items
+      const { data: hasPermission, error: permissionError } =
+        await supabase.rpc("worker_has_permission", {
+          permission_key: "items.delete",
+        });
+
+      if (permissionError) {
+        console.error("Error checking permissions:", permissionError);
+        return NextResponse.json(
+          { error: "Failed to verify permissions" },
+          { status: 500 }
+        );
+      }
+
+      if (!hasPermission) {
+        return NextResponse.json(
+          { error: "Forbidden: You don't have permission to delete items" },
+          { status: 403 }
+        );
+      }
+    } else if (profile.role !== "Owner") {
+      return NextResponse.json(
+        { error: "Forbidden: Insufficient permissions" },
+        { status: 403 }
+      );
+    }
+
+    // Check if item exists and belongs to the organization
+    const { data: itemData, error: itemError } = await supabase
+      .from("items")
+      .select("id, sku, total_quantity")
+      .eq("id", itemId)
+      .eq("organization_id", organizationId)
+      .single();
+
+    if (itemError || !itemData) {
+      return NextResponse.json(
+        { error: "Item not found or access denied" },
+        { status: 404 }
+      );
+    }
+
+    // Check if item has any stage allocations
+    const { data: allocations, error: allocationsError } = await supabase
+      .from("item_stage_allocations")
+      .select("id")
+      .eq("item_id", itemId)
+      .eq("organization_id", organizationId);
+
+    if (allocationsError) {
+      console.error("Error checking allocations:", allocationsError);
+      return NextResponse.json(
+        { error: "Failed to check item allocations" },
+        { status: 500 }
+      );
+    }
+
+    if (allocations && allocations.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete item: It has active allocations in the workflow. Please move all quantities out of the workflow before deleting.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    // Delete related records first (due to foreign key constraints)
+    // Delete item images
+    const { error: imagesDeleteError } = await supabase
+      .from("item_images")
+      .delete()
+      .eq("item_id", itemId);
+
+    if (imagesDeleteError) {
+      console.error("Error deleting item images:", imagesDeleteError);
+      return NextResponse.json(
+        { error: "Failed to delete item images" },
+        { status: 500 }
+      );
+    }
+
+    // Delete item remarks
+    const { error: remarksDeleteError } = await supabase
+      .from("item_remarks")
+      .delete()
+      .eq("item_id", itemId);
+
+    if (remarksDeleteError) {
+      console.error("Error deleting item remarks:", remarksDeleteError);
+      return NextResponse.json(
+        { error: "Failed to delete item remarks" },
+        { status: 500 }
+      );
+    }
+
+    // Delete movement history
+    const { error: historyDeleteError } = await supabase
+      .from("item_movement_history")
+      .delete()
+      .eq("item_id", itemId);
+
+    if (historyDeleteError) {
+      console.error("Error deleting movement history:", historyDeleteError);
+      return NextResponse.json(
+        { error: "Failed to delete movement history" },
+        { status: 500 }
+      );
+    }
+
+    // Finally, delete the item itself
+    const { error: itemDeleteError } = await supabase
+      .from("items")
+      .delete()
+      .eq("id", itemId)
+      .eq("organization_id", organizationId);
+
+    if (itemDeleteError) {
+      console.error("Error deleting item:", itemDeleteError);
+      return NextResponse.json(
+        { error: "Failed to delete item" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Item deleted successfully" },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error deleting item:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

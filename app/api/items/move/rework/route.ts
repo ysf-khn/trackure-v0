@@ -71,7 +71,33 @@ export async function POST(request: NextRequest) {
   // --- End: Standard Auth & Profile Fetch --- //
 
   // RBAC Check: Allow both Owner and Worker to perform rework actions
-  if (!["Owner", "Worker"].includes(userRole)) {
+  if (userRole === "Worker") {
+    // Check if worker has permission to move items (rework is a move operation)
+    const { data: hasPermission, error: permissionError } = await supabase.rpc(
+      "worker_has_permission",
+      {
+        permission_key: "items.move",
+      }
+    );
+
+    if (permissionError) {
+      console.error("Error checking permissions:", permissionError);
+      return NextResponse.json(
+        { error: "Failed to verify permissions" },
+        { status: 500 }
+      );
+    }
+
+    if (!hasPermission) {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: You don't have permission to perform rework operations",
+        },
+        { status: 403 }
+      );
+    }
+  } else if (!["Owner", "Worker"].includes(userRole)) {
     return NextResponse.json(
       { error: "Forbidden: Insufficient permissions." },
       { status: 403 }

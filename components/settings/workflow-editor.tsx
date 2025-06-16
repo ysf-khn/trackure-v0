@@ -15,6 +15,7 @@ import {
   type FetchedWorkflowStage,
   type FetchedSubStage,
 } from "@/hooks/queries/use-workflow-structure";
+import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Terminal, InfoIcon } from "lucide-react";
@@ -67,6 +68,11 @@ interface WorkflowEditorProps {
 }
 
 export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
+  const { hasPermission } = useWorkerPermissions();
+
+  // Check if user has permission to edit workflow
+  const canEditWorkflow = hasPermission("workflow.edit");
+
   // --- State for Stage Modals/Dialogs ---
   const [isAddStageModalOpen, setIsAddStageModalOpen] = useState(false);
   const [editingStage, setEditingStage] = useState<FetchedWorkflowStage | null>(
@@ -75,7 +81,7 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
   const [deletingStage, setDeletingStage] =
     useState<FetchedWorkflowStage | null>(null);
 
-  // --- State for Sub-Stage Modals/Dialogs ---
+  // --- State for Sub-stage Modals/Dialogs ---
   const [addingSubStageTo, setAddingSubStageTo] =
     useState<FetchedWorkflowStage | null>(null);
   const [editingSubStage, setEditingSubStage] =
@@ -83,48 +89,21 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
   const [deletingSubStage, setDeletingSubStage] =
     useState<FetchedSubStage | null>(null);
 
-  const queryClient = useQueryClient();
-
-  // --- Data Fetching ---
+  // --- Fetch Workflow Structure ---
   const {
     data: workflowStructure,
     isLoading,
-    isError,
     error,
   } = useWorkflowStructure(organizationId);
 
-  // --- Helper Functions ---
-  const isCompletedStage = (stage: FetchedWorkflowStage): boolean => {
-    return stage.name?.toLowerCase() === "completed";
-  };
+  // --- Query Client for Invalidation ---
+  const queryClient = useQueryClient();
 
-  // Sort workflow to ensure Completed stage is always last
-  const sortedWorkflowStructure = React.useMemo(() => {
-    if (!workflowStructure) return [];
-
-    const regularStages = workflowStructure.filter(
-      (stage) => !isCompletedStage(stage)
-    );
-    const completedStages = workflowStructure.filter((stage) =>
-      isCompletedStage(stage)
-    );
-
-    // Sort regular stages by sequence_order, then append completed stages
-    const sortedRegular = regularStages.sort(
-      (a, b) => a.sequence_order - b.sequence_order
-    );
-    const sortedCompleted = completedStages.sort(
-      (a, b) => a.sequence_order - b.sequence_order
-    );
-
-    return [...sortedRegular, ...sortedCompleted];
-  }, [workflowStructure]);
-
-  // --- Mutations ---
+  // --- Mutations for Reordering ---
   const reorderStageMutation = useMutation({
     mutationFn: reorderStageApi,
     onSuccess: () => {
-      toast.success("Stage reordered successfully.");
+      toast.success("Stage reordered successfully");
       queryClient.invalidateQueries({
         queryKey: getWorkflowQueryKey(organizationId),
       });
@@ -133,14 +112,14 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
       });
     },
     onError: (error: Error) => {
-      toast.error(`Error reordering stage: ${error.message}`);
+      toast.error(`Failed to reorder stage: ${error.message}`);
     },
   });
 
   const reorderSubStageMutation = useMutation({
     mutationFn: reorderSubStageApi,
     onSuccess: () => {
-      toast.success("Sub-stage reordered successfully.");
+      toast.success("Sub-stage reordered successfully");
       queryClient.invalidateQueries({
         queryKey: getWorkflowQueryKey(organizationId),
       });
@@ -149,88 +128,67 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
       });
     },
     onError: (error: Error) => {
-      toast.error(`Error reordering sub-stage: ${error.message}`);
+      toast.error(`Failed to reorder sub-stage: ${error.message}`);
     },
   });
 
   // --- Loading State ---
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <Skeleton className="h-6 w-1/3" />
-          <Skeleton className="h-8 w-24" />
+      <Card className="border-border">
+        <CardHeader>
+          <CardTitle>Workflow Structure</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Skeleton className="h-24 w-full border rounded-md p-4" />
-          <Skeleton className="h-24 w-full border rounded-md p-4" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
         </CardContent>
       </Card>
     );
   }
 
   // --- Error State ---
-  if (isError) {
+  if (error) {
     return (
       <Alert variant="destructive">
         <Terminal className="h-4 w-4" />
         <AlertTitle>Error Loading Workflow</AlertTitle>
         <AlertDescription>
-          There was a problem fetching the workflow structure:{" "}
-          {error?.message || "Unknown error"}. Please try refreshing the page.
+          Failed to load workflow structure: {error.message}
         </AlertDescription>
       </Alert>
     );
   }
 
-  // --- Empty State ---
-  const isEmpty = !workflowStructure || workflowStructure.length === 0;
-
-  if (isEmpty) {
+  // --- No Permission State ---
+  if (!canEditWorkflow) {
     return (
-      <>
-        <Alert className="mb-4">
-          <InfoIcon className="h-4 w-4" />
-          <AlertDescription>
-            <strong>Workflow Rules:</strong> Sub-stages can only be added during
-            stage creation. Once created, stages with sub-stages must always
-            have at least one sub-stage. Items can only be moved to sub-stages,
-            not to the parent stage when sub-stages exist.
-          </AlertDescription>
-        </Alert>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Workflow Structure</CardTitle>
-            <Button onClick={() => setIsAddStageModalOpen(true)} size="sm">
-              <PlusIcon className="mr-2 h-4 w-4" /> Add Stage
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <p className="text-center text-muted-foreground py-8">
-              No workflow stages defined yet. Click &apos;Add Stage&apos; to get
-              started.
-            </p>
-          </CardContent>
-        </Card>
-        <AddStageModal
-          organizationId={organizationId}
-          isOpen={isAddStageModalOpen}
-          onClose={() => setIsAddStageModalOpen(false)}
-        />
-      </>
+      <Alert>
+        <InfoIcon className="h-4 w-4" />
+        <AlertTitle>Access Restricted</AlertTitle>
+        <AlertDescription>
+          You don't have permission to edit the workflow. Only users with
+          workflow editing permissions can modify stages and sub-stages.
+        </AlertDescription>
+      </Alert>
     );
   }
 
-  // --- Success State (Data available) ---
+  // --- Helper Functions ---
+  const isCompletedStage = (stage: FetchedWorkflowStage): boolean => {
+    return stage.name?.toLowerCase().includes("completed") ?? false;
+  };
+
+  // Sort workflow structure by sequence_order
+  const sortedWorkflowStructure = workflowStructure
+    ? [...workflowStructure].sort((a, b) => a.sequence_order - b.sequence_order)
+    : [];
 
   // --- Event Handlers ---
   const handleAddStage = () => setIsAddStageModalOpen(true);
-
-  const handleEditStage = (stage: FetchedWorkflowStage) => {
-    // Allow editing of completed stage but with restrictions
+  const handleEditStage = (stage: FetchedWorkflowStage) =>
     setEditingStage(stage);
-  };
 
   const handleDeleteStage = (stage: FetchedWorkflowStage) => {
     // Prevent deletion of completed stage
@@ -327,42 +285,35 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
               const isCompleted = isCompletedStage(stage);
               const isFirstNonCompletedStage = stageIndex === 0 && !isCompleted;
               const isLastNonCompletedStage =
-                stageIndex ===
-                  sortedWorkflowStructure.filter((s) => !isCompletedStage(s))
-                    .length -
-                    1 && !isCompleted;
-
-              // Calculate display sequence order (normalized for user display)
-              const displaySequenceOrder = isCompleted
-                ? sortedWorkflowStructure.length // Show as last
-                : stageIndex + 1; // Show 1, 2, 3, etc.
+                stageIndex === sortedWorkflowStructure.length - 2 &&
+                isCompleted &&
+                sortedWorkflowStructure[sortedWorkflowStructure.length - 1] &&
+                isCompletedStage(
+                  sortedWorkflowStructure[sortedWorkflowStructure.length - 1]
+                );
 
               return (
                 <div
                   key={stage.id}
-                  className={`rounded-md border p-4 ${isCompleted ? "border-green-200 bg-green-50/30" : "border-border"}`}
+                  className={`border rounded-lg p-4 ${
+                    isCompleted
+                      ? "border-green-200 bg-green-50"
+                      : "border-border"
+                  }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold flex items-center gap-2">
-                        {`${displaySequenceOrder}. ${stage.name}`}
+                    <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          #{stage.sequence_order}
+                        </span>
+                        <h3 className="text-lg font-semibold">{stage.name}</h3>
                         {isCompleted && (
                           <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                            System Stage
+                            System Required
                           </span>
                         )}
-                      </h4>
-                      {stage.location && (
-                        <p className="text-sm text-muted-foreground">
-                          Location: {stage.location}
-                        </p>
-                      )}
-                      {isCompleted && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          This stage is automatically managed by the system and
-                          must remain as the final stage.
-                        </p>
-                      )}
+                      </div>
                     </div>
                     <div className="flex items-center space-x-2">
                       {/* Move Up Button - hidden for completed stages and first stage */}
@@ -447,14 +398,14 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
                     </div>
                   </div>
 
-                  {/* Sub-stages List */}
+                  {/* Sub-stages */}
                   {stage.sub_stages.length > 0 && (
-                    <div className="ml-6 mt-3 space-y-2 border-l pl-4">
+                    <div className="mt-4 ml-6 space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground">
+                        Sub-stages:
+                      </h4>
                       {stage.sub_stages
-                        .sort(
-                          (a: FetchedSubStage, b: FetchedSubStage) =>
-                            a.sequence_order - b.sequence_order
-                        )
+                        .sort((a, b) => a.sequence_order - b.sequence_order)
                         .map(
                           (
                             subStage: FetchedSubStage,
@@ -462,15 +413,13 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
                           ) => (
                             <div
                               key={subStage.id}
-                              className="flex items-center justify-between"
+                              className="flex items-center justify-between bg-accent/10 rounded-md p-3"
                             >
-                              <div>
-                                <span>{`${displaySequenceOrder}.${subStage.sequence_order}. ${subStage.name}`}</span>
-                                {subStage.location && (
-                                  <p className="text-sm text-muted-foreground">
-                                    Location: {subStage.location}
-                                  </p>
-                                )}
+                              <div className="flex items-center space-x-2">
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  #{subStage.sequence_order}
+                                </span>
+                                <span className="text-sm">{subStage.name}</span>
                               </div>
                               <div className="flex items-center space-x-2">
                                 <Button

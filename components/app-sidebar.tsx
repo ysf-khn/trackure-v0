@@ -388,8 +388,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     }
                                     className={cn(
                                       "flex-shrink-0",
-                                      subStage.itemCount > 0 &&
-                                        "bg-primary text-primary-foreground"
+                                      subStage.itemCount > 0
+                                        ? "bg-indigo-600 text-white"
+                                        : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300"
                                     )}
                                   >
                                     {subStage.itemCount}

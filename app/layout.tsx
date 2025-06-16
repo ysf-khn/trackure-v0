@@ -1,6 +1,7 @@
 import HeaderAuth from "@/components/header-auth";
-import { ThemeSwitcher } from "@/components/theme-switcher";
+// import { ThemeSwitcher } from "@/components/theme-switcher";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
@@ -20,6 +21,8 @@ export const metadata = {
 const geistSans = Geist({
   display: "swap",
   subsets: ["latin"],
+  // Preload font for better performance
+  preload: true,
 });
 
 export default function RootLayout({
@@ -48,7 +51,11 @@ export default function RootLayout({
             {/* </div> */}
             {/* </nav> */}
             <div>{children}</div>
+
+            {/* Performance monitoring */}
             <SpeedInsights />
+            <Analytics />
+
             {/* </div> */}
             {/* </main> */}
           </ThemeProvider>

@@ -120,8 +120,7 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
             </Badge>
           </div>
           <p className="text-muted-foreground">
-            Order: {item.order.order_number} • Customer:{" "}
-            {item.order.customer_name}
+            Order: {item.order.order_number} • Buyer: {item.order.customer_name}
           </p>
         </div>
         <div className="flex gap-2">
@@ -265,7 +264,7 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
                       </div>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Customer:</span>
+                      <span className="text-muted-foreground">Buyer:</span>
                       <div className="font-medium">
                         {item.order.customer_name}
                       </div>

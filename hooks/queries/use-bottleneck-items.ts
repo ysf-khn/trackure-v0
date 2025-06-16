@@ -19,7 +19,9 @@ export function useBottleneckItems(limit: number = 10) {
   return useQuery({
     queryKey: ["bottleneck-items", limit],
     queryFn: () => fetchBottleneckItems(limit),
-    refetchInterval: 60000, // Refetch every minute
-    staleTime: 30000, // Consider data stale after 30 seconds
+    refetchInterval: 10 * 60 * 1000, // Refetch every 10 minutes (reduced from 1 minute)
+    staleTime: 5 * 60 * 1000, // Consider data stale after 5 minutes (increased from 30s)
+    // Only refetch when tab becomes visible if data is stale
+    refetchOnWindowFocus: "always",
   });
 }

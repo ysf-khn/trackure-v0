@@ -83,8 +83,31 @@ export async function POST(request: Request) {
     );
   }
 
-  // RBAC Check: Ensure user role has permission (adjust roles as needed)
-  if (!["Owner", "Worker"].includes(profile.role)) {
+  // RBAC Check: Ensure user role has permission
+  if (profile.role === "Worker") {
+    // Check if worker has permission to move items
+    const { data: hasPermission, error: permissionError } = await supabase.rpc(
+      "worker_has_permission",
+      {
+        permission_key: "items.move",
+      }
+    );
+
+    if (permissionError) {
+      console.error("Error checking permissions:", permissionError);
+      return NextResponse.json(
+        { error: "Failed to verify permissions" },
+        { status: 500 }
+      );
+    }
+
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: "Forbidden: You don't have permission to move items" },
+        { status: 403 }
+      );
+    }
+  } else if (!["Owner", "Worker"].includes(profile.role)) {
     return NextResponse.json(
       { error: "Forbidden: Insufficient permissions." },
       { status: 403 }

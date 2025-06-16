@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Package, ArrowRight, CheckCircle } from "lucide-react";
+import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
 
 export interface MoveItemQuantityModalProps {
   isOpen: boolean;
@@ -48,6 +49,7 @@ export function MoveItemQuantityModal({
   const [error, setError] = useState<string | null>(null);
   const [downloadVoucher, setDownloadVoucher] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const { hasPermission } = useWorkerPermissions();
 
   useEffect(() => {
     if (isOpen) {
@@ -96,8 +98,8 @@ export function MoveItemQuantityModal({
     try {
       onConfirmMove(item.id, quantityToMove);
 
-      // Download voucher if user is Owner AND they chose to download
-      if (userRole === "Owner" && downloadVoucher) {
+      // Download voucher if user has permission AND they chose to download
+      if (hasPermission("documents.vouchers") && downloadVoucher) {
         try {
           const response = await fetch(`/api/vouchers/${item.id}`, {
             method: "POST",
@@ -233,8 +235,8 @@ export function MoveItemQuantityModal({
             </div>
           </div>
 
-          {/* Voucher option for Owners */}
-          {userRole === "Owner" && (
+          {/* Voucher option for users with permission */}
+          {hasPermission("documents.vouchers") && (
             <div className="flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <Checkbox
                 id="download-voucher"

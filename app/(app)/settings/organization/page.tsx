@@ -15,6 +15,7 @@ import {
   ShieldIcon,
   TrashIcon,
   EditIcon,
+  ShieldX,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
+import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
 
 // Types
 interface TeamMember {
@@ -121,6 +123,7 @@ async function removeMember(memberId: string): Promise<void> {
 export default function OrganizationSettingsPage() {
   const { user, profile, organizationName, organizationId, isLoading, error } =
     useProfileAndOrg();
+  const { hasPermission } = useWorkerPermissions();
   const queryClient = useQueryClient();
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
 
@@ -188,6 +191,11 @@ export default function OrganizationSettingsPage() {
       removeMutation.mutate(memberId);
     }
   };
+
+  // Check permissions
+  const canInviteMembers = hasPermission("team.invite");
+  const canRemoveMembers = hasPermission("team.remove");
+  const canViewTeam = hasPermission("team.view");
 
   // Loading state
   if (isLoading) {
@@ -284,198 +292,221 @@ export default function OrganizationSettingsPage() {
         </Card>
 
         {/* Team Management */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center">
-                  <UsersIcon className="mr-2 h-5 w-5 text-primary" />
-                  Team Members
-                </CardTitle>
-                <CardDescription>
-                  Manage your organization's team members and their roles.
-                </CardDescription>
-              </div>
-              {isOwner && (
-                <Dialog
-                  open={isInviteDialogOpen}
-                  onOpenChange={setIsInviteDialogOpen}
-                >
-                  <DialogTrigger asChild>
-                    <Button>
-                      <UserPlusIcon className="mr-2 h-4 w-4" />
-                      Invite Member
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Invite Team Member</DialogTitle>
-                      <DialogDescription>
-                        Send an invitation to add a new member to your
-                        organization.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <Form {...inviteForm}>
-                      <form
-                        onSubmit={inviteForm.handleSubmit(handleInvite)}
-                        className="space-y-4"
-                      >
-                        <FormField
-                          control={inviteForm.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Email Address</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="member@example.com"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormDescription>
-                                Enter the email address of the person you want
-                                to invite.
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={inviteForm.control}
-                          name="full_name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Full Name</FormLabel>
-                              <FormControl>
-                                <Input placeholder="John Doe" {...field} />
-                              </FormControl>
-                              <FormDescription>
-                                Enter the full name of the person you want to
-                                invite.
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={inviteForm.control}
-                          name="role"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Role</FormLabel>
-                              <Select
-                                onValueChange={field.onChange}
-                                defaultValue={field.value}
-                              >
+        {canViewTeam ? (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center">
+                    <UsersIcon className="mr-2 h-5 w-5 text-primary" />
+                    Team Members
+                  </CardTitle>
+                  <CardDescription>
+                    Manage your organization's team members and their roles.
+                  </CardDescription>
+                </div>
+                {canInviteMembers && (
+                  <Dialog
+                    open={isInviteDialogOpen}
+                    onOpenChange={setIsInviteDialogOpen}
+                  >
+                    <DialogTrigger asChild>
+                      <Button>
+                        <UserPlusIcon className="mr-2 h-4 w-4" />
+                        Invite Member
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Invite Team Member</DialogTitle>
+                        <DialogDescription>
+                          Send an invitation to add a new member to your
+                          organization.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <Form {...inviteForm}>
+                        <form
+                          onSubmit={inviteForm.handleSubmit(handleInvite)}
+                          className="space-y-4"
+                        >
+                          <FormField
+                            control={inviteForm.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email Address</FormLabel>
                                 <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select a role" />
-                                  </SelectTrigger>
+                                  <Input
+                                    placeholder="member@example.com"
+                                    {...field}
+                                  />
                                 </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="Worker">Worker</SelectItem>
-                                  <SelectItem value="Owner">Owner</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>
-                                Choose the role for the new team member.
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="flex justify-end space-x-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setIsInviteDialogOpen(false)}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            type="submit"
-                            disabled={inviteMutation.isPending}
-                          >
-                            {inviteMutation.isPending && (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <FormDescription>
+                                  Enter the email address of the person you want
+                                  to invite.
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
                             )}
-                            Send Invitation
-                          </Button>
-                        </div>
-                      </form>
-                    </Form>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoadingMembers ? (
-              <div className="space-y-2">
-                {[...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : membersError ? (
-              <Alert variant="destructive">
-                <AlertTitle>Error Loading Team Members</AlertTitle>
-                <AlertDescription>
-                  Failed to load team members. Please try refreshing the page.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Joined</TableHead>
-                    {isOwner && (
-                      <TableHead className="text-right">Actions</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {teamMembers?.map((member) => (
-                    <TableRow key={member.id}>
-                      <TableCell className="font-medium">
-                        {member.full_name || "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          <ShieldIcon className="mr-1 h-3 w-3" />
-                          {member.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(member.created_at).toLocaleDateString()}
-                      </TableCell>
-                      {isOwner && (
-                        <TableCell className="text-right">
-                          {member.id !== user?.id && (
+                          />
+                          <FormField
+                            control={inviteForm.control}
+                            name="full_name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Full Name</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="John Doe" {...field} />
+                                </FormControl>
+                                <FormDescription>
+                                  Enter the full name of the person you want to
+                                  invite.
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={inviteForm.control}
+                            name="role"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Role</FormLabel>
+                                <Select
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select a role" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="Worker">
+                                      Worker
+                                    </SelectItem>
+                                    <SelectItem value="Owner">Owner</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                  Choose the role for the new team member.
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <div className="flex justify-end space-x-2">
                             <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                handleRemoveMember(
-                                  member.id,
-                                  member.full_name || "this member"
-                                )
-                              }
-                              disabled={removeMutation.isPending}
+                              type="button"
+                              variant="outline"
+                              onClick={() => setIsInviteDialogOpen(false)}
                             >
-                              <TrashIcon className="h-4 w-4" />
+                              Cancel
                             </Button>
-                          )}
-                        </TableCell>
+                            <Button
+                              type="submit"
+                              disabled={inviteMutation.isPending}
+                            >
+                              {inviteMutation.isPending && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              )}
+                              Send Invitation
+                            </Button>
+                          </div>
+                        </form>
+                      </Form>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoadingMembers ? (
+                <div className="space-y-2">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : membersError ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Error Loading Team Members</AlertTitle>
+                  <AlertDescription>
+                    Failed to load team members. Please try refreshing the page.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Joined</TableHead>
+                      {canRemoveMembers && (
+                        <TableHead className="text-right">Actions</TableHead>
                       )}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {teamMembers?.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">
+                          {member.full_name || "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            <ShieldIcon className="mr-1 h-3 w-3" />
+                            {member.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(member.created_at).toLocaleDateString()}
+                        </TableCell>
+                        {canRemoveMembers && (
+                          <TableCell className="text-right">
+                            {member.id !== user?.id && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  handleRemoveMember(
+                                    member.id,
+                                    member.full_name || "this member"
+                                  )
+                                }
+                                disabled={removeMutation.isPending}
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <UsersIcon className="mr-2 h-5 w-5 text-primary" />
+                Team Members
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Alert>
+                <ShieldX className="h-4 w-4" />
+                <AlertTitle>Access Restricted</AlertTitle>
+                <AlertDescription>
+                  You don't have permission to view team members. Please contact
+                  your organization owner.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

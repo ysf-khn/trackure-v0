@@ -28,10 +28,11 @@ import {
 
 import { useWorkflowStructure } from "@/hooks/queries/use-workflow-structure";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, Terminal } from "lucide-react";
+import { Info, Terminal, ShieldX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 // Checkbox import removed - packaging reminders coming soon
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
+import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
 import { TooltipContent } from "@/components/ui/tooltip";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -83,6 +84,9 @@ export default function NewOrderPage() {
     isLoading: isAuthLoading,
     error: authError,
   } = useProfileAndOrg();
+
+  const { hasPermission, isLoading: isLoadingPermissions } =
+    useWorkerPermissions();
 
   // State to track client-side mounting
   const [isMounted, setIsMounted] = useState(false);
@@ -157,6 +161,20 @@ export default function NewOrderPage() {
     );
   }
 
+  // Permission check
+  if (!isLoadingPermissions && !hasPermission("orders.create")) {
+    return (
+      <Alert variant="destructive" className="max-w-2xl mx-auto">
+        <ShieldX className="h-4 w-4" />
+        <AlertTitle>Access Denied</AlertTitle>
+        <AlertDescription>
+          You don't have permission to create orders. Please contact your
+          organization owner.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   if (workflowError) {
     return (
       <Alert variant="destructive" className="max-w-2xl mx-auto">
@@ -170,7 +188,12 @@ export default function NewOrderPage() {
   }
 
   // Don't render anything while loading - let loading.tsx handle it
-  if (isAuthLoading || !organizationId || isLoadingWorkflow) {
+  if (
+    isAuthLoading ||
+    !organizationId ||
+    isLoadingWorkflow ||
+    isLoadingPermissions
+  ) {
     return null;
   }
 

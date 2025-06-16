@@ -5,6 +5,7 @@ import { WorkflowEditor } from "@/components/settings/workflow-editor";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, SettingsIcon } from "lucide-react";
+import { PlanLimitsAlert } from "@/components/plan-limits-alert";
 
 const SettingsPage = () => {
   const {
@@ -69,6 +70,9 @@ const SettingsPage = () => {
       </div>
 
       <div className="px-4 md:px-6 pb-8 space-y-8">
+        {/* Plan Limits Alert */}
+        <PlanLimitsAlert />
+
         {/* Future: Add more settings sections here, e.g., Profile, Billing, Team */}
 
         <section id="workflow-settings">

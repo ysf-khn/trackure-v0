@@ -59,9 +59,29 @@ export async function PATCH(
     const organization_id = profile.organization_id;
     const user_role = profile.role;
 
-    // RBAC Check: Define who can update orders (e.g., Owner or Worker)
-    // For now, let's assume both can, adjust as needed.
-    if (user_role !== "Owner" && user_role !== "Worker") {
+    // RBAC Check: Define who can update orders
+    if (user_role === "Worker") {
+      // Check if worker has permission to edit orders
+      const { data: hasPermission, error: permissionError } =
+        await supabase.rpc("worker_has_permission", {
+          permission_key: "orders.edit",
+        });
+
+      if (permissionError) {
+        console.error("Error checking permissions:", permissionError);
+        return NextResponse.json(
+          { error: "Failed to verify permissions" },
+          { status: 500 }
+        );
+      }
+
+      if (!hasPermission) {
+        return NextResponse.json(
+          { error: "Forbidden: You don't have permission to edit orders" },
+          { status: 403 }
+        );
+      }
+    } else if (user_role !== "Owner") {
       console.warn(`User role '${user_role}' not permitted to update orders.`);
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

@@ -14,6 +14,11 @@ export const plans = [
       { text: "Email Support" },
       { text: "Core Features Only" },
     ],
+    limits: {
+      maxUsers: 3,
+      maxActiveOrdersPerMonth: 3,
+      maxActiveItemsPerMonth: 100,
+    },
   },
   {
     title: "PROFESSIONAL",
@@ -31,6 +36,11 @@ export const plans = [
       { text: "Priority Email Support" },
       { text: "Access to New Features" },
     ],
+    limits: {
+      maxUsers: 10,
+      maxActiveOrdersPerMonth: 20,
+      maxActiveItemsPerMonth: 500,
+    },
   },
   {
     title: "BUSINESS",
@@ -47,5 +57,61 @@ export const plans = [
       { text: "Chat & Priority Email Support" },
       { text: "Access to New Features" },
     ],
+    limits: {
+      maxUsers: 25,
+      maxActiveOrdersPerMonth: 75,
+      maxActiveItemsPerMonth: 2000,
+    },
   },
 ];
+
+export interface PlanLimits {
+  maxUsers: number;
+  maxActiveOrdersPerMonth: number;
+  maxActiveItemsPerMonth: number;
+}
+
+// Default limits for users without a subscription (should be very restrictive)
+export const DEFAULT_LIMITS: PlanLimits = {
+  maxUsers: 1,
+  maxActiveOrdersPerMonth: 1,
+  maxActiveItemsPerMonth: 10,
+};
+
+/**
+ * Get plan limits based on product ID
+ * @param productId - The product ID from the subscription
+ * @returns PlanLimits object or default limits if not found
+ */
+export function getPlanLimitsByProductId(
+  productId: string | null | undefined
+): PlanLimits {
+  if (!productId) {
+    return DEFAULT_LIMITS;
+  }
+
+  const plan = plans.find(
+    (p) => p.monthlyProductId === productId || p.annualProductId === productId
+  );
+
+  return plan?.limits || DEFAULT_LIMITS;
+}
+
+/**
+ * Get plan title based on product ID
+ * @param productId - The product ID from the subscription
+ * @returns Plan title or "Unknown Plan" if not found
+ */
+export function getPlanTitleByProductId(
+  productId: string | null | undefined
+): string {
+  if (!productId) {
+    return "No Plan";
+  }
+
+  const plan = plans.find(
+    (p) => p.monthlyProductId === productId || p.annualProductId === productId
+  );
+
+  return plan?.title || "Unknown Plan";
+}

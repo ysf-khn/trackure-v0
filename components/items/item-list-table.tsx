@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   ColumnDef,
   SortingState,
@@ -24,6 +24,7 @@ import {
   RotateCcw, // Icon for Rework
   FileText, // Icon for PDF
   ExternalLink, // Add this import
+  Trash2, // Import the Trash icon
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,7 @@ import {
 } from "@/lib/workflow-utils"; // Assuming this utility function exists or will be created
 import { useDebounce } from "@/hooks/queries/use-debounce";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
+import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
 
 // --- Types --- //
 
@@ -130,6 +132,8 @@ interface ItemListTableMeta {
     parentStageName?: string | null;
   }[];
   handleOpenMoveQuantityModal?: (details: ItemToMoveDetails) => void;
+  hasPermission: (permissionKey: string) => boolean;
+  handleDeleteItem?: (itemId: string) => void;
 }
 
 interface ItemListTableProps {
@@ -321,7 +325,8 @@ export const columns: ColumnDef<ItemInStage>[] = [
       };
       const meta = table.options.meta as ItemListTableMeta | undefined;
       const canDownload =
-        meta?.userRole === "Owner" && !!item.current_stage_history_id;
+        (meta?.hasPermission("documents.vouchers") ?? false) &&
+        !!item.current_stage_history_id;
 
       if (!canDownload) {
         return null; // Or a placeholder/disabled button
@@ -333,7 +338,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
           size="icon"
           className="h-8 w-8"
           asChild
-          disabled={meta.isMovingItems || meta.isReworkingItems}
+          disabled={meta?.isMovingItems || meta?.isReworkingItems}
           aria-label="Download Voucher for this Stage"
         >
           <a
@@ -439,15 +444,17 @@ export const columns: ColumnDef<ItemInStage>[] = [
         }
       };
 
-      const canMove = meta?.userRole === "Owner" || meta?.userRole === "Worker";
-      const canRework = meta?.userRole === "Owner";
-      const canAddRemark = canMove;
+      const canMove = meta?.hasPermission("items.move") ?? false;
+      const canRework = meta?.hasPermission("items.move") ?? false; // Rework is also a move operation
+      const canAddRemark = meta?.hasPermission("items.view") ?? false; // Basic permission for remarks
+      const canDelete = meta?.hasPermission("items.delete") ?? false;
 
       // If no actions are possible at all, don't render the dropdown
       if (
         (!canMove || !hasNextStep) && // Can't move if no role OR no next step
         (!canRework || !hasPreviousStep) && // Can't rework if no role OR no prev step
-        !canAddRemark // No remark permission
+        !canAddRemark && // No remark permission
+        !canDelete // No delete permission
       ) {
         return null;
       }
@@ -556,6 +563,27 @@ export const columns: ColumnDef<ItemInStage>[] = [
                 </DropdownMenuItem>
               </AddRemarkModal>
             )}
+            {canDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `Are you sure you want to delete item ${item.sku}? This action cannot be undone.`
+                      )
+                    ) {
+                      meta?.handleDeleteItem?.(item.id);
+                    }
+                  }}
+                  disabled={meta?.isMovingItems || meta?.isReworkingItems}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  <span>Delete Item</span>
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -645,6 +673,8 @@ export function ItemListTable({
 
   const { mutate: moveItems, isPending: isMovingItems } = useMoveItemsForward();
   const { mutate: reworkItems, isPending: isReworkingItems } = useReworkItems();
+
+  const { hasPermission } = useWorkerPermissions();
 
   // --- Handler Functions and Memoized Calculations ---
   const handleViewHistory = (itemId: string, itemSku: string) => {
@@ -887,27 +917,55 @@ export function ItemListTable({
     targetStageId: string,
     targetSubStageId: string | null
   ) => {
-    if (!organizationId || !stageId) return;
+    // Prepare the items for the rework API
+    const itemsToRework = reworkedItemsToSubmit.map((item) => ({
+      id: item.id,
+      quantity: item.quantity,
+      source_stage_id: stageId,
+      source_sub_stage_id: subStageId,
+    }));
+
+    // Call the rework mutation
     reworkItems(
       {
-        items: reworkedItemsToSubmit.map((item) => ({
-          ...item,
-          source_stage_id: stageId,
-          source_sub_stage_id: subStageId,
-        })),
+        items: itemsToRework,
         rework_reason: reason,
         target_rework_stage_id: targetStageId,
         target_rework_sub_stage_id: targetSubStageId,
-        organizationId,
+        organizationId: organizationId!,
       },
       {
         onSuccess: () => {
           setIsBulkReworkModalOpen(false);
+          setItemsForBulkRework([]);
           setRowSelection({});
         },
         onError: () => setIsBulkReworkModalOpen(false),
       }
     );
+  };
+
+  const handleDeleteItem = async (itemId: string) => {
+    try {
+      const response = await fetch(`/api/items/${itemId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete item");
+      }
+
+      toast.success("Item deleted successfully");
+
+      // Refresh the table data
+      itemTableCoreRef.current?.refetch();
+    } catch (error) {
+      console.error("Error deleting item:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete item"
+      );
+    }
   };
 
   // Handle loading and error states
@@ -962,18 +1020,20 @@ export function ItemListTable({
           className="max-w-sm text-sm h-9"
         />
         <div className="flex gap-2 items-center">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenPdfExportModal}
-            disabled={isMovingItems || isReworkingItems}
-            className="h-9"
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            Export PDF
-          </Button>
+          {hasPermission("documents.export") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenPdfExportModal}
+              disabled={isMovingItems || isReworkingItems}
+              className="h-9"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Export PDF
+            </Button>
+          )}
           {/* --- Restore DropdownMenu for bulk actions --- */}
-          {userRole === "Owner" &&
+          {hasPermission("items.move") &&
             subsequentStages &&
             subsequentStages.length > 0 && (
               <DropdownMenu>
@@ -1079,6 +1139,8 @@ export function ItemListTable({
         currentSubStageId={subStageId} // From props
         subsequentStages={subsequentStages}
         handleOpenMoveQuantityModal={handleOpenMoveQuantityModal} // Pass down the handler
+        hasPermission={hasPermission} // Pass permission check function
+        handleDeleteItem={handleDeleteItem} // Pass delete handler
       />
 
       {/* --- Restore ItemHistoryModal --- */}

@@ -80,6 +80,8 @@ interface ItemListTableMeta {
     currentQuantity: number;
   }) => void;
   availableStagesForRework?: { id: string; name: string | null }[];
+  hasPermission: (permissionKey: string) => boolean;
+  handleDeleteItem?: (itemId: string) => void;
 }
 
 interface ItemTableCoreProps {
@@ -139,11 +141,16 @@ interface ItemTableCoreProps {
     parentStageId?: string;
     parentStageName?: string | null;
   }[];
+  // Add permission check function
+  hasPermission: (permissionKey: string) => boolean;
+  // Add delete handler
+  handleDeleteItem?: (itemId: string) => void;
 }
 
 // Define the interface for the functions exposed via ref
 export interface ItemTableCoreHandles {
   getSelectedItemsData: () => ItemInStage[];
+  refetch: () => Promise<any>;
 }
 
 const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
@@ -173,6 +180,8 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       currentStageId,
       currentSubStageId,
       subsequentStages,
+      hasPermission,
+      handleDeleteItem,
     },
     ref
   ) => {
@@ -182,6 +191,7 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       isLoading: isLoadingItems,
       isError: isItemsError,
       error: itemsError,
+      refetch: refetchItems,
     } = useItemsInStage(organizationId, stageId, subStageId, orderIdFilter);
 
     // Single Item Rework Quantity Modal state
@@ -245,6 +255,8 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
         currentSubStageId: currentSubStageId,
         subsequentStages: subsequentStages,
         handleOpenMoveQuantityModal: handleOpenMoveQuantityModal,
+        hasPermission,
+        handleDeleteItem,
       } as ItemListTableMeta,
       enableRowSelection: true,
     });
@@ -253,6 +265,9 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
     useImperativeHandle(ref, () => ({
       getSelectedItemsData: () => {
         return table.getSelectedRowModel().flatRows.map((row) => row.original);
+      },
+      refetch: () => {
+        return refetchItems();
       },
     }));
 

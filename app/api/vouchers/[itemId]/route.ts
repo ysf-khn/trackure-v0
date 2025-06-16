@@ -39,7 +39,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // --- RBAC Check: Only 'Owner' can generate vouchers ---
+  // --- RBAC Check: Check voucher download permission ---
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("organization_id, role")
@@ -54,7 +54,30 @@ export async function GET(
     );
   }
 
-  if (profile.role !== "Owner") {
+  if (profile.role === "Worker") {
+    // Check if worker has permission to download vouchers
+    const { data: hasPermission, error: permissionError } = await supabase.rpc(
+      "worker_has_permission",
+      {
+        permission_key: "documents.vouchers",
+      }
+    );
+
+    if (permissionError) {
+      console.error("Error checking permissions:", permissionError);
+      return NextResponse.json(
+        { error: "Failed to verify permissions" },
+        { status: 500 }
+      );
+    }
+
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: "Forbidden: You don't have permission to download vouchers" },
+        { status: 403 }
+      );
+    }
+  } else if (profile.role !== "Owner") {
     return NextResponse.json(
       { error: "Forbidden: Insufficient permissions" },
       { status: 403 }
@@ -179,7 +202,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // --- RBAC Check: Only 'Owner' can generate vouchers ---
+  // --- RBAC Check: Check voucher download permission ---
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("organization_id, role")
@@ -194,7 +217,30 @@ export async function POST(
     );
   }
 
-  if (profile.role !== "Owner") {
+  if (profile.role === "Worker") {
+    // Check if worker has permission to download vouchers
+    const { data: hasPermission, error: permissionError } = await supabase.rpc(
+      "worker_has_permission",
+      {
+        permission_key: "documents.vouchers",
+      }
+    );
+
+    if (permissionError) {
+      console.error("Error checking permissions:", permissionError);
+      return NextResponse.json(
+        { error: "Failed to verify permissions" },
+        { status: 500 }
+      );
+    }
+
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: "Forbidden: You don't have permission to download vouchers" },
+        { status: 403 }
+      );
+    }
+  } else if (profile.role !== "Owner") {
     return NextResponse.json(
       { error: "Forbidden: Insufficient permissions" },
       { status: 403 }

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
+import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
 import useSubscription from "@/hooks/queries/use-subscription";
 import { plans } from "@/lib/plans";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +16,7 @@ import {
   AlertTriangle,
   Crown,
   Settings,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +28,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { PlanUsageSection } from "@/components/settings/plan-usage-section";
 
 const BillingSettingsPage = () => {
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
@@ -36,6 +39,8 @@ const BillingSettingsPage = () => {
     error: profileError,
     refetch: refetchProfile,
   } = useProfileAndOrg();
+  const { hasPermission, isLoading: isLoadingPermissions } =
+    useWorkerPermissions();
   const {
     subscription,
     isLoading: subscriptionLoading,
@@ -43,8 +48,12 @@ const BillingSettingsPage = () => {
     refetch: refetchSubscription,
   } = useSubscription();
 
-  const isLoading = profileLoading || subscriptionLoading;
+  const isLoading =
+    profileLoading || subscriptionLoading || isLoadingPermissions;
   const error = profileError || subscriptionError;
+
+  // Check if user has permission to access billing settings
+  const canAccessBillingSettings = hasPermission("settings.billing");
 
   // Helper function to get plan details from product ID
   const getPlanDetails = (productId: string) => {
@@ -246,6 +255,33 @@ const BillingSettingsPage = () => {
     );
   }
 
+  // Permission check
+  if (!canAccessBillingSettings) {
+    return (
+      <div className="container mx-auto space-y-8">
+        <div className="border-b">
+          <div className="px-4 md:px-6 py-4">
+            <div className="flex items-center space-x-3">
+              <CreditCardIcon className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold">Billing & Subscription</h1>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 md:px-6 pb-8">
+          <Alert variant="destructive">
+            <Shield className="h-4 w-4" />
+            <AlertTitle>Access Denied</AlertTitle>
+            <AlertDescription>
+              You don't have permission to access billing settings. Please
+              contact your organization owner to grant you the necessary
+              permissions.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
+
   if (!organizationId) {
     return (
       <div className="container mx-auto py-10 px-4 md:px-6">
@@ -347,6 +383,9 @@ const BillingSettingsPage = () => {
       </div>
 
       <div className="px-4 md:px-6 pb-8 space-y-8">
+        {/* Plan Usage Section */}
+        <PlanUsageSection />
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">

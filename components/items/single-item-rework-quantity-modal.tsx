@@ -26,6 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RotateCcw, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
+import { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
+import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
 
 interface SingleItemReworkQuantityModalProps {
   isOpen: boolean;
@@ -84,10 +86,16 @@ export function SingleItemReworkQuantityModal({
     return currentStage?.sequence_order ?? Infinity;
   }, [availableStages, item.currentStageId]);
 
-  // Filter available stages to only show stages before the current stage
+  // Filter available stages to only show valid rework targets
   const reworkTargetOptions = React.useMemo(() => {
     const options: { id: string; name: string | null }[] = [];
 
+    // Find the current stage to get its substages
+    const currentStage = availableStages.find(
+      (s) => s.id === item.currentStageId
+    );
+
+    // Add all stages before the current stage (and their substages)
     availableStages
       .filter((stage) => stage.sequence_order < currentStageSequence)
       .forEach((stage) => {
@@ -108,8 +116,32 @@ export function SingleItemReworkQuantityModal({
         }
       });
 
+    // If the current item is in a substage, also add earlier substages within the same parent stage
+    if (item.currentSubStageId && currentStage?.sub_stages) {
+      const currentSubStage = currentStage.sub_stages.find(
+        (sub) => sub.id === item.currentSubStageId
+      );
+      const currentSubStageSequence =
+        currentSubStage?.sequence_order ?? Infinity;
+
+      // Add substages that come before the current substage within the same parent stage
+      currentStage.sub_stages
+        .filter((sub) => sub.sequence_order < currentSubStageSequence)
+        .forEach((subStage) => {
+          options.push({
+            id: subStage.id,
+            name: `${currentStage.name} > ${subStage.name || "Unnamed Substage"}`,
+          });
+        });
+    }
+
     return options;
-  }, [availableStages, currentStageSequence]);
+  }, [
+    availableStages,
+    currentStageSequence,
+    item.currentStageId,
+    item.currentSubStageId,
+  ]);
 
   useEffect(() => {
     if (isOpen) {
