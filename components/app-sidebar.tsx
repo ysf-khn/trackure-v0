@@ -169,6 +169,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   height={20}
                 />
                 <span className="text-xl font-semibold">Trakure</span>
+                {process.env.NEXT_PUBLIC_ENV === "preview" && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-2 text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                  >
+                    PREVIEW
+                  </Badge>
+                )}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
