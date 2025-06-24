@@ -2,6 +2,7 @@ import { Webhook } from "standardwebhooks";
 import { headers } from "next/headers";
 import { dodopayments } from "@/lib/dodopayments";
 import { supabaseAdmin } from "@/utils/supabase/admin";
+import { cleanupExpiredCancelledSubscriptions } from "@/lib/subscription-cleanup";
 
 const webhook = new Webhook(process.env.DODO_PAYMENTS_WEBHOOK_KEY!);
 
@@ -47,40 +48,6 @@ async function updateProfileOnboardingStatus(
     console.error("Error updating profile onboarding status:", error);
   }
 }
-
-// Helper function to clean up expired cancelled subscriptions
-async function cleanupExpiredCancelledSubscriptions() {
-  const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
-  const now = new Date().toISOString();
-
-  for (const user of userData.users) {
-    const metadata = user.user_metadata;
-
-    // Check if user has cancelled subscription with expired access
-    if (
-      metadata?.subscription_status === "cancelled" &&
-      metadata?.access_expires_at &&
-      new Date(metadata.access_expires_at) <= new Date(now)
-    ) {
-      // Update user metadata to reflect expired access
-      await updateUserMetadata(user.id, {
-        subscription_status: "expired",
-        payment_status: "expired",
-        access_expires_at: now, // Update to current time
-      });
-
-      // Reset onboarding status to require new subscription
-      await updateProfileOnboardingStatus(user.id, "pending_subscription");
-
-      console.log(
-        `Cleaned up expired cancelled subscription for user: ${user.id}`
-      );
-    }
-  }
-}
-
-// Export the cleanup function for use in scheduled jobs
-export { cleanupExpiredCancelledSubscriptions };
 
 export async function POST(request: Request) {
   const headersList = await headers();
