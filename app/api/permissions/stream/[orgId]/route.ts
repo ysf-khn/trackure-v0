@@ -1,9 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { getUserWithProfile } from "@/utils/supabase/queries";
 import { NextRequest } from "next/server";
-
-// Keep track of active SSE connections per organization
-const connections = new Map<string, Set<ReadableStreamDefaultController>>();
+import { addConnection, removeConnection } from "@/lib/permissions-stream";
 
 export async function GET(
   request: NextRequest,
@@ -35,10 +33,7 @@ export async function GET(
   const stream = new ReadableStream({
     start(controller) {
       // Add this connection to the org's connection set
-      if (!connections.has(orgId)) {
-        connections.set(orgId, new Set());
-      }
-      connections.get(orgId)!.add(controller);
+      addConnection(orgId, controller);
 
       // Send initial connection confirmation
       controller.enqueue(
@@ -47,13 +42,7 @@ export async function GET(
 
       // Handle client disconnect
       request.signal.addEventListener("abort", () => {
-        const orgConnections = connections.get(orgId);
-        if (orgConnections) {
-          orgConnections.delete(controller);
-          if (orgConnections.size === 0) {
-            connections.delete(orgId);
-          }
-        }
+        removeConnection(orgId, controller);
         controller.close();
       });
     },
@@ -67,27 +56,5 @@ export async function GET(
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Cache-Control",
     },
-  });
-}
-
-// Function to broadcast permission updates to all connections for an organization
-export function broadcastPermissionUpdate(orgId: string, permissions: any[]) {
-  const orgConnections = connections.get(orgId);
-  if (!orgConnections || orgConnections.size === 0) return;
-
-  const message = `data: ${JSON.stringify({
-    type: "permissions_updated",
-    permissions,
-    timestamp: Date.now(),
-  })}\n\n`;
-
-  // Send to all active connections for this org
-  orgConnections.forEach((controller) => {
-    try {
-      controller.enqueue(message);
-    } catch (error) {
-      // Remove broken connections
-      orgConnections.delete(controller);
-    }
   });
 }

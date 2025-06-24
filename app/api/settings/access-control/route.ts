@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
 import { getUserWithProfile } from "@/utils/supabase/queries";
-import { broadcastPermissionUpdate } from "@/app/api/permissions/stream/[orgId]/route";
+import { broadcastPermissionUpdate } from "@/lib/permissions-stream";
 
 // Schema for updating permissions
 const updatePermissionsSchema = z.object({
