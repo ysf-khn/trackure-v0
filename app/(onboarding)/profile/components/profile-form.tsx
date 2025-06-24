@@ -17,8 +17,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useMutation } from "@tanstack/react-query";
-import { OnboardingProgress } from "../../layout";
 import { User } from "lucide-react";
+import { OnboardingProgress } from "@/components/onboarding/onboarding-progress";
 
 const profileSchema = z.object({
   full_name: z.string().min(1, "Full name is required").max(255),

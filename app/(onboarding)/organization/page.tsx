@@ -17,7 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { OnboardingProgress } from "../layout";
+import { OnboardingProgress } from "@/components/onboarding/onboarding-progress";
 import { Building2 } from "lucide-react";
 
 // Schema for the form

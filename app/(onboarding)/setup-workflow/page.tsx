@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Workflow } from "lucide-react";
 import { WorkflowEditor } from "@/components/settings/workflow-editor";
-import { OnboardingProgress } from "../layout";
+import { OnboardingProgress } from "@/components/onboarding/onboarding-progress";
 
 // Define expected profile structure
 interface UserProfile {
