@@ -1,5 +1,5 @@
+import { cleanupExpiredCancelledSubscriptions } from "@/lib/subscription-cleanup";
 import { NextResponse } from "next/server";
-import { cleanupExpiredCancelledSubscriptions } from "../../webhooks/dodo/route";
 
 export async function POST(request: Request) {
   try {

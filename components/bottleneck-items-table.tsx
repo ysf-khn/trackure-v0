@@ -2,7 +2,6 @@
 
 import React from "react";
 import { useBottleneckItems } from "@/hooks/queries/use-bottleneck-items";
-import { BottleneckItem } from "@/app/api/dashboard/bottleneck-items/route";
 import {
   Table,
   TableBody,
@@ -21,8 +20,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, Clock, Package } from "lucide-react";
-import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
 
 interface BottleneckItemsTableProps {
   limit?: number;
