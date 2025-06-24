@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { BottleneckItem } from "@/app/api/dashboard/bottleneck-items/route";
+import { BottleneckItem } from "@/types/api-types";
 
 const fetchBottleneckItems = async (
   limit: number = 10

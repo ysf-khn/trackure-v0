@@ -4,7 +4,6 @@ import type {
   CompositeItemDefinitionWithComponents,
   CompositeItemsResponse,
   CompositeItemStatusResponse,
-  CompositeItemStatus,
 } from "@/types/composite-items";
 
 // Hook to fetch all composite items for an organization
@@ -113,7 +112,7 @@ export function useOrderCompositeItems(
   orderId: string | null | undefined
 ) {
   return useCompositeItemStatus(organizationId, {
-    order_id: orderId,
+    order_id: orderId || undefined,
     limit: 100, // Get all for an order
   });
 }
