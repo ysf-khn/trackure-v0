@@ -25,6 +25,7 @@ import {
   FileText, // Icon for PDF
   ExternalLink, // Add this import
   Trash2, // Import the Trash icon
+  Layers, // Icon for composite items
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -86,7 +87,7 @@ import {
 } from "@/lib/workflow-utils"; // Assuming this utility function exists or will be created
 import { useDebounce } from "@/hooks/queries/use-debounce";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { useMultiplePermissions } from "@/hooks/queries/use-permission-check";
 
 // --- Types --- //
 
@@ -109,7 +110,16 @@ interface ItemToMoveDetails {
 
 interface ItemListTableMeta {
   onViewHistory?: (itemId: string, itemSku: string) => void;
-  onViewDetails?: (details: Record<string, unknown>, itemName: string) => void;
+  onViewDetails?: (
+    item: {
+      id: string;
+      sku: string;
+      instance_details: Record<string, unknown>;
+      composite_group_id?: string | null;
+      parent_composite_sku?: string | null;
+    },
+    itemName: string
+  ) => void;
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
     targetStageId?: string | null,
@@ -211,6 +221,42 @@ export const columns: ColumnDef<ItemInStage>[] = [
     },
   },
   {
+    id: "composite",
+    header: "Type",
+    cell: ({ row }) => {
+      const item = row.original;
+      if (item.parent_composite_sku) {
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 cursor-help">
+                  <Layers className="h-3 w-3 text-primary" />
+                  <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">
+                    Component
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="text-sm">
+                  <p>
+                    <strong>Component of:</strong> {item.parent_composite_sku}
+                  </p>
+                  <p>
+                    <strong>Group ID:</strong>{" "}
+                    {item.composite_group_id?.slice(0, 8)}...
+                  </p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+      return <span className="text-xs text-muted-foreground">Single</span>;
+    },
+    enableSorting: false,
+  },
+  {
     accessorKey: "order_number",
     header: "Order Number",
     cell: ({ row }) => <div>{row.getValue("order_number")}</div>,
@@ -239,7 +285,18 @@ export const columns: ColumnDef<ItemInStage>[] = [
         <Button
           variant="outline"
           size="sm"
-          onClick={() => meta.onViewDetails?.(details, itemName)}
+          onClick={() =>
+            meta.onViewDetails?.(
+              {
+                id: row.original.id,
+                sku: row.original.sku,
+                instance_details: details,
+                composite_group_id: row.original.composite_group_id,
+                parent_composite_sku: row.original.parent_composite_sku,
+              },
+              itemName
+            )
+          }
           disabled={meta.isMovingItems || meta.isReworkingItems}
           aria-label="View Item Details"
         >
@@ -619,10 +676,13 @@ export function ItemListTable({
 
   // State for ItemDetailsModal
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [selectedItemDetails, setSelectedItemDetails] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [selectedItemDetails, setSelectedItemDetails] = useState<{
+    id: string;
+    sku: string;
+    instance_details: Record<string, unknown>;
+    composite_group_id?: string | null;
+    parent_composite_sku?: string | null;
+  } | null>(null);
   const [selectedItemNameForDetails, setSelectedItemNameForDetails] = useState<
     string | null
   >(null);
@@ -674,7 +734,21 @@ export function ItemListTable({
   const { mutate: moveItems, isPending: isMovingItems } = useMoveItemsForward();
   const { mutate: reworkItems, isPending: isReworkingItems } = useReworkItems();
 
-  const { hasPermission } = useWorkerPermissions();
+  // Get all permissions we need for this component in one call
+  const permissionsToCheck = [
+    "items.move",
+    "items.add",
+    "items.delete",
+    "documents.export",
+    "documents.vouchers",
+    "documents.history",
+  ];
+  const permissions = useMultiplePermissions(permissionsToCheck);
+
+  // Create hasPermission function for backward compatibility
+  const hasPermission = (permissionKey: string): boolean => {
+    return permissions[permissionKey] || false;
+  };
 
   // --- Handler Functions and Memoized Calculations ---
   const handleViewHistory = (itemId: string, itemSku: string) => {
@@ -684,10 +758,16 @@ export function ItemListTable({
   };
 
   const handleViewDetails = (
-    details: Record<string, unknown>,
+    item: {
+      id: string;
+      sku: string;
+      instance_details: Record<string, unknown>;
+      composite_group_id?: string | null;
+      parent_composite_sku?: string | null;
+    },
     itemName: string
   ) => {
-    setSelectedItemDetails(details);
+    setSelectedItemDetails(item);
     setSelectedItemNameForDetails(itemName);
     setIsDetailsModalOpen(true);
   };
@@ -1022,7 +1102,7 @@ export function ItemListTable({
         <div className="flex gap-2 items-center">
           {hasPermission("documents.export") && (
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
               onClick={handleOpenPdfExportModal}
               disabled={isMovingItems || isReworkingItems}
@@ -1101,6 +1181,7 @@ export function ItemListTable({
               Cancel
             </Button>
             <Button
+              className="bg-primary text-white hover:bg-primary/90"
               onClick={() => handleExportPdf(dateRange)}
               disabled={isExportingPdf}
             >
@@ -1158,7 +1239,7 @@ export function ItemListTable({
         <ItemDetailsModal
           isOpen={isDetailsModalOpen}
           onOpenChange={setIsDetailsModalOpen}
-          details={selectedItemDetails}
+          item={selectedItemDetails}
           itemName={selectedItemNameForDetails}
         />
       )}

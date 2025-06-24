@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { useWorkerPermissions } from "@/components/providers/permissions-provider";
 import useSubscription from "@/hooks/queries/use-subscription";
 import { plans } from "@/lib/plans";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -479,11 +479,29 @@ const BillingSettingsPage = () => {
             </div>
 
             {subscription.cancelled_at && (
-              <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                <p className="text-sm text-red-700">
-                  <strong>Cancelled:</strong>{" "}
-                  {formatDate(subscription.cancelled_at)}
-                </p>
+              <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-900 dark:text-amber-100">
+                      Subscription Cancelled
+                    </p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                      Your subscription was cancelled on{" "}
+                      {formatDate(subscription.cancelled_at)}. You'll retain
+                      access to all features until your current billing period
+                      ends on{" "}
+                      <strong>
+                        {formatDate(subscription.next_billing_date)}
+                      </strong>
+                      .
+                    </p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-2">
+                      You can reactivate your subscription at any time through
+                      the customer portal below.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -491,7 +509,7 @@ const BillingSettingsPage = () => {
               <Button
                 onClick={handleManageSubscription}
                 disabled={isLoadingPortal}
-                className="min-w-[140px] flex items-center gap-2"
+                className="min-w-[140px] flex items-center gap-2 bg-primary text-white"
               >
                 <Settings className="h-4 w-4" />
                 {isLoadingPortal ? "Loading..." : "Manage Subscription"}
@@ -541,7 +559,7 @@ const BillingSettingsPage = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Billing History</CardTitle>
             <CardDescription>View your past invoices.</CardDescription>
@@ -550,9 +568,8 @@ const BillingSettingsPage = () => {
             <p className="text-muted-foreground">
               Subscription created on {formatDate(subscription.created_at)}
             </p>
-            {/* Future: Add billing history table here */}
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
     </div>
   );

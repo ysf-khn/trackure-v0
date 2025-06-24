@@ -51,6 +51,8 @@ export async function GET(
         created_at,
         updated_at,
         order_id,
+        composite_group_id,
+        parent_composite_sku,
         orders!inner (
           id,
           order_number,
@@ -65,6 +67,44 @@ export async function GET(
 
     if (itemError || !itemData) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
+
+    // Fetch parent composite details if this item is a component
+    let parentCompositeDetails = null;
+    if (itemData.parent_composite_sku && itemData.composite_group_id) {
+      const { data: parentData, error: parentError } = await supabase
+        .from("items")
+        .select(
+          `
+          id,
+          sku,
+          instance_details,
+          created_at,
+          updated_at,
+          total_quantity,
+          remaining_quantity,
+          status
+        `
+        )
+        .eq("organization_id", organizationId)
+        .eq("composite_group_id", itemData.composite_group_id)
+        .eq("sku", itemData.parent_composite_sku)
+        .limit(1)
+        .maybeSingle();
+
+      if (parentError) {
+        console.error("Error fetching parent composite details:", parentError);
+      } else if (parentData) {
+        parentCompositeDetails = {
+          sku: parentData.sku,
+          instance_details: parentData.instance_details,
+          created_at: parentData.created_at,
+          updated_at: parentData.updated_at,
+          total_quantity: parentData.total_quantity,
+          remaining_quantity: parentData.remaining_quantity,
+          status: parentData.status,
+        };
+      }
     }
 
     // Fetch stage allocations with stage and sub-stage details
@@ -274,6 +314,8 @@ export async function GET(
         instance_details: itemData.instance_details,
         created_at: itemData.created_at,
         updated_at: itemData.updated_at,
+        composite_group_id: itemData.composite_group_id,
+        parent_composite_sku: itemData.parent_composite_sku,
         order: {
           id: itemData.order_id,
           order_number: (itemData.orders as any)?.order_number || null,
@@ -281,6 +323,7 @@ export async function GET(
           created_at: (itemData.orders as any)?.created_at || null,
         },
       },
+      parentComposite: parentCompositeDetails,
       allocations: processedAllocations,
       allocationsByStage: Object.values(allocationsByStage),
       history: processedHistory,

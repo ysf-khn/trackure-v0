@@ -351,6 +351,7 @@ export default function NewOrdersPage() {
                         <Button
                           onClick={() => handleOpenAllocationDialog(item)}
                           size="sm"
+                          className="bg-primary text-white"
                         >
                           Allocate
                         </Button>
@@ -452,6 +453,7 @@ export default function NewOrdersPage() {
               <Button
                 onClick={handleAllocateItem}
                 disabled={allocationMutation.isPending || isLoadingWorkflow}
+                className="bg-primary text-white"
               >
                 {allocationMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

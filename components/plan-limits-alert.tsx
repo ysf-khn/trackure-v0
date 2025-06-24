@@ -12,6 +12,8 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useLimitCheck } from "@/hooks/queries/use-plan-limits";
+import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
+import { useWorkerPermissions } from "@/components/providers/permissions-provider";
 import {
   AlertTriangle,
   Users,
@@ -39,6 +41,9 @@ export function PlanLimitsAlert({
     isNearItemLimit,
   } = useLimitCheck();
 
+  const { profile } = useProfileAndOrg();
+  const { hasPermission } = useWorkerPermissions();
+
   if (isLoading || error || !limits) {
     return null;
   }
@@ -52,6 +57,10 @@ export function PlanLimitsAlert({
   if (!hasWarnings && !hasViolations) {
     return null;
   }
+
+  // Check if user has permission to see billing information
+  const canAccessBilling =
+    profile?.role === "Owner" || hasPermission("settings.billing");
 
   const userUsagePercent = Math.round(
     (limits.usage.currentUsers / limits.limits.maxUsers) * 100
@@ -73,14 +82,14 @@ export function PlanLimitsAlert({
 
   const content = (
     <>
-      {showTitle && (
+      {/* {showTitle && (
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="h-5 w-5" />
           <h3 className="font-semibold">
             {hasViolations ? "Plan Limits Exceeded" : "Approaching Plan Limits"}
           </h3>
         </div>
-      )}
+      )} */}
 
       <div className="space-y-4">
         {/* Users */}
@@ -145,15 +154,30 @@ export function PlanLimitsAlert({
           </div>
         </div>
 
-        {/* Upgrade CTA */}
-        <div className="pt-2 border-t">
-          <Link href="/pricing">
-            <Button size="sm" className="w-full">
-              <ArrowUpCircle className="h-4 w-4 mr-2" />
-              Upgrade Plan
-            </Button>
-          </Link>
-        </div>
+        {/* Upgrade CTA - Only show to users who can access billing */}
+        {canAccessBilling && (
+          <div className="mt-4">
+            <Link href="/pricing">
+              <Button
+                size="sm"
+                className="w-full bg-primary hover:bg-primary/90 text-white shadow-sm"
+              >
+                <ArrowUpCircle className="h-4 w-4 mr-2" />
+                Upgrade Plan
+              </Button>
+            </Link>
+          </div>
+        )}
+
+        {/* Message for workers who can't access billing */}
+        {!canAccessBilling && hasViolations && (
+          <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+            <p className="text-sm text-orange-800">
+              Your organization has exceeded plan limits. Please contact your
+              organization owner to upgrade the plan.
+            </p>
+          </div>
+        )}
       </div>
     </>
   );
@@ -168,7 +192,7 @@ export function PlanLimitsAlert({
           </CardTitle>
           <CardDescription>
             {hasViolations
-              ? "You've exceeded your plan limits. Please upgrade to continue using all features."
+              ? "Your organization has exceeded plan limits. Some features may be restricted."
               : "Monitor your current plan usage and limits."}
           </CardDescription>
         </CardHeader>

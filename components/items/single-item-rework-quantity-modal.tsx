@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { RotateCcw, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
 import { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { useWorkerPermissions } from "@/components/providers/permissions-provider";
 
 interface SingleItemReworkQuantityModalProps {
   isOpen: boolean;

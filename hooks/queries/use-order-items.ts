@@ -11,6 +11,9 @@ export interface OrderItem {
   instance_details: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  // Composite item fields
+  composite_group_id: string | null;
+  parent_composite_sku: string | null;
   // Stage allocation summary
   stage_allocations: {
     stage_id: string;
@@ -43,7 +46,9 @@ const fetchOrderItems = async (
       status,
       instance_details,
       created_at,
-      updated_at
+      updated_at,
+      composite_group_id,
+      parent_composite_sku
     `
     )
     .eq("organization_id", organizationId)
@@ -116,6 +121,8 @@ const fetchOrderItems = async (
       instance_details: item.instance_details,
       created_at: item.created_at,
       updated_at: item.updated_at,
+      composite_group_id: item.composite_group_id,
+      parent_composite_sku: item.parent_composite_sku,
       stage_allocations: stageAllocations,
       quantity_in_workflow: quantityInWorkflow,
       quantity_in_new_pool: item.total_quantity - quantityInWorkflow,

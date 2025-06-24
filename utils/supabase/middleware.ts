@@ -202,6 +202,30 @@ export const updateSession = async (request: NextRequest) => {
         ) {
           onboardingStatus = "pending_profile";
         }
+
+        // Handle cancelled subscriptions that still have valid access
+        if (
+          onboardingStatus === "pending_subscription" &&
+          user.user_metadata?.subscription_status === "cancelled" &&
+          user.user_metadata?.access_expires_at
+        ) {
+          const accessExpiresAt = new Date(
+            user.user_metadata.access_expires_at
+          );
+          const now = new Date();
+
+          // If access hasn't expired yet, treat as if subscription is still active
+          if (accessExpiresAt > now) {
+            // Check if user has completed other onboarding steps
+            if (
+              user.user_metadata?.product_id &&
+              user.user_metadata?.payment_status
+            ) {
+              onboardingStatus = "pending_profile";
+            }
+          }
+          // If access has expired, keep onboarding_status as "pending_subscription"
+        }
       } else {
         // Profile exists but no data - determine based on user metadata
         if (!user.user_metadata?.product_id) {

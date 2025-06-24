@@ -30,14 +30,15 @@ import { useMovementStats } from "@/hooks/queries/use-movement-stats";
 const chartConfig = {
   movements: {
     label: "Item Movements",
+    color: "transparent",
   },
   forward: {
     label: "Forward Movements",
-    color: "hsl(var(--chart-1))",
+    color: "hsl(var(--primary))", // Primary blue color
   },
   rework: {
     label: "Rework Movements",
-    color: "hsl(var(--chart-2))",
+    color: "hsl(var(--primary) / 0.6)", // Toned down primary color
   },
 } satisfies ChartConfig;
 
@@ -164,8 +165,19 @@ export function ChartBarInteractive() {
               <button
                 key={chart}
                 data-active={activeChart === chart}
-                className="relative z-30 flex flex-1 flex-col justify-center gap-1 border-t px-6 py-4 text-left even:border-l data-[active=true]:bg-muted/50 sm:border-l sm:border-t-0 sm:px-8 sm:py-6"
+                className="relative z-30 flex flex-1 flex-col justify-center gap-1 border-t px-6 py-4 text-left even:border-l data-[active=true]:bg-muted/15 sm:border-l sm:border-t-0 sm:px-8 sm:py-6 transition-all duration-200 hover:bg-muted/10 data-[active=true]:shadow-sm"
                 onClick={() => setActiveChart(chart)}
+                style={{
+                  borderLeftColor:
+                    activeChart === chart
+                      ? chart === "forward"
+                        ? "oklch(0.623 0.214 259.815)"
+                        : "oklch(0.623 0.214 259.815 / 0.6)"
+                      : undefined,
+                  borderLeftWidth: activeChart === chart ? "3px" : undefined,
+                  backgroundColor:
+                    activeChart === chart ? "var(--muted)" : undefined,
+                }}
               >
                 <span className="text-xs text-muted-foreground">
                   {chartConfig[chart].label}
@@ -183,23 +195,56 @@ export function ChartBarInteractive() {
       <CardContent className="px-2 sm:p-6">
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-[250px] w-full"
+          className="aspect-auto h-[280px] w-full"
         >
           <BarChart
             accessibilityLayer
             data={filteredData}
             margin={{
-              left: 12,
-              right: 12,
+              left: 16,
+              right: 16,
+              top: 8,
+              bottom: 8,
             }}
           >
-            <CartesianGrid vertical={false} />
+            <defs>
+              <linearGradient id="forwardGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="0%"
+                  stopColor="oklch(0.623 0.214 259.815)"
+                  stopOpacity={0.9}
+                />
+                <stop
+                  offset="100%"
+                  stopColor="oklch(0.623 0.214 259.815)"
+                  stopOpacity={0.6}
+                />
+              </linearGradient>
+              <linearGradient id="reworkGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="0%"
+                  stopColor="oklch(0.623 0.214 259.815)"
+                  stopOpacity={0.5}
+                />
+                <stop
+                  offset="100%"
+                  stopColor="oklch(0.623 0.214 259.815)"
+                  stopOpacity={0.3}
+                />
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              vertical={false}
+              stroke="hsl(var(--muted-foreground))"
+              strokeOpacity={0.2}
+            />
             <XAxis
               dataKey="date"
               tickLine={false}
               axisLine={false}
-              tickMargin={8}
+              tickMargin={12}
               minTickGap={32}
+              tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
               tickFormatter={(value) => {
                 const date = new Date(value);
                 return date.toLocaleDateString("en-US", {
@@ -211,7 +256,7 @@ export function ChartBarInteractive() {
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  className="w-[150px]"
+                  className="w-[180px] rounded-lg border shadow-lg"
                   nameKey="movements"
                   labelFormatter={(value) => {
                     return new Date(value).toLocaleDateString("en-US", {
@@ -225,8 +270,13 @@ export function ChartBarInteractive() {
             />
             <Bar
               dataKey={activeChart}
-              fill={`var(--color-${activeChart})`}
-              radius={[2, 2, 0, 0]}
+              fill={
+                activeChart === "forward"
+                  ? "url(#forwardGradient)"
+                  : "url(#reworkGradient)"
+              }
+              radius={[6, 6, 0, 0]}
+              strokeWidth={0}
             />
           </BarChart>
         </ChartContainer>

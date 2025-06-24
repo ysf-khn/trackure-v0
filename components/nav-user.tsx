@@ -30,14 +30,25 @@ import {
 } from "@/components/ui/sidebar";
 import { signOutAction } from "@/app/actions";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { useMultiplePermissions } from "@/hooks/queries/use-permission-check";
 import { useAvatarUrl } from "@/hooks/use-avatar-url";
 import Link from "next/link";
 
 export function NavUser() {
   const { user, profile, isLoading, error } = useProfileAndOrg();
-  const { hasPermission } = useWorkerPermissions();
   const { isMobile } = useSidebar();
+
+  // Get only the permissions we need for the navigation menu
+  const permissions = useMultiplePermissions([
+    "settings.account",
+    "settings.organization",
+    "settings.billing",
+  ]);
+
+  // Create hasPermission function for compatibility
+  const hasPermission = (permissionKey: string): boolean => {
+    return permissions[permissionKey] || false;
+  };
 
   // Use the avatar URL hook for proper caching
   const { avatarUrl } = useAvatarUrl({

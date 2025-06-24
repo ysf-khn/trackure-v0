@@ -215,6 +215,7 @@ export function AddStageModal({
                     <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                       <FormControl>
                         <Checkbox
+                          className="data-[state=checked]:bg-primary data-[state=checked]:text-white data-[state=checked]:border-primary"
                           checked={field.value}
                           onCheckedChange={field.onChange}
                         />
@@ -328,7 +329,11 @@ export function AddStageModal({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={mutation.isPending}>
+              <Button
+                type="submit"
+                disabled={mutation.isPending}
+                className="bg-primary text-white"
+              >
                 {mutation.isPending ? "Creating..." : "Create Stage"}
               </Button>
             </DialogFooter>

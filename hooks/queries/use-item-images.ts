@@ -52,6 +52,5 @@ export function useItemImages(itemId: string | null) {
     },
     enabled: !!itemId, // Only run the query if itemId is provided
     staleTime: 5 * 60 * 1000, // Cache results for 5 minutes
-    refetchOnWindowFocus: true,
   });
 }

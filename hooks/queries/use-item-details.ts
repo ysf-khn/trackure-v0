@@ -12,12 +12,24 @@ export interface ItemDetails {
   instance_details: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  composite_group_id?: string | null;
+  parent_composite_sku?: string | null;
   order: {
     id: string;
     order_number: string | null;
     customer_name: string | null;
     created_at: string | null;
   };
+}
+
+export interface ParentCompositeDetails {
+  sku: string;
+  instance_details: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  total_quantity: number;
+  remaining_quantity: number;
+  status: string;
 }
 
 export interface StageAllocation {
@@ -74,6 +86,7 @@ export interface ItemDetailsSummary {
 
 export interface ItemDetailsResponse {
   item: ItemDetails;
+  parentComposite: ParentCompositeDetails | null;
   allocations: StageAllocation[];
   allocationsByStage: AllocationsByStage[];
   history: MovementHistoryEntry[];

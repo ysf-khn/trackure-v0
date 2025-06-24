@@ -21,7 +21,5 @@ export function useBottleneckItems(limit: number = 10) {
     queryFn: () => fetchBottleneckItems(limit),
     refetchInterval: 10 * 60 * 1000, // Refetch every 10 minutes (reduced from 1 minute)
     staleTime: 5 * 60 * 1000, // Consider data stale after 5 minutes (increased from 30s)
-    // Only refetch when tab becomes visible if data is stale
-    refetchOnWindowFocus: "always",
   });
 }

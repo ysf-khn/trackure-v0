@@ -1,20 +1,17 @@
 "use client";
 
-import * as React from "react";
-import * as z from "zod";
+import React from "react";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  UseQueryResult,
-} from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Check, ChevronsUpDown } from "lucide-react";
-
-import { cn } from "@/lib/utils";
+import * as z from "zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createClient } from "@/utils/supabase/client";
+import { useDebounce } from "@/hooks/queries/use-debounce";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { Layers, Plus, Trash2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -24,8 +21,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Popover,
   PopoverContent,
@@ -39,23 +34,43 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { useDebounce } from "@/hooks/queries/use-debounce";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 
 // Helper function to parse dimension strings (e.g., "LxWxH") and calculate volume
 const calculateVolume = (sizeString: string | undefined): number | null => {
   if (!sizeString) return null;
   const dimensions = sizeString
-    .toLowerCase()
     .split("x")
-    .map((d) => parseFloat(d.trim()))
-    .filter((d) => !isNaN(d));
-  if (dimensions.length !== 3) return null; // Expecting 3 dimensions
-  return dimensions[0] * dimensions[1] * dimensions[2];
+    .map((dim) => parseFloat(dim.trim()))
+    .filter((dim) => !isNaN(dim));
+  if (dimensions.length >= 3) {
+    return dimensions[0] * dimensions[1] * dimensions[2];
+  }
+  return null;
 };
 
 // Zod schema for form validation
 const formSchema = z.object({
   sku: z.string().min(1, { message: "SKU is required." }),
+  isComposite: z.boolean(),
+  components: z
+    .array(
+      z.object({
+        component_sku: z.string().min(1, "Component SKU is required"),
+        quantity_per_composite: z
+          .number()
+          .min(1, "Quantity must be at least 1"),
+        // Component-specific instance details
+        weight: z.string().optional(),
+        size: z.string().optional(),
+        net_weight: z.string().optional(),
+        gross_weight: z.string().optional(),
+      })
+    )
+    .optional(),
   // Define fields for instance_details - make them optional for manual override
   // Using string for input, backend will handle parsing/validation if necessary
   weight: z.string().optional(),
@@ -91,78 +106,120 @@ type AddItemFormProps = {
   onItemAdded?: () => void; // Optional callback after successful add
 };
 
-// Type for Autocomplete suggestions (needs value and label for combobox pattern)
 type SkuSuggestion = {
   value: string; // Typically the SKU itself
   label: string; // User-friendly display (e.g., SKU - Name)
   master_details?: Record<string, unknown>; // Details to pre-fill (JSONB)
+  is_composite?: boolean; // Whether this is a composite item
 };
 
-// Explicit type for the API response
 type AddItemApiResponse = {
   message: string;
-  itemId: string;
+  itemId?: string; // For regular items
+  composite_group_id?: string; // For composite items
+  type: "single" | "composite";
 };
+
+type FormData = z.infer<typeof formSchema>;
 
 export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
   const queryClient = useQueryClient();
 
   // 1. Form Setup
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       sku: "",
+      isComposite: false,
+      components: [],
       weight: "",
       size: "",
       boxSize: "",
       cartonSize: "",
-      piecesPerCarton: null, // Initialize as null
+      piecesPerCarton: null,
       netWeight: "",
       grossWeight: "",
       volume: "",
-      buyerId: "", // Initialize buyerId
-      totalQuantity: "", // Initialize totalQuantity
-      // Initialize other fields
+      buyerId: "",
+      totalQuantity: "",
     },
   });
 
+  // Field array for managing components
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "components",
+  });
+
+  // Watch the isComposite field to show/hide component section
+  const isComposite = form.watch("isComposite");
+
+  // State for showing component input after clicking "Add Sub-Items"
+  const [showComponentInput, setShowComponentInput] = React.useState(false);
+
+  // Watch for changes in box size and carton size to auto-calculate pieces per carton
+  const watchedBoxSize = form.watch("boxSize");
+  const watchedCartonSize = form.watch("cartonSize");
+  const watchedTotalQuantity = form.watch("totalQuantity");
+
+  React.useEffect(() => {
+    if (watchedBoxSize && watchedCartonSize) {
+      const boxVolume = calculateVolume(watchedBoxSize);
+      const cartonVolume = calculateVolume(watchedCartonSize);
+
+      if (boxVolume && cartonVolume && boxVolume > 0) {
+        const calculatedPieces = Math.floor(cartonVolume / boxVolume);
+        if (calculatedPieces > 0) {
+          form.setValue("piecesPerCarton", calculatedPieces);
+        }
+      }
+    }
+  }, [watchedBoxSize, watchedCartonSize, form]);
+
+  // Note: Do NOT automatically update component quantities when total quantity changes
+  // The quantity_per_composite should remain as defined in the composite definition
+  // The total quantity will be used to multiply the quantity_per_composite for each component
+
   // 2. SKU Autocomplete State & Query
   const [skuSearch, setSkuSearch] = React.useState("");
-  // Use the current SKU form field value for debouncing if user types directly
   const debouncedSkuSearch = useDebounce(skuSearch, 300);
-  const [popoverOpen, setPopoverOpen] = React.useState(false); // State for Popover
+  const [popoverOpen, setPopoverOpen] = React.useState(false);
+  const [selectedCompositeInfo, setSelectedCompositeInfo] = React.useState<{
+    sku: string;
+    name: string;
+    components: Array<{
+      component_sku: string;
+      quantity_per_composite: number;
+    }>;
+  } | null>(null);
 
-  // Explicitly type the useQuery result
-  const {
-    data: skuSuggestions,
-    isLoading: isLoadingSuggestions,
-  }: UseQueryResult<SkuSuggestion[], Error> = useQuery<SkuSuggestion[], Error>({
-    queryKey: ["skuSearch", debouncedSkuSearch], // Correct query key format
-    queryFn: async () => {
+  const skuQueryResult = useQuery({
+    queryKey: ["skuSuggestions", debouncedSkuSearch],
+    queryFn: async (): Promise<SkuSuggestion[]> => {
       if (!debouncedSkuSearch) return [];
+
       const response = await fetch(
         `/api/item-master/search?q=${encodeURIComponent(debouncedSkuSearch)}`
       );
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to fetch SKU suggestions");
+        throw new Error("Failed to fetch SKU suggestions");
       }
       const data = await response.json();
-      // Ensure data is always an array
-      return Array.isArray(data) ? data : [];
+      return data.suggestions || [];
     },
-    enabled: !!debouncedSkuSearch, // Only run query if search term exists
-    staleTime: 5 * 60 * 1000, // Cache results for 5 minutes
-    retry: false, // Don't retry on failure for search
+    enabled: !!debouncedSkuSearch,
+    staleTime: 30000,
   });
 
+  const {
+    data: skuSuggestions,
+    isLoading: isLoadingSuggestions,
+    error: skuError,
+  } = skuQueryResult;
+
   // 3. Mutation Setup (for submitting the form)
-  const mutation = useMutation<
-    AddItemApiResponse,
-    Error,
-    z.infer<typeof formSchema>
-  >({
-    mutationFn: async (values: z.infer<typeof formSchema>) => {
+  const mutation = useMutation<AddItemApiResponse, Error, FormData>({
+    mutationFn: async (values: FormData) => {
       // Construct instance_details ensuring no undefined values are sent if empty
       const instance_details_payload: InstanceDetailsPayload = {};
 
@@ -205,10 +262,48 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
 
       const payload: {
         sku: string;
+        is_composite?: boolean;
+        components?: Array<{
+          component_sku: string;
+          quantity_per_composite: number;
+          instance_details?: {
+            weight?: number;
+            size?: string;
+            net_weight?: number;
+            gross_weight?: number;
+          };
+        }>;
         instance_details?: InstanceDetailsPayload;
       } = {
         sku: values.sku,
       };
+
+      // Add composite-specific fields
+      if (values.isComposite) {
+        payload.is_composite = true;
+        if (values.components && values.components.length > 0) {
+          payload.components = values.components.map((component) => ({
+            component_sku: component.component_sku,
+            quantity_per_composite: component.quantity_per_composite,
+            instance_details: {
+              ...(component.weight &&
+                !isNaN(parseFloat(component.weight)) && {
+                  weight: parseFloat(component.weight),
+                }),
+              ...(component.size && { size: component.size }),
+              ...(component.net_weight &&
+                !isNaN(parseFloat(component.net_weight)) && {
+                  net_weight: parseFloat(component.net_weight),
+                }),
+              ...(component.gross_weight &&
+                !isNaN(parseFloat(component.gross_weight)) && {
+                  gross_weight: parseFloat(component.gross_weight),
+                }),
+            },
+          }));
+        }
+      }
+
       // Only include instance_details if it has keys
       if (Object.keys(instance_details_payload).length > 0) {
         payload.instance_details = instance_details_payload;
@@ -228,9 +323,17 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
       return responseBody as AddItemApiResponse;
     },
     onSuccess: (data) => {
-      toast.success(`Item added successfully (ID: ${data.itemId})`);
+      if (data.type === "composite") {
+        toast.success(
+          `Composite item added successfully! Component items created with group ID: ${data.composite_group_id}`
+        );
+      } else {
+        toast.success(`Item added successfully (ID: ${data.itemId})`);
+      }
       form.reset(); // Reset form fields
       setSkuSearch(""); // Reset SKU search input
+      setSelectedCompositeInfo(null); // Clear composite info
+      setShowComponentInput(false); // Reset component input visibility
       // Invalidate queries to refetch relevant data
       queryClient.invalidateQueries({ queryKey: ["orderItems", orderId] }); // If you have a query for items specific to this order
       queryClient.invalidateQueries({ queryKey: ["itemsInStage"] }); // To update stage view lists
@@ -251,16 +354,58 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
   });
 
   // 4. Handle Autocomplete Selection
-  const handleSkuSelect = (selected: SkuSuggestion | null) => {
+  const handleSkuSelect = async (selected: SkuSuggestion | null) => {
     if (!selected) {
       // Allow clearing the selection
       form.resetField("sku");
       setSkuSearch("");
+      setSelectedCompositeInfo(null);
       return;
     }
 
     form.setValue("sku", selected.value, { shouldValidate: true });
     setSkuSearch(selected.value); // Update search state to match selection
+
+    // If this is a composite item, fetch its component details
+    if (selected.is_composite) {
+      try {
+        const response = await fetch(
+          "/api/composite-items?search=" + encodeURIComponent(selected.value)
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const compositeItem = data.composite_items?.find(
+            (item: any) => item.composite_sku === selected.value
+          );
+          if (compositeItem) {
+            setSelectedCompositeInfo({
+              sku: compositeItem.composite_sku,
+              name: compositeItem.name,
+              components: compositeItem.components || [],
+            });
+            // Pre-populate components in form with additional fields
+            form.setValue("isComposite", true);
+            form.setValue(
+              "components",
+              compositeItem.components?.map((component: any) => ({
+                component_sku: component.component_sku,
+                quantity_per_composite: component.quantity_per_composite,
+                weight: "",
+                size: "",
+                net_weight: "",
+                gross_weight: "",
+              })) || []
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching composite details:", error);
+      }
+    } else {
+      setSelectedCompositeInfo(null);
+      form.setValue("isComposite", false);
+      form.setValue("components", []);
+    }
 
     // Reset other fields first to avoid merging old/new data
     form.resetField("weight");
@@ -329,10 +474,9 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
           ? String(totalQuantity)
           : ""
       );
-
-      // Trigger calculation after potentially pre-filling box/carton sizes
-      // (Will be handled by useEffect watching these fields)
     }
+
+    setPopoverOpen(false); // Close popover after selection
   };
 
   // Add useEffect for calculating piecesPerCarton
@@ -351,8 +495,7 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
     }
   }, [boxSizeValue, cartonSizeValue, form]);
 
-  // 5. Form Submit Handler
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: FormData) {
     mutation.mutate(values);
   }
 
@@ -444,6 +587,9 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
                                   form.resetField("volume");
                                   form.resetField("buyerId");
                                   form.resetField("totalQuantity");
+                                  setSelectedCompositeInfo(null);
+                                  form.setValue("isComposite", false);
+                                  form.setValue("components", []);
                                   setPopoverOpen(false);
                                 }}
                               >
@@ -470,7 +616,15 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
                                       : "opacity-0"
                                   )}
                                 />
-                                {suggestion.label}
+                                <div className="flex items-center justify-between w-full">
+                                  <span>{suggestion.label}</span>
+                                  {suggestion.is_composite && (
+                                    <div className="flex items-center text-xs text-primary bg-primary/10 px-2 py-1 rounded-md ml-2">
+                                      <Layers className="h-3 w-3 mr-1" />
+                                      Composite
+                                    </div>
+                                  )}
+                                </div>
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -492,9 +646,82 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
               )}
             />
 
-            <h3 className="text-lg font-semibold pt-2">
-              Instance Details (Optional Overrides)
-            </h3>
+            {/* Composite Item Checkbox */}
+            <FormField
+              control={form.control}
+              name="isComposite"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      className=" border-primary data-[state=checked]:bg-primary data-[state=checked]:text-white data-[state=checked]:border-primary"
+                      checked={field.value}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked);
+                        if (!checked) {
+                          form.setValue("components", []);
+                          setSelectedCompositeInfo(null);
+                          setShowComponentInput(false);
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>This is a composite item</FormLabel>
+                    <FormDescription>
+                      Check this if this item is made up of multiple
+                      sub-components that need to be tracked separately.
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            {/* Composite Item Preview (for existing composite items) */}
+            {selectedCompositeInfo && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Layers className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold text-primary">
+                    Existing Composite Item Preview
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-primary/80">
+                    <strong>Name:</strong> {selectedCompositeInfo.name}
+                  </p>
+                  <p className="text-sm text-primary/80">
+                    <strong>Components that will be created:</strong>
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {selectedCompositeInfo.components.map(
+                      (component, index) => (
+                        <div
+                          key={index}
+                          className="bg-background rounded px-3 py-2 text-xs border border-primary/10"
+                        >
+                          <span className="font-medium">
+                            {component.component_sku}
+                          </span>
+                          <span className="text-muted-foreground ml-2">
+                            ({component.quantity_per_composite}x per composite)
+                          </span>
+                        </div>
+                      )
+                    )}
+                  </div>
+                  <p className="text-xs text-primary bg-primary/10 p-2 rounded">
+                    💡 When you submit this form, individual items will be
+                    created for each component above. The total quantity entered
+                    will be multiplied by each component's quantity.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            <h3 className="text-lg font-semibold pt-2">Instance Details</h3>
             <FormDescription>
               Provide details specific to this item instance. If a known SKU is
               selected, these may be pre-filled but can be changed.
@@ -620,16 +847,21 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
                 name="piecesPerCarton"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Pieces per Carton (Calculated)</FormLabel>
+                    <FormLabel>Pieces per Carton</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Auto-calculated"
                         {...field}
-                        value={field.value === null ? "" : String(field.value)} // Display calculated value or empty
-                        readOnly // Make this field read-only
-                        className="bg-muted" // Optional: style to indicate read-only
+                        value={field.value ?? ""}
+                        type="number"
+                        onChange={(e) =>
+                          field.onChange(parseInt(e.target.value, 10) || null)
+                        }
                       />
                     </FormControl>
+                    <FormDescription>
+                      Leave empty for auto-calculation
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -696,8 +928,226 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
               {/* ---- NEW FIELDS END ---- */}
             </div>
 
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? "Adding..." : "Add Item"}
+            {/* Components Section - Show when showComponentInput is true */}
+            {showComponentInput && (
+              <div className="space-y-4 p-4 border rounded-lg bg-slate-900/50 border-slate-700">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-200">
+                    <Layers className="inline h-5 w-5 mr-2" />
+                    Component Items
+                  </h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      append({
+                        component_sku: "",
+                        quantity_per_composite: 1,
+                        weight: "",
+                        size: "",
+                        net_weight: "",
+                        gross_weight: "",
+                      })
+                    }
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Component
+                  </Button>
+                </div>
+
+                <FormDescription className="text-slate-400">
+                  Define which components make up this composite item. Each
+                  component will inherit the quantity from the total quantity
+                  field above.
+                </FormDescription>
+
+                {fields.map((field, index) => (
+                  <div
+                    key={field.id}
+                    className="p-4 bg-slate-800/50 rounded border border-slate-600 space-y-4"
+                  >
+                    {/* First row: SKU and Quantity */}
+                    <div className="flex items-end space-x-2">
+                      <FormField
+                        control={form.control}
+                        name={`components.${index}.component_sku`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormLabel>Component SKU</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Enter component SKU"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`components.${index}.quantity_per_composite`}
+                        render={({ field }) => (
+                          <FormItem className="w-32">
+                            <FormLabel>Qty per Composite</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="1"
+                                placeholder="1"
+                                {...field}
+                                value={
+                                  watchedTotalQuantity
+                                    ? parseInt(watchedTotalQuantity) || 1
+                                    : field.value
+                                }
+                                readOnly
+                                className="bg-slate-800/50 text-slate-300"
+                              />
+                            </FormControl>
+                            <FormDescription className="text-xs text-slate-500">
+                              Inherited from total quantity
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => remove(index)}
+                        disabled={fields.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* Second row: Component details */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2 border-t border-slate-700">
+                      <FormField
+                        control={form.control}
+                        name={`components.${index}.weight`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Weight</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., 10.5"
+                                {...field}
+                                value={field.value ?? ""}
+                                type="number"
+                                step="any"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`components.${index}.size`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Size</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., Large"
+                                {...field}
+                                value={field.value ?? ""}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`components.${index}.net_weight`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Net Weight</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., 9.8"
+                                {...field}
+                                value={field.value ?? ""}
+                                type="number"
+                                step="any"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`components.${index}.gross_weight`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Gross Weight</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., 10.2"
+                                {...field}
+                                value={field.value ?? ""}
+                                type="number"
+                                step="any"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                {fields.length === 0 && (
+                  <div className="text-center py-4 text-slate-400">
+                    <p>
+                      No components added yet. Click "Add Component" to get
+                      started.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Button
+              className="bg-primary text-white"
+              type={isComposite && !showComponentInput ? "button" : "submit"}
+              disabled={mutation.isPending}
+              onClick={
+                isComposite && !showComponentInput
+                  ? () => {
+                      // Show component input section and add first component
+                      setShowComponentInput(true);
+                      append({
+                        component_sku: "",
+                        quantity_per_composite: 1,
+                        weight: "",
+                        size: "",
+                        net_weight: "",
+                        gross_weight: "",
+                      });
+                    }
+                  : undefined
+              }
+            >
+              {mutation.isPending
+                ? "Adding..."
+                : isComposite && !showComponentInput
+                  ? "Add Sub-Items"
+                  : showComponentInput
+                    ? "Create Composite Item"
+                    : "Add Item"}
             </Button>
           </form>
         </Form>

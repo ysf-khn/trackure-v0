@@ -10,7 +10,7 @@ export function PricingCTA() {
       <p className="text-gray-300 text-lg mb-8">
         Pick your plan and start your free 14-day trial today.
       </p>
-      <Button size="lg" className="px-8">
+      <Button size="lg" className="px-8 text-white">
         Start Free Trial
       </Button>
     </div>

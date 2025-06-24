@@ -166,7 +166,11 @@ export function EditStageModal({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={mutation.isPending}>
+              <Button
+                type="submit"
+                disabled={mutation.isPending}
+                className="bg-primary hover:bg-primary/90 text-white shadow-sm"
+              >
                 {mutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </DialogFooter>

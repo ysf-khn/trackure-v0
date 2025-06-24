@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     // Use orgId from Supabase session in the query
     const { data, error } = await supabase
       .from("item_master")
-      .select("sku, master_details")
+      .select("sku, master_details, is_composite")
       .eq("organization_id", orgId)
       .ilike("sku", `%${query}%`)
       .limit(10);
@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
       value: item.sku,
       label: item.sku,
       master_details: item.master_details,
+      is_composite: item.is_composite,
     }));
 
     return NextResponse.json(results, { status: 200 });

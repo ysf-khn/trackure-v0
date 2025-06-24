@@ -149,12 +149,14 @@ export default function CompletedItemsPage() {
   return (
     <div className="container mx-auto p-6">
       <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <CheckCircle2Icon className="h-8 w-8 text-green-600" />
-          <h1 className="text-3xl font-bold">Completed Items</h1>
+        <div className="flex items-center gap-3 mb-2 text-2xl">
+          <CheckCircle2Icon className="h-6 w-6 text-primary" />
+          <h1 className=" font-bold">Completed Items</h1>
         </div>
         <p className="text-muted-foreground">
-          View all items that have completed the entire workflow lifecycle.
+          {completedItems?.length || 0} item
+          {completedItems?.length !== 1 ? "s" : ""} have completed the entire
+          workflow lifecycle.
         </p>
       </div>
 
@@ -167,7 +169,7 @@ export default function CompletedItemsPage() {
               Items will appear here once they complete the entire workflow.
             </p>
             <Link href="/new-orders" passHref>
-              <Button>
+              <Button className="bg-primary text-white">
                 <Package2Icon className="mr-2 h-4 w-4" />
                 View New Orders
               </Button>
@@ -190,7 +192,10 @@ export default function CompletedItemsPage() {
                   <div>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <span>{item.sku}</span>
-                      <Badge variant="default" className="bg-green-600">
+                      <Badge
+                        variant="default"
+                        className="bg-green-600 text-white"
+                      >
                         <CheckCircle2Icon className="mr-1 h-3 w-3" />
                         Completed
                       </Badge>
@@ -206,7 +211,7 @@ export default function CompletedItemsPage() {
                       </span>
                     </CardDescription>
                   </div>
-                  <Link href={`/orders/${item.order.id}`} passHref>
+                  <Link href={`/orders/${item.order.order_number}`} passHref>
                     <Button variant="outline" size="sm">
                       <ExternalLinkIcon className="mr-2 h-4 w-4" />
                       View Order

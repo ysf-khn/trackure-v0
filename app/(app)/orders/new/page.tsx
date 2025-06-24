@@ -32,10 +32,11 @@ import { Info, Terminal, ShieldX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 // Checkbox import removed - packaging reminders coming soon
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { usePermissionCheck } from "@/hooks/queries/use-permission-check";
 import { TooltipContent } from "@/components/ui/tooltip";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { usePermissions } from "@/components/providers/permissions-provider";
 
 // Define Zod schema based on Task 1.2 (assuming required fields)
 const orderFormSchema = z.object({
@@ -84,9 +85,10 @@ export default function NewOrderPage() {
     isLoading: isAuthLoading,
     error: authError,
   } = useProfileAndOrg();
+  const { isLoading: isLoadingPermissions } = usePermissions();
 
-  const { hasPermission, isLoading: isLoadingPermissions } =
-    useWorkerPermissions();
+  // Check if user has permission to create orders
+  const canCreateOrders = usePermissionCheck("orders.create");
 
   // State to track client-side mounting
   const [isMounted, setIsMounted] = useState(false);
@@ -118,9 +120,8 @@ export default function NewOrderPage() {
     onSuccess: (data) => {
       toast.success(`Order ${data.order_number} created successfully!`);
       // Redirect on success (as per task 1.4)
-      // Assuming the API returns the new order with an `id`
-      // and we redirect to the detail page `/orders/[id]`
-      router.push(`/orders/${data.id}`);
+      // Redirect to the detail page using order_number as slug
+      router.push(`/orders/${data.order_number}`);
       // Resetting the form might not be necessary if redirecting
       // form.reset();
     },
@@ -162,14 +163,16 @@ export default function NewOrderPage() {
   }
 
   // Permission check
-  if (!isLoadingPermissions && !hasPermission("orders.create")) {
+  if (!canCreateOrders) {
     return (
       <Alert variant="destructive" className="max-w-2xl mx-auto">
         <ShieldX className="h-4 w-4" />
         <AlertTitle>Access Denied</AlertTitle>
-        <AlertDescription>
-          You don't have permission to create orders. Please contact your
-          organization owner.
+        <AlertDescription className="space-y-2">
+          <p>
+            You don't have permission to create orders. Please contact your
+            organization owner.
+          </p>
         </AlertDescription>
       </Alert>
     );
@@ -329,7 +332,7 @@ export default function NewOrderPage() {
                   disabled={
                     mutation.isPending || isWorkflowSelectLoading || !isMounted
                   }
-                  className="w-full md:w-auto"
+                  className="w-full md:w-auto bg-primary text-white"
                 >
                   {mutation.isPending ? "Creating..." : "Create Order"}
                 </Button>

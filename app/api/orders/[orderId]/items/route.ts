@@ -4,6 +4,26 @@ import * as z from "zod";
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { canAddItems } from "@/lib/plan-limits";
 
+// Zod schema for component instance details
+const componentInstanceDetailsSchema = z
+  .object({
+    weight: z.number().optional(),
+    size: z.string().optional(),
+    net_weight: z.number().optional(),
+    gross_weight: z.number().optional(),
+  })
+  .optional();
+
+// Zod schema for components
+const componentSchema = z.object({
+  component_sku: z.string().min(1, "Component SKU is required"),
+  quantity_per_composite: z
+    .number()
+    .min(1, "Quantity must be at least 1")
+    .default(1),
+  instance_details: componentInstanceDetailsSchema,
+});
+
 // Zod schema for instance details (matching frontend structure, but parsing numbers)
 const instanceDetailsSchema = z
   .object({
@@ -19,6 +39,8 @@ const instanceDetailsSchema = z
 // Zod schema for the request body
 const addItemSchema = z.object({
   sku: z.string().min(1, "SKU is required"),
+  is_composite: z.boolean().default(false), // New field for inline composite creation
+  components: z.array(componentSchema).optional(), // Components for composite items
   instance_details: instanceDetailsSchema.optional(),
 });
 
@@ -210,7 +232,7 @@ export async function POST(
         { status: 400 }
       );
     }
-    const { sku, instance_details } = validation.data;
+    const { sku, is_composite, components, instance_details } = validation.data;
 
     // Check plan limits before creating the item
     const itemQuantity = instance_details?.total_quantity || 1;
@@ -226,10 +248,10 @@ export async function POST(
     // Note: Consider using a Supabase Edge Function with pg_transaction for true atomicity.
     // This sequential approach has potential for partial failure.
 
-    // 1. Check if item_master exists for orgId + sku
+    // 1. Check if item_master exists for orgId + sku and if it's a composite item
     const { data: masterItem, error: masterCheckError } = await supabase
       .from("item_master")
-      .select("sku")
+      .select("sku, is_composite")
       .eq("organization_id", orgId)
       .eq("sku", sku)
       .maybeSingle();
@@ -250,6 +272,7 @@ export async function POST(
           // This assumes the structure is acceptable for master details.
           // May need refinement based on requirements.
           master_details: instance_details || {},
+          is_composite: is_composite, // Set composite flag based on request
         });
 
       if (masterInsertError) {
@@ -266,9 +289,260 @@ export async function POST(
         }
         throw new Error("Failed to create new item master record.");
       }
+    } else if (is_composite && !masterItem.is_composite) {
+      // Update existing item to mark as composite
+      const { error: updateMasterError } = await supabase
+        .from("item_master")
+        .update({ is_composite: true })
+        .eq("organization_id", orgId)
+        .eq("sku", sku);
+
+      if (updateMasterError) {
+        console.error(
+          "Error updating item_master to composite:",
+          updateMasterError
+        );
+        throw new Error("Failed to update item master to composite.");
+      }
     }
 
-    // 3. Get the first workflow stage/sub-stage ID for the orgId
+    // 3. Handle composite item creation - either existing or inline
+    const isComposite = is_composite || masterItem?.is_composite || false;
+
+    if (isComposite) {
+      // Handle inline composite creation
+      if (is_composite && components && components.length > 0) {
+        // Create or update composite item definition
+        const { data: existingComposite, error: compositeCheckError } =
+          await supabase
+            .from("composite_item_definitions")
+            .select("id")
+            .eq("composite_sku", sku)
+            .eq("organization_id", orgId)
+            .maybeSingle();
+
+        if (compositeCheckError) {
+          console.error(
+            "Error checking composite definition:",
+            compositeCheckError
+          );
+          throw new Error("Failed to check composite definition.");
+        }
+
+        let compositeDefinitionId: string;
+
+        if (!existingComposite) {
+          // Create new composite definition
+          const { data: newComposite, error: createCompositeError } =
+            await supabase
+              .from("composite_item_definitions")
+              .insert({
+                composite_sku: sku,
+                organization_id: orgId,
+                name: `Composite Item: ${sku}`,
+                description: "Created inline during order",
+                is_active: true,
+              })
+              .select("id")
+              .single();
+
+          if (createCompositeError || !newComposite) {
+            console.error(
+              "Error creating composite definition:",
+              createCompositeError
+            );
+            throw new Error("Failed to create composite definition.");
+          }
+
+          compositeDefinitionId = newComposite.id;
+        } else {
+          compositeDefinitionId = existingComposite.id;
+
+          // Clear existing components for this definition
+          const { error: deleteComponentsError } = await supabase
+            .from("composite_item_components")
+            .delete()
+            .eq("composite_definition_id", compositeDefinitionId);
+
+          if (deleteComponentsError) {
+            console.error(
+              "Error clearing existing components:",
+              deleteComponentsError
+            );
+            throw new Error("Failed to clear existing components.");
+          }
+        }
+
+        // First, ensure component SKUs exist in item_master BEFORE creating composite components
+        for (const component of components) {
+          const { error: componentMasterError } = await supabase
+            .from("item_master")
+            .upsert(
+              {
+                organization_id: orgId,
+                sku: component.component_sku,
+                master_details: {},
+                is_composite: false,
+              },
+              {
+                onConflict: "organization_id,sku",
+                ignoreDuplicates: true,
+              }
+            );
+
+          if (componentMasterError) {
+            console.error(
+              `Error ensuring component SKU ${component.component_sku} in item_master:`,
+              componentMasterError
+            );
+            throw new Error(
+              `Failed to create/update component SKU ${component.component_sku} in item master.`
+            );
+          }
+        }
+
+        // Now create/update components (after ensuring SKUs exist in item_master)
+        const componentInserts = components.map((component) => ({
+          composite_definition_id: compositeDefinitionId,
+          component_sku: component.component_sku,
+          organization_id: orgId,
+          quantity_per_composite: component.quantity_per_composite,
+        }));
+
+        const { error: componentInsertError } = await supabase
+          .from("composite_item_components")
+          .insert(componentInserts);
+
+        if (componentInsertError) {
+          console.error("Error inserting components:", componentInsertError);
+          throw new Error("Failed to create composite components.");
+        }
+      }
+
+      // Create component items individually or using database function
+      const compositeQuantity = instance_details?.total_quantity || 1;
+
+      // Check if any components have individual instance details
+      const hasComponentDetails =
+        components &&
+        components.some(
+          (component) =>
+            component.instance_details &&
+            Object.keys(component.instance_details).length > 0
+        );
+
+      let compositeGroupId: string;
+
+      if (hasComponentDetails && components) {
+        // Create component items individually with their specific instance details
+        compositeGroupId = crypto.randomUUID();
+
+        // Get the first workflow stage for new items
+        const { stageId: firstStageId, subStageId: firstSubStageId } =
+          await getFirstWorkflowStep(supabase, orgId);
+
+        if (!firstStageId) {
+          throw new Error("Workflow configuration incomplete or missing.");
+        }
+
+        for (const component of components) {
+          const componentTotalQuantity =
+            component.quantity_per_composite * compositeQuantity;
+
+          // Merge component instance details with main instance details (component details take precedence)
+          const mergedInstanceDetails = {
+            ...(instance_details || {}),
+            ...(component.instance_details || {}),
+          };
+
+          // Create the component item
+          const { data: componentItem, error: componentItemError } =
+            await supabase
+              .from("items")
+              .insert({
+                order_id: orderId,
+                sku: component.component_sku,
+                buyer_id: instance_details?.buyer_id,
+                instance_details: mergedInstanceDetails,
+                total_quantity: componentTotalQuantity,
+                remaining_quantity: componentTotalQuantity,
+                organization_id: orgId,
+                composite_group_id: compositeGroupId,
+                parent_composite_sku: sku,
+                status: "New",
+              })
+              .select("id")
+              .single();
+
+          if (componentItemError || !componentItem) {
+            console.error(
+              `Error creating component item ${component.component_sku}:`,
+              componentItemError
+            );
+            throw new Error(
+              `Failed to create component item ${component.component_sku}.`
+            );
+          }
+
+          // Create movement history for the component item
+          const { error: movementError } = await supabase
+            .from("item_movement_history")
+            .insert({
+              item_id: componentItem.id,
+              from_stage_id: null,
+              from_sub_stage_id: null,
+              to_stage_id: firstStageId,
+              to_sub_stage_id: firstSubStageId,
+              quantity: componentTotalQuantity,
+              moved_at: new Date().toISOString(),
+              moved_by: userId,
+              organization_id: orgId,
+            });
+
+          if (movementError) {
+            console.error(
+              `Error creating movement history for component item ${component.component_sku}:`,
+              movementError
+            );
+            // Log error but don't fail the whole request
+          }
+        }
+      } else {
+        // Use existing database function for backward compatibility
+        const { data: groupId, error: compositeError } = await supabase.rpc(
+          "create_composite_item_components",
+          {
+            p_order_id: orderId,
+            p_composite_sku: sku,
+            p_composite_quantity: compositeQuantity,
+            p_organization_id: orgId,
+            p_buyer_id: instance_details?.buyer_id || null,
+            p_instance_details: instance_details || null,
+          }
+        );
+
+        if (compositeError) {
+          console.error(
+            "Error creating composite item components:",
+            compositeError
+          );
+          throw new Error("Failed to create composite item components.");
+        }
+
+        compositeGroupId = groupId;
+      }
+
+      return NextResponse.json(
+        {
+          message: "Composite item added successfully",
+          composite_group_id: compositeGroupId,
+          type: "composite",
+        },
+        { status: 201 }
+      );
+    }
+
+    // 4. Get the first workflow stage/sub-stage ID for the orgId (for regular items)
     const { stageId: firstStageId, subStageId: firstSubStageId } =
       await getFirstWorkflowStep(supabase, orgId);
 
@@ -279,7 +553,7 @@ export async function POST(
       throw new Error("Workflow configuration incomplete or missing.");
     }
 
-    // 4. INSERT into items table
+    // 5. INSERT into items table (for regular items only)
     const { data: newItem, error: itemInsertError } = await supabase
       .from("items")
       .insert({
@@ -303,7 +577,7 @@ export async function POST(
     }
     // const newItemId = newItem.id; // newItem now contains id and total_quantity
 
-    // 5. INSERT into item_movement_history for the initial creation
+    // 6. INSERT into item_movement_history for the initial creation (for regular items only)
     const { error: movementHistoryInsertError } = await supabase
       .from("item_movement_history")
       .insert({
@@ -333,7 +607,11 @@ export async function POST(
     }
 
     return NextResponse.json(
-      { message: "Item added successfully", itemId: newItem.id },
+      {
+        message: "Item added successfully",
+        itemId: newItem.id,
+        type: "single",
+      },
       { status: 201 }
     );
   } catch (error: unknown) {

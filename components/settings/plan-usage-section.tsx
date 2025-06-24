@@ -88,7 +88,11 @@ export function PlanUsageSection() {
             </CardDescription>
           </div>
           <Link href="/pricing">
-            <Button variant="outline" size="sm">
+            <Button
+              variant="default"
+              size="sm"
+              className="bg-primary text-white"
+            >
               <ArrowUpCircle className="h-4 w-4 mr-2" />
               Upgrade Plan
             </Button>

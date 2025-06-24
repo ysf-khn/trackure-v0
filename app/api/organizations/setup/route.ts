@@ -80,45 +80,28 @@ export const POST = async (req: NextRequest) => {
   // 4. Perform DB Transaction
 
   try {
-    // 4.1 Insert into organizations using the service client
-    const { data: newOrg, error: insertOrgError } = await supabase
-      .from("organizations")
-      .insert({ name: organizationName })
-      .select("id")
-      .single();
+    // Use a database transaction to ensure proper ordering
+    const { data, error: transactionError } = await supabase.rpc(
+      "create_organization_with_owner",
+      {
+        p_user_id: user.id,
+        p_organization_name: organizationName,
+      }
+    );
 
-    if (insertOrgError || !newOrg) {
-      console.error("Error inserting organization:", insertOrgError);
-      // TODO: Consider more specific error handling (e.g., duplicate name?)
+    if (transactionError) {
+      console.error(
+        "Error in organization creation transaction:",
+        transactionError
+      );
       return NextResponse.json(
         { error: "Failed to create organization." },
         { status: 500 }
       );
     }
 
-    // 4.2 Update user's profile (using the original standard client 'supabase')
-    const { error: updateProfileError } = await supabase
-      .from("profiles")
-      .update({
-        organization_id: newOrg.id,
-        role: "Owner", // Explicitly set role
-        onboarding_status: "pending_workflow", // Advance status
-      })
-      .eq("id", user.id);
-
-    if (updateProfileError) {
-      console.error("Error updating profile:", updateProfileError);
-      // Attempt to rollback or log inconsistency if the org was created but profile update failed
-      // For now, just return an error
-      // Consider manually deleting the org: await supabaseService.from('organizations').delete().eq('id', newOrg.id);
-      return NextResponse.json(
-        { error: "Failed to update user profile after org creation." },
-        { status: 500 }
-      );
-    }
-
     // 5. Return Success
-    return NextResponse.json({ success: true, organizationId: newOrg.id });
+    return NextResponse.json({ success: true, organizationId: data });
   } catch (error) {
     console.error("Unexpected error during organization setup:", error);
     return NextResponse.json(

@@ -13,6 +13,8 @@ import {
   PackageOpenIcon,
   CheckCircle2Icon,
   Lightbulb,
+  Layers,
+  BookOpen,
 } from "lucide-react";
 
 import { NavSecondary } from "@/components/nav-secondary";
@@ -59,6 +61,11 @@ interface Stage {
 
 const data = {
   navSecondary: [
+    {
+      title: "Guides",
+      url: "/guides",
+      icon: BookOpen,
+    },
     // {
     //   title: "Feature Requests",
     //   url: "/feature-requests",
@@ -187,8 +194,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   variant={newItemsCount > 0 ? "default" : "secondary"}
                   className={cn(
                     "flex-shrink-0",
-                    newItemsCount > 0 &&
-                      "bg-destructive text-destructive-foreground"
+                    newItemsCount > 0 && "bg-primary text-white"
                   )}
                 >
                   {newItemsCount}
@@ -290,8 +296,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                               }
                               className={cn(
                                 "flex-shrink-0 mr-1",
-                                stage.itemCount > 0 &&
-                                  "bg-primary text-primary-foreground"
+                                stage.itemCount > 0 && "bg-primary text-white"
                               )}
                             >
                               {stage.itemCount}
@@ -389,8 +394,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     className={cn(
                                       "flex-shrink-0",
                                       subStage.itemCount > 0
-                                        ? "bg-indigo-600 text-white"
-                                        : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300"
+                                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                                        : "bg-indigo-100 text-blue-700 dark:bg-blue-600 dark:text-indigo-100"
                                     )}
                                   >
                                     {subStage.itemCount}

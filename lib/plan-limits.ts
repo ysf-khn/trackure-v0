@@ -1,5 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
+import { supabaseAdmin } from "@/utils/supabase/admin";
 import { getPlanLimitsByProductId, PlanLimits } from "./plans";
+import { hasValidSubscriptionAccess } from "./utils";
+import { dodopayments } from "./dodopayments";
 
 export interface UsageStats {
   currentUsers: number;
@@ -100,41 +103,73 @@ export async function getOrganizationUsage(
 }
 
 /**
- * Get user's subscription product ID
+ * Get user's subscription product ID from organization owner
  */
 export async function getUserSubscriptionProductId(
   userId: string
 ): Promise<string | null> {
   const supabase = await createClient();
 
-  // Get user's auth data to extract product_id from metadata
+  // Get current user's organization
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", userId)
+    .single();
+
+  if (profileError || !profile) {
+    return null;
+  }
+
+  // Get the organization owner's user ID
+  const { data: ownerProfile, error: ownerError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("organization_id", profile.organization_id)
+    .eq("role", "Owner")
+    .single();
+
+  if (ownerError || !ownerProfile) {
+    return null;
+  }
+
+  // Get owner's auth data to extract product_id from metadata
   const {
     data: { user },
     error: userError,
-  } = await supabase.auth.getUser();
+  } = await supabaseAdmin.auth.admin.getUserById(ownerProfile.id);
 
-  if (userError || !user || user.id !== userId) {
-    // Try to get subscription details via API
+  if (userError || !user) {
+    return null;
+  }
+
+  // Check if owner has valid subscription access (including cancelled but not expired)
+  const hasValidAccess = hasValidSubscriptionAccess(user.user_metadata);
+
+  if (!hasValidAccess) {
+    return null;
+  }
+
+  // First try to get product_id directly from owner's metadata
+  if (user.user_metadata?.product_id) {
+    return user.user_metadata.product_id;
+  }
+
+  // If product_id is not in metadata but subscription_id exists, fetch from DodoPayments
+  const subscriptionId = user.user_metadata?.subscription_id;
+
+  if (subscriptionId) {
     try {
-      const response = await fetch("/api/subscription/details", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        return null;
-      }
-
-      const subscription = await response.json();
+      const subscription =
+        await dodopayments.subscriptions.retrieve(subscriptionId);
       return subscription.product_id || null;
-    } catch {
+    } catch (error) {
+      console.error("Error fetching subscription from DodoPayments:", error);
       return null;
     }
   }
 
-  return user.user_metadata?.product_id || null;
+  return null;
 }
 
 /**

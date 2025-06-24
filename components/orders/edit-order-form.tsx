@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ShieldX } from "lucide-react";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { useRouter } from "next/navigation";
+import { usePermissionCheck } from "@/hooks/queries/use-permission-check";
 // Textarea, Select, and useWorkflowStructure imports removed - packaging reminders coming soon
 // import { getOrderQueryKey } from "@/hooks/queries/use-order"; // Assuming this exists - Temporarily commented out
 // import { getWorkflowQueryKey } from "@/hooks/queries/use-workflow-structure"; // Removed unused import
@@ -91,8 +92,9 @@ export function EditOrderForm({ initialData }: EditOrderFormProps) {
   const queryClient = useQueryClient();
   const orderId = initialData.id;
   const organizationId = initialData.organization_id;
-  const { hasPermission, isLoading: isLoadingPermissions } =
-    useWorkerPermissions();
+
+  // Check if user has permission to edit orders
+  const canEditOrders = usePermissionCheck("orders.edit");
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
@@ -126,7 +128,7 @@ export function EditOrderForm({ initialData }: EditOrderFormProps) {
   }
 
   // Permission check
-  if (!isLoadingPermissions && !hasPermission("orders.edit")) {
+  if (!canEditOrders) {
     return (
       <Alert variant="destructive">
         <ShieldX className="h-4 w-4" />
@@ -136,16 +138,6 @@ export function EditOrderForm({ initialData }: EditOrderFormProps) {
           organization owner.
         </AlertDescription>
       </Alert>
-    );
-  }
-
-  if (isLoadingPermissions) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading...</CardTitle>
-        </CardHeader>
-      </Card>
     );
   }
 

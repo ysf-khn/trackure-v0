@@ -31,6 +31,14 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
           </p>
         </div>
 
+        <GoogleSignInButton />
+
+        <div className="flex items-center gap-4 my-4 sm:my-2 w-full max-w-md">
+          <div className="h-px bg-gray-800 flex-1"></div>
+          <span className="text-sm text-gray-500">or</span>
+          <div className="h-px bg-gray-800 flex-1"></div>
+        </div>
+
         <form
           className="w-full max-w-md flex flex-col gap-4 sm:gap-5"
           action={signInAction}
@@ -67,14 +75,6 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
         </form>
 
         <FormMessage message={searchParams} />
-
-        <div className="flex items-center gap-4 my-4 sm:my-2 w-full max-w-md">
-          <div className="h-px bg-gray-800 flex-1"></div>
-          <span className="text-sm text-gray-500">or</span>
-          <div className="h-px bg-gray-800 flex-1"></div>
-        </div>
-
-        <GoogleSignInButton />
 
         <Link
           href="/forgot-password"

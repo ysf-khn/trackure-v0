@@ -16,6 +16,7 @@ import {
   Layers,
   CheckCircle,
   ExternalLink,
+  PackageCheck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -33,9 +34,21 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrderItems, OrderItem } from "@/hooks/queries/use-order-items";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { useOrderCompositeItems } from "@/hooks/queries/use-composite-items";
+import { useMultiplePermissions } from "@/hooks/queries/use-permission-check";
+import type { CompositeItemStatus } from "@/types/composite-items";
 import Link from "next/link";
+
+// Helper interface for grouping items
+interface ItemGroup {
+  type: "single" | "composite";
+  composite_group_id?: string;
+  parent_composite_sku?: string;
+  items: OrderItem[];
+}
 
 interface OrderItemsDisplayProps {
   orderId: string;
@@ -75,6 +88,287 @@ const getWorkflowStatusColor = (stageName: string) => {
   }
 };
 
+// Helper function to group items by composite groups
+const groupItems = (items: OrderItem[]): ItemGroup[] => {
+  const groups: { [key: string]: ItemGroup } = {};
+  const singleItems: ItemGroup[] = [];
+
+  items.forEach((item) => {
+    if (item.composite_group_id && item.parent_composite_sku) {
+      // This is a composite component item
+      const groupKey = item.composite_group_id;
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          type: "composite",
+          composite_group_id: item.composite_group_id,
+          parent_composite_sku: item.parent_composite_sku,
+          items: [],
+        };
+      }
+      groups[groupKey].items.push(item);
+    } else {
+      // This is a single item
+      singleItems.push({
+        type: "single",
+        items: [item],
+      });
+    }
+  });
+
+  // Return grouped composite items first, then single items
+  return [...Object.values(groups), ...singleItems];
+};
+
+// Component to display a group of composite sub-items
+const CompositeGroupCard = ({
+  group,
+  userRole,
+}: {
+  group: ItemGroup;
+  userRole?: string | null;
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (group.type !== "composite") return null;
+
+  const totalQuantity = group.items.reduce(
+    (sum, item) => sum + item.total_quantity,
+    0
+  );
+  const completedQuantity = group.items.reduce(
+    (sum, item) => sum + (item.total_quantity - item.remaining_quantity),
+    0
+  );
+  const progressPercentage =
+    totalQuantity > 0 ? (completedQuantity / totalQuantity) * 100 : 0;
+
+  return (
+    <Card className="transition-all duration-200 hover:shadow-md border-l-4 border-l-primary bg-accent/20">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Layers className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg font-semibold text-foreground">
+                  {group.parent_composite_sku}
+                </CardTitle>
+                <Badge
+                  variant="outline"
+                  className="bg-primary/10 text-primary border-primary/30"
+                >
+                  Composite Item
+                </Badge>
+              </div>
+              <div className="text-sm text-muted-foreground mt-1">
+                {group.items.length} components • Group ID:{" "}
+                {group.composite_group_id?.slice(0, 8)}...
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Badge variant="outline" className="bg-primary/10 text-primary">
+              {Math.round(progressPercentage)}% Complete
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="hover:bg-accent/50"
+            >
+              {isExpanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        {/* Progress Overview */}
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <div className="text-lg font-bold text-primary">
+              {totalQuantity}
+            </div>
+            <div className="text-xs text-muted-foreground">Total Items</div>
+          </div>
+          <div>
+            <div className="text-lg font-bold text-green-600">
+              {completedQuantity}
+            </div>
+            <div className="text-xs text-muted-foreground">Completed</div>
+          </div>
+          <div>
+            <div className="text-lg font-bold text-orange-600">
+              {totalQuantity - completedQuantity}
+            </div>
+            <div className="text-xs text-muted-foreground">Remaining</div>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+          <div
+            className="bg-primary h-2 rounded-full transition-all duration-300"
+            style={{
+              width: `${Math.max(0, Math.min(100, progressPercentage))}%`,
+            }}
+          />
+        </div>
+
+        {/* Component Items (when expanded) */}
+        <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+          <CollapsibleContent className="space-y-3 mt-4">
+            <div className="border-t pt-3 space-y-3">
+              <h4 className="font-medium text-foreground text-sm">
+                Component Items:
+              </h4>
+              {group.items.map((item) => (
+                <div
+                  key={item.id}
+                  className="ml-4 pl-4 border-l-2 border-primary/30 bg-background rounded-lg p-3 shadow-sm"
+                >
+                  <ItemCard item={item} userRole={userRole} />
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </CardContent>
+    </Card>
+  );
+};
+
+const CompositeItemCard = ({
+  compositeStatus,
+  userRole,
+}: {
+  compositeStatus: CompositeItemStatus;
+  userRole?: string | null;
+}) => {
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "Completed":
+        return <CheckCircle className="h-5 w-5 text-green-600" />;
+      case "In Progress":
+        return <Clock className="h-5 w-5 text-primary" />;
+      case "Not Started":
+        return <PackageCheck className="h-5 w-5 text-muted-foreground" />;
+      default:
+        return <PackageCheck className="h-5 w-5 text-muted-foreground" />;
+    }
+  };
+
+  return (
+    <Card className="transition-all duration-200 hover:shadow-md border-l-4 border-l-primary">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              {getStatusIcon(compositeStatus.composite_status)}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg font-semibold">
+                  {compositeStatus.parent_composite_sku}
+                </CardTitle>
+                <Badge
+                  variant="outline"
+                  className="bg-primary/10 text-primary border-primary/30"
+                >
+                  Composite Item
+                </Badge>
+              </div>
+              <div className="text-sm text-muted-foreground mt-1">
+                {compositeStatus.unique_component_types} component types
+              </div>
+            </div>
+          </div>
+          <Badge variant="outline">{compositeStatus.composite_status}</Badge>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {/* Quantity Information */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center text-sm text-muted-foreground">
+              <Layers className="h-3 w-3 mr-1" />
+              Total Components
+            </div>
+            <div className="text-2xl font-bold text-primary">
+              {compositeStatus.total_components}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center text-sm text-muted-foreground">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Completed
+            </div>
+            <div className="text-2xl font-bold text-green-600">
+              {compositeStatus.completed_components}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center text-sm text-muted-foreground">
+              <ShoppingCart className="h-3 w-3 mr-1" />
+              Total Quantity
+            </div>
+            <div className="text-2xl font-bold text-accent-foreground">
+              {compositeStatus.total_component_quantity}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center text-sm text-muted-foreground">
+              <Package className="h-3 w-3 mr-1" />
+              Remaining
+            </div>
+            <div className="text-2xl font-bold text-orange-600">
+              {compositeStatus.total_component_quantity -
+                compositeStatus.completed_component_quantity}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+          <div
+            className="bg-primary h-2 rounded-full transition-all duration-300"
+            style={{ width: `${compositeStatus.completion_percentage}%` }}
+          />
+        </div>
+        <div className="text-sm text-muted-foreground text-center">
+          {compositeStatus.completion_percentage}% completed
+        </div>
+
+        {/* Timestamps */}
+        <div className="flex justify-between text-xs text-muted-foreground pt-2 border-t">
+          <span>
+            Created{" "}
+            {formatDistanceToNow(new Date(compositeStatus.created_at), {
+              addSuffix: true,
+            })}
+          </span>
+          <span>
+            Updated{" "}
+            {formatDistanceToNow(new Date(compositeStatus.last_updated), {
+              addSuffix: true,
+            })}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 const ItemCard = ({
   item,
   userRole,
@@ -83,7 +377,12 @@ const ItemCard = ({
   userRole?: string | null;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { hasPermission } = useWorkerPermissions();
+
+  // Get only the specific permission we need for this component
+  const permissions = useMultiplePermissions(["documents.vouchers"]);
+  const hasPermission = (permissionKey: string): boolean => {
+    return permissions[permissionKey] || false;
+  };
 
   const hasInstanceDetails =
     item.instance_details && Object.keys(item.instance_details).length > 0;
@@ -122,6 +421,14 @@ const ItemCard = ({
                 <CardTitle className="text-lg font-semibold">
                   {item.sku}
                 </CardTitle>
+                {item.composite_group_id && item.parent_composite_sku && (
+                  <Badge
+                    variant="outline"
+                    className="bg-primary/10 text-primary border-primary/30 text-xs"
+                  >
+                    Component of {item.parent_composite_sku}
+                  </Badge>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -196,7 +503,7 @@ const ItemCard = ({
               <Layers className="h-3 w-3 mr-1" />
               In Workflow
             </div>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-primary">
               {quantityInActiveWorkflow}
             </div>
           </div>
@@ -206,7 +513,7 @@ const ItemCard = ({
               <Hash className="h-3 w-3 mr-1" />
               New Pool
             </div>
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-2xl font-bold text-accent-foreground">
               {item.quantity_in_new_pool}
             </div>
           </div>
@@ -223,9 +530,9 @@ const ItemCard = ({
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
           <div
-            className="bg-accent h-2 rounded-full transition-all duration-300"
+            className="bg-primary h-2 rounded-full transition-all duration-300"
             style={{
               width: `${Math.max(0, Math.min(100, (completedQuantity / item.total_quantity) * 100))}%`,
             }}
@@ -380,9 +687,22 @@ export default function OrderItemsDisplay({
 }: OrderItemsDisplayProps) {
   const {
     data: items,
-    isLoading,
-    error,
+    isLoading: itemsLoading,
+    error: itemsError,
   } = useOrderItems(organizationId, orderId);
+
+  const {
+    data: compositeData,
+    isLoading: compositeLoading,
+    error: compositeError,
+  } = useOrderCompositeItems(organizationId, orderId);
+
+  const compositeItems = compositeData?.composite_statuses || [];
+
+  const isLoading = itemsLoading || compositeLoading;
+  const hasItems = items && items.length > 0;
+  const hasCompositeItems = compositeItems && compositeItems.length > 0;
+  const hasAnyItems = hasItems || hasCompositeItems;
 
   if (isLoading) {
     return (
@@ -394,19 +714,19 @@ export default function OrderItemsDisplay({
     );
   }
 
-  if (error) {
+  if (itemsError && compositeError) {
     return (
       <Card>
         <CardContent className="p-6 text-center">
           <div className="text-destructive">
-            Failed to load items: {error.message}
+            Failed to load items: {itemsError.message}
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  if (!items || items.length === 0) {
+  if (!hasAnyItems) {
     return (
       <Card>
         <CardContent className="p-6 text-center">
@@ -414,7 +734,7 @@ export default function OrderItemsDisplay({
             <Package className="h-12 w-12 text-muted-foreground" />
             <h3 className="text-lg font-semibold">No Items Found</h3>
             <p className="text-muted-foreground">
-              This order doesn't have any items yet.
+              This order doesn't have any items or composite items yet.
             </p>
           </div>
         </CardContent>
@@ -422,21 +742,246 @@ export default function OrderItemsDisplay({
     );
   }
 
+  // If only one type exists, don't show tabs
+  if ((hasItems && !hasCompositeItems) || (!hasItems && hasCompositeItems)) {
+    if (hasItems) {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-accent/10 rounded-lg border border-accent/20">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-accent/20 rounded-md">
+                <Package className="h-5 w-5 text-accent-foreground" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Total Individual Items ({items.length})
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Regular items in this order
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-accent-foreground">
+                {items.reduce((sum, item) => sum + item.total_quantity, 0)}
+              </div>
+              <div className="text-sm text-muted-foreground">units</div>
+            </div>
+          </div>
+
+          {groupItems(items).map((group, index) => {
+            if (group.type === "composite") {
+              return (
+                <CompositeGroupCard
+                  key={group.composite_group_id || index}
+                  group={group}
+                  userRole={userRole}
+                />
+              );
+            } else {
+              return (
+                <ItemCard
+                  key={group.items[0].id}
+                  item={group.items[0]}
+                  userRole={userRole}
+                />
+              );
+            }
+          })}
+        </div>
+      );
+    }
+
+    if (hasCompositeItems) {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-accent/10 rounded-lg border border-accent/20">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-accent/20 rounded-md">
+                <PackageCheck className="h-5 w-5 text-accent-foreground" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Composite Items ({compositeItems.length})
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Multi-component items and their progress
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-accent-foreground">
+                {compositeItems.reduce(
+                  (sum, item) => sum + item.total_component_quantity,
+                  0
+                )}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                component units
+              </div>
+            </div>
+          </div>
+
+          {compositeItems.map((compositeStatus) => (
+            <CompositeItemCard
+              key={compositeStatus.composite_group_id}
+              compositeStatus={compositeStatus}
+              userRole={userRole}
+            />
+          ))}
+        </div>
+      );
+    }
+  }
+
+  // Show both in tabs when both exist
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-accent-foreground">
-          Items ({items.length})
-        </h3>
-        <div className="text-sm text-muted-foreground">
-          Total: {items.reduce((sum, item) => sum + item.total_quantity, 0)}{" "}
-          units
-        </div>
-      </div>
+      <Tabs defaultValue="items" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 bg-muted/50 border border-border">
+          <TabsTrigger
+            value="items"
+            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
+          >
+            <Package className="h-4 w-4" />
+            Total Individual Items ({items?.length || 0})
+          </TabsTrigger>
+          <TabsTrigger
+            value="composite"
+            className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white"
+          >
+            <PackageCheck className="h-4 w-4" />
+            Composite ({compositeItems.length})
+          </TabsTrigger>
+        </TabsList>
 
-      {items.map((item) => (
-        <ItemCard key={item.id} item={item} userRole={userRole} />
-      ))}
+        <TabsContent value="items" className="space-y-4 mt-6">
+          {hasItems ? (
+            <>
+              <div className="flex items-center justify-between p-4 bg-accent/10 rounded-lg border border-accent/20">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-accent/20 rounded-md">
+                    <Package className="h-5 w-5 text-accent-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      Total Individual Items ({items.length})
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Regular items in this order
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-accent-foreground">
+                    {items.reduce((sum, item) => sum + item.total_quantity, 0)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">units</div>
+                </div>
+              </div>
+
+              {groupItems(items).map((group, index) => {
+                if (group.type === "composite") {
+                  return (
+                    <CompositeGroupCard
+                      key={group.composite_group_id || index}
+                      group={group}
+                      userRole={userRole}
+                    />
+                  );
+                } else {
+                  return (
+                    <ItemCard
+                      key={group.items[0].id}
+                      item={group.items[0]}
+                      userRole={userRole}
+                    />
+                  );
+                }
+              })}
+            </>
+          ) : (
+            <Card className="border-dashed border-2 border-muted-foreground/25">
+              <CardContent className="p-8 text-center">
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="p-4 bg-muted/50 rounded-full">
+                    <Package className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold text-foreground">
+                      No Regular Items
+                    </h3>
+                    <p className="text-muted-foreground max-w-sm">
+                      This order doesn't have any regular items yet. Add items
+                      to get started.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="composite" className="space-y-4 mt-6">
+          {hasCompositeItems ? (
+            <>
+              <div className="flex items-center justify-between p-4 bg-accent/10 rounded-lg border border-accent/20">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-accent/20 rounded-md">
+                    <PackageCheck className="h-5 w-5 text-accent-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      Composite Items ({compositeItems.length})
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Multi-component items and their progress
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-accent-foreground">
+                    {compositeItems.reduce(
+                      (sum, item) => sum + item.total_component_quantity,
+                      0
+                    )}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    component units
+                  </div>
+                </div>
+              </div>
+
+              {compositeItems.map((compositeStatus) => (
+                <CompositeItemCard
+                  key={compositeStatus.composite_group_id}
+                  compositeStatus={compositeStatus}
+                  userRole={userRole}
+                />
+              ))}
+            </>
+          ) : (
+            <Card className="border-dashed border-2 border-muted-foreground/25">
+              <CardContent className="p-8 text-center">
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="p-4 bg-purple-50 rounded-full">
+                    <PackageCheck className="h-12 w-12 text-purple-400" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold text-foreground">
+                      No Composite Items
+                    </h3>
+                    <p className="text-muted-foreground max-w-sm">
+                      This order doesn't have any composite items yet. Create
+                      composite items to track multi-component products.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

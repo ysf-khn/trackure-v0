@@ -63,7 +63,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { useWorkerPermissions } from "@/components/providers/permissions-provider";
 
 // Types
 interface TeamMember {
@@ -311,7 +311,7 @@ export default function OrganizationSettingsPage() {
                     onOpenChange={setIsInviteDialogOpen}
                   >
                     <DialogTrigger asChild>
-                      <Button>
+                      <Button className="bg-primary text-white">
                         <UserPlusIcon className="mr-2 h-4 w-4" />
                         Invite Member
                       </Button>
@@ -406,6 +406,7 @@ export default function OrganizationSettingsPage() {
                             <Button
                               type="submit"
                               disabled={inviteMutation.isPending}
+                              className="bg-primary text-white"
                             >
                               {inviteMutation.isPending && (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

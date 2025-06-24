@@ -59,7 +59,7 @@ BEGIN
   IF user_role = 'Worker' THEN
     SELECT enabled INTO permission_enabled
     FROM public.worker_permissions
-    WHERE organization_id = org_id AND permission_key = worker_has_permission.permission_key;
+    WHERE organization_id = org_id AND worker_permissions.permission_key = worker_has_permission.permission_key;
     
     -- If permission not found, default to false
     RETURN COALESCE(permission_enabled, false);

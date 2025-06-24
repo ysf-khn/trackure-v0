@@ -23,7 +23,5 @@ export function useDashboardStats() {
     queryFn: fetchDashboardStats,
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes (reduced from 30s)
     staleTime: 3 * 60 * 1000, // Consider data stale after 3 minutes (increased from 15s)
-    // Only refetch when tab becomes visible if data is stale
-    refetchOnWindowFocus: "always",
   });
 }

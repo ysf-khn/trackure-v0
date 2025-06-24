@@ -83,7 +83,7 @@ export function PricingCard({
       ) : (
         <Link href={`/sign-up?productId=${productId}`} className="block mb-8">
           <Button
-            className="w-full"
+            className="w-full text-white"
             variant={isPopular ? "default" : "outline"}
           >
             Start 14-Day Free Trial

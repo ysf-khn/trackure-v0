@@ -17,7 +17,7 @@ CREATE TABLE
     public.profiles (
         id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE, -- Links to Supabase auth user ID
         organization_id uuid NOT NULL REFERENCES public.organizations (id) ON DELETE CASCADE,
-        role text NOT NULL DEFAULT 'Worker' CHECK (role IN ('Owner', 'Worker')), -- Enforce valid roles
+        role text NOT NULL DEFAULT 'Owner' CHECK (role IN ('Owner', 'Worker')), -- Enforce valid roles
         full_name text,
         updated_at timestamptz DEFAULT now ()
     );

@@ -13,6 +13,8 @@ interface ItemDetails {
   id: string;
   sku: string;
   order_id: string;
+  composite_group_id?: string | null;
+  parent_composite_sku?: string | null;
   orders: {
     order_number: string | null;
   };
@@ -38,6 +40,9 @@ export interface ItemInStage {
   current_stage_entered_at: string | null; // ISO timestamp for when the item entered the current stage
   current_stage_history_id: number | null; // ID of the item_history entry for entering the current stage
   quantity: number; // Add quantity field
+  // Composite item fields
+  composite_group_id?: string | null;
+  parent_composite_sku?: string | null;
   // Add other relevant item fields as needed
 }
 
@@ -60,6 +65,8 @@ const fetchItemsInStage = async (
         id,
         sku,
         order_id,
+        composite_group_id,
+        parent_composite_sku,
         orders:orders!inner (
           order_number
         ),
@@ -147,6 +154,8 @@ const fetchItemsInStage = async (
             latestEntryForCurrentStage?.moved_at ?? null,
           current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
           quantity: typedAlloc.quantity, // Assign the fetched quantity
+          composite_group_id: itemDetails.composite_group_id,
+          parent_composite_sku: itemDetails.parent_composite_sku,
         };
       })
       // Filter out any nulls that might have occurred

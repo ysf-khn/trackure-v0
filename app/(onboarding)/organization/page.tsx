@@ -17,6 +17,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { OnboardingProgress } from "../layout";
+import { Building2 } from "lucide-react";
 
 // Schema for the form
 const formSchema = z.object({
@@ -78,7 +80,7 @@ export default function OrganizationSetupPage() {
     mutationFn: createOrganization,
     onSuccess: () => {
       toast.success("Organization created!");
-      router.push("/dashboard");
+      router.push("/setup-workflow");
     },
     onError: (error: Error) => {
       toast.error("Error Creating Organization", {
@@ -92,16 +94,36 @@ export default function OrganizationSetupPage() {
     mutation.mutate(values);
   }
 
+  const stepTitles = ["Your Profile", "Organization", "Workflow Setup"];
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen py-12">
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)]">
+      {/* Progress Indicator */}
+      <OnboardingProgress
+        currentStep={2}
+        totalSteps={3}
+        stepTitles={stepTitles}
+      />
+
+      {/* Main Content */}
       <div className="w-full max-w-md p-8 space-y-6 bg-card text-card-foreground rounded-lg shadow-md">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Create Your Organization
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Give your workspace a name.
-          </p>
+        <div className="text-center space-y-4">
+          {/* Icon */}
+          <div className="flex justify-center">
+            <div className="p-3 bg-primary/20 rounded-full">
+              <Building2 className="w-8 h-8 text-primary" />
+            </div>
+          </div>
+
+          {/* Heading */}
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Create Your Organization
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Give your workspace a name that represents your business.
+            </p>
+          </div>
         </div>
 
         <Form {...form}>
@@ -121,8 +143,9 @@ export default function OrganizationSetupPage() {
             />
             <Button
               type="submit"
-              className="w-full"
+              className="w-full bg-primary hover:bg-primary/90 text-white shadow-sm"
               disabled={mutation.isPending}
+              size="lg"
             >
               {mutation.isPending ? "Creating..." : "Create & Continue"}
             </Button>

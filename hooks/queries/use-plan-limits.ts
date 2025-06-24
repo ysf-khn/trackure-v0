@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LimitCheckResult } from "@/lib/plan-limits";
 
 async function fetchPlanLimits(): Promise<LimitCheckResult> {
@@ -23,12 +23,19 @@ export function usePlanLimits() {
 
 // Utility hook to check specific limits
 export function useLimitCheck() {
-  const { data: limits, isLoading, error } = usePlanLimits();
+  const { data: limits, isLoading, error, refetch } = usePlanLimits();
+  const queryClient = useQueryClient();
+
+  const invalidateCache = () => {
+    queryClient.invalidateQueries({ queryKey: ["planLimits"] });
+  };
 
   return {
     limits,
     isLoading,
     error,
+    refetch,
+    invalidateCache,
     canAddUser: limits
       ? limits.usage.currentUsers < limits.limits.maxUsers
       : false,

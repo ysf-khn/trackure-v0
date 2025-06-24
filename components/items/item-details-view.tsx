@@ -95,7 +95,8 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
     );
   }
 
-  const { item, summary, allocationsByStage, history } = itemDetails;
+  const { item, summary, allocationsByStage, history, parentComposite } =
+    itemDetails;
   const completionPercentage =
     item.total_quantity > 0
       ? Math.round((summary.completed_quantity / item.total_quantity) * 100)
@@ -118,6 +119,14 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
             >
               {item.status}
             </Badge>
+            {item.parent_composite_sku && (
+              <Badge
+                variant="outline"
+                className="bg-primary/10 text-primary border-primary/30"
+              >
+                Component of {item.parent_composite_sku}
+              </Badge>
+            )}
           </div>
           <p className="text-muted-foreground">
             Order: {item.order.order_number} • Buyer: {item.order.customer_name}
@@ -129,7 +138,7 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
             View History
           </Button>
           <Button variant="outline" asChild>
-            <Link href={`/orders/${item.order.id}`}>
+            <Link href={`/orders/${item.order.order_number}`}>
               <ExternalLink className="h-4 w-4 mr-2" />
               View Order
             </Link>
@@ -509,46 +518,211 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
         </TabsContent>
 
         <TabsContent value="details" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Instance Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {item.instance_details &&
-              Object.keys(item.instance_details).length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Attribute</TableHead>
-                      <TableHead>Value</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Object.entries(item.instance_details).map(
-                      ([key, value]) => (
-                        <TableRow key={key}>
-                          <TableCell className="font-medium">
-                            {key
-                              .replace(/_/g, " ")
-                              .replace(/\b\w/g, (l) => l.toUpperCase())}
-                          </TableCell>
-                          <TableCell>
-                            {typeof value === "object"
-                              ? JSON.stringify(value, null, 2)
-                              : String(value)}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    )}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">
-                  No instance details available
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          {item.parent_composite_sku && parentComposite ? (
+            // Show sub-tabs when item is part of a composite
+            <Card>
+              <CardHeader>
+                <CardTitle>Item Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="component" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="component">
+                      Component Details
+                    </TabsTrigger>
+                    <TabsTrigger value="parent">
+                      Parent Composite Details
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="component" className="mt-4">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Package className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-semibold">
+                          Component Item: {item.sku}
+                        </h3>
+                      </div>
+                      {item.instance_details &&
+                      Object.keys(item.instance_details).length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Attribute</TableHead>
+                              <TableHead>Value</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {Object.entries(item.instance_details).map(
+                              ([key, value]) => (
+                                <TableRow key={key}>
+                                  <TableCell className="font-medium">
+                                    {key
+                                      .replace(/_/g, " ")
+                                      .replace(/\b\w/g, (l) => l.toUpperCase())}
+                                  </TableCell>
+                                  <TableCell>
+                                    {typeof value === "object"
+                                      ? JSON.stringify(value, null, 2)
+                                      : String(value)}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            )}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-8">
+                          No component details available
+                        </p>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="parent" className="mt-4">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Workflow className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-semibold">
+                          Parent Composite: {parentComposite.sku}
+                        </h3>
+                      </div>
+
+                      {/* Parent composite basic info */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-4 bg-muted/50 rounded-lg">
+                        <div>
+                          <span className="text-sm text-muted-foreground">
+                            Status:
+                          </span>
+                          <div className="font-medium">
+                            <Badge
+                              variant={
+                                parentComposite.status === "Completed"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                            >
+                              {parentComposite.status}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-sm text-muted-foreground">
+                            Total Quantity:
+                          </span>
+                          <div className="font-medium">
+                            {parentComposite.total_quantity}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-sm text-muted-foreground">
+                            Remaining:
+                          </span>
+                          <div className="font-medium">
+                            {parentComposite.remaining_quantity}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-sm text-muted-foreground">
+                            Progress:
+                          </span>
+                          <div className="font-medium">
+                            {parentComposite.total_quantity > 0
+                              ? Math.round(
+                                  ((parentComposite.total_quantity -
+                                    parentComposite.remaining_quantity) /
+                                    parentComposite.total_quantity) *
+                                    100
+                                )
+                              : 0}
+                            %
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Parent composite instance details */}
+                      {parentComposite.instance_details &&
+                      Object.keys(parentComposite.instance_details).length >
+                        0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Attribute</TableHead>
+                              <TableHead>Value</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {Object.entries(
+                              parentComposite.instance_details
+                            ).map(([key, value]) => (
+                              <TableRow key={key}>
+                                <TableCell className="font-medium">
+                                  {key
+                                    .replace(/_/g, " ")
+                                    .replace(/\b\w/g, (l) => l.toUpperCase())}
+                                </TableCell>
+                                <TableCell>
+                                  {typeof value === "object"
+                                    ? JSON.stringify(value, null, 2)
+                                    : String(value)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-8">
+                          No parent composite details available
+                        </p>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          ) : (
+            // Show single details view for non-composite items
+            <Card>
+              <CardHeader>
+                <CardTitle>Instance Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {item.instance_details &&
+                Object.keys(item.instance_details).length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Attribute</TableHead>
+                        <TableHead>Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Object.entries(item.instance_details).map(
+                        ([key, value]) => (
+                          <TableRow key={key}>
+                            <TableCell className="font-medium">
+                              {key
+                                .replace(/_/g, " ")
+                                .replace(/\b\w/g, (l) => l.toUpperCase())}
+                            </TableCell>
+                            <TableCell>
+                              {typeof value === "object"
+                                ? JSON.stringify(value, null, 2)
+                                : String(value)}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      )}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">
+                    No instance details available
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 

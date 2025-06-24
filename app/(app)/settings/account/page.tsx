@@ -7,7 +7,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { useWorkerPermissions } from "@/components/providers/permissions-provider";
 import { useAvatarUrl } from "@/hooks/use-avatar-url";
 import { compressImage } from "@/lib/image-utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -520,7 +520,7 @@ const AccountSettingsPage = () => {
                     disabled={
                       profileMutation.isPending || !form.formState.isDirty
                     }
-                    className="min-w-[120px]"
+                    className="min-w-[120px] text-white"
                   >
                     {profileMutation.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />

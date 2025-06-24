@@ -79,6 +79,14 @@ export default async function Signup(props: {
           )}
         </div>
 
+        <GoogleSignUpButton />
+
+        <div className="flex items-center gap-4 my-4 sm:my-2 w-full max-w-md">
+          <div className="h-px bg-gray-800 flex-1"></div>
+          <span className="text-sm text-gray-500">or</span>
+          <div className="h-px bg-gray-800 flex-1"></div>
+        </div>
+
         <form
           className="w-full max-w-md flex flex-col gap-4 sm:gap-5"
           action={signUpAction}
@@ -119,14 +127,6 @@ export default async function Signup(props: {
         </form>
 
         <FormMessage message={searchParams} />
-
-        <div className="flex items-center gap-4 my-4 sm:my-2 w-full max-w-md">
-          <div className="h-px bg-gray-800 flex-1"></div>
-          <span className="text-sm text-gray-500">or</span>
-          <div className="h-px bg-gray-800 flex-1"></div>
-        </div>
-
-        <GoogleSignUpButton />
 
         <p className="text-xs text-gray-500 text-center mt-4 px-4 leading-relaxed">
           By creating an account, you agree to our{" "}

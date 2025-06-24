@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Package, ArrowRight, CheckCircle } from "lucide-react";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { useWorkerPermissions } from "@/components/providers/permissions-provider";
 
 export interface MoveItemQuantityModalProps {
   isOpen: boolean;
@@ -229,7 +229,10 @@ export function MoveItemQuantityModal({
             </div>
             <div className="flex items-center gap-2">
               {isValid && <CheckCircle className="h-4 w-4 text-green-600" />}
-              <Badge variant={isValid ? "default" : "secondary"}>
+              <Badge
+                variant={isValid ? "default" : "secondary"}
+                className="text-white"
+              >
                 {isValid ? "Ready to move" : "Check quantity"}
               </Badge>
             </div>
@@ -269,10 +272,10 @@ export function MoveItemQuantityModal({
           <Button
             onClick={handleSubmit}
             disabled={!isValid || isSubmitting}
-            className="min-w-[120px]"
+            className="min-w-[120px] text-white"
           >
             {isSubmitting ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ">
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
                 Moving...
               </div>

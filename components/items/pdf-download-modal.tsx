@@ -217,6 +217,7 @@ export function PdfDownloadModal({
                 onCheckedChange={(checked) =>
                   setIncludeRemarks(checked as boolean)
                 }
+                className="border-primary data-[state=checked]:bg-primary data-[state=checked]:text-white data-[state=checked]:border-primary"
               />
               <Label
                 htmlFor="include-remarks"
@@ -267,7 +268,11 @@ export function PdfDownloadModal({
             >
               Cancel
             </Button>
-            <Button onClick={handleDownload} disabled={isGenerating}>
+            <Button
+              onClick={handleDownload}
+              disabled={isGenerating}
+              className="bg-primary text-white hover:bg-primary/90"
+            >
               {isGenerating ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />

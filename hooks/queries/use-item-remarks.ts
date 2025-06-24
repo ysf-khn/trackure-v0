@@ -70,7 +70,6 @@ export function useItemRemarks(itemId: string | null) {
       return fetchItemRemarks(supabase, itemId);
     },
     enabled: !!itemId,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    staleTime: 2 * 60 * 1000,
   });
 }

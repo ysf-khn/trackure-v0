@@ -48,6 +48,40 @@ async function updateProfileOnboardingStatus(
   }
 }
 
+// Helper function to clean up expired cancelled subscriptions
+async function cleanupExpiredCancelledSubscriptions() {
+  const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
+  const now = new Date().toISOString();
+
+  for (const user of userData.users) {
+    const metadata = user.user_metadata;
+
+    // Check if user has cancelled subscription with expired access
+    if (
+      metadata?.subscription_status === "cancelled" &&
+      metadata?.access_expires_at &&
+      new Date(metadata.access_expires_at) <= new Date(now)
+    ) {
+      // Update user metadata to reflect expired access
+      await updateUserMetadata(user.id, {
+        subscription_status: "expired",
+        payment_status: "expired",
+        access_expires_at: now, // Update to current time
+      });
+
+      // Reset onboarding status to require new subscription
+      await updateProfileOnboardingStatus(user.id, "pending_subscription");
+
+      console.log(
+        `Cleaned up expired cancelled subscription for user: ${user.id}`
+      );
+    }
+  }
+}
+
+// Export the cleanup function for use in scheduled jobs
+export { cleanupExpiredCancelledSubscriptions };
+
 export async function POST(request: Request) {
   const headersList = await headers();
 
@@ -190,18 +224,21 @@ async function handleSubscriptionEvents(payload: any) {
         cancelledSubscription.customer.email
       );
       if (cancelledUser) {
+        // Store the access expiry date (next billing date) so user keeps access until then
+        const accessExpiresAt = cancelledSubscription.next_billing_date;
+
         await updateUserMetadata(cancelledUser.id, {
           subscription_status: "cancelled",
           payment_status: "cancelled",
           cancelled_at: new Date().toISOString(),
+          access_expires_at: accessExpiresAt, // Keep access until next billing date
         });
 
-        // Reset onboarding status to require new subscription
-        await updateProfileOnboardingStatus(
-          cancelledUser.id,
-          "pending_subscription"
+        // Don't reset onboarding status immediately - user should keep access until billing period ends
+        // We'll handle this in a scheduled job or when they try to access after expiry
+        console.log(
+          `Subscription cancelled for user ${cancelledUser.id}, access expires at: ${accessExpiresAt}`
         );
-        console.log("Subscription cancelled:", cancelledUser.id);
       }
       break;
 
@@ -232,6 +269,7 @@ async function handleSubscriptionEvents(payload: any) {
           subscription_status: "expired",
           payment_status: "expired",
           expired_at: new Date().toISOString(),
+          access_expires_at: new Date().toISOString(), // Access expires immediately for expired subscriptions
         });
 
         // Reset onboarding status to require new subscription

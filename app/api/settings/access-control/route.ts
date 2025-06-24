@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
 import { getUserWithProfile } from "@/utils/supabase/queries";
+import { broadcastPermissionUpdate } from "@/app/api/permissions/stream/[orgId]/route";
 
 // Schema for updating permissions
 const updatePermissionsSchema = z.object({
@@ -39,10 +40,10 @@ export async function GET() {
 
   const organizationId = profile.organization_id;
 
-  // Role Check: Owner only
-  if (profile.role !== "Owner") {
+  // Role Check: Owner and Worker can view permissions (Owner for managing, Worker for checking access)
+  if (!["Owner", "Worker"].includes(profile.role)) {
     return NextResponse.json(
-      { error: "Forbidden: Only owners can view access control settings." },
+      { error: "Forbidden: Invalid role for accessing permissions." },
       { status: 403 }
     );
   }
@@ -62,7 +63,16 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ permissions: permissions || [] });
+    const response = NextResponse.json({ permissions: permissions || [] });
+
+    // Add cache headers for better performance
+    response.headers.set("Cache-Control", "public, max-age=300, s-maxage=300"); // 5 minutes
+    response.headers.set(
+      "ETag",
+      `"permissions-${organizationId}-${Date.now()}"`
+    );
+
+    return response;
   } catch (error) {
     console.error(
       "Unexpected error in GET /api/settings/access-control:",
@@ -154,6 +164,9 @@ export async function PUT(request: Request) {
         { status: 500 }
       );
     }
+
+    // Broadcast permission update to all connected clients
+    broadcastPermissionUpdate(organizationId, permissions);
 
     return NextResponse.json({
       message: "Permissions updated successfully",

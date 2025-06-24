@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -34,7 +34,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
-import useWorkerPermissions from "@/hooks/queries/use-worker-permissions";
+import { useWorkerPermissions } from "@/components/providers/permissions-provider";
 import { toast } from "sonner";
 
 // Define permission categories and their specific permissions
@@ -64,6 +64,8 @@ const AccessControlPage = () => {
   } = useWorkerPermissions();
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [toastId, setToastId] = useState<string | number | null>(null);
+  const [toastDismissed, setToastDismissed] = useState(false);
 
   // Initialize permission state
   const [permissionCategories, setPermissionCategories] = useState<
@@ -284,6 +286,47 @@ const AccessControlPage = () => {
   // Check if user is owner
   const isOwner = profile?.role === "Owner";
 
+  // Handle save permissions
+  const handleSavePermissions = useCallback(async () => {
+    if (!organizationId) return;
+
+    setIsSaving(true);
+    try {
+      // Flatten all permissions into a single array
+      const allPermissions = permissionCategories.flatMap((category) =>
+        category.permissions.map((permission) => ({
+          permission_key: permission.id,
+          enabled: permission.enabled,
+        }))
+      );
+
+      const success = await updatePermissions(allPermissions);
+
+      if (success) {
+        // Dismiss the unsaved changes toast first
+        if (toastId) {
+          toast.dismiss(toastId);
+          setToastId(null);
+        }
+
+        toast.success("Permissions Updated", {
+          description:
+            "Worker access permissions have been successfully updated.",
+        });
+        setHasChanges(false);
+        setToastDismissed(false); // Reset dismiss state after saving
+      } else {
+        throw new Error("Failed to update permissions");
+      }
+    } catch (error) {
+      toast.error("Error", {
+        description: "Failed to update permissions. Please try again.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [organizationId, permissionCategories, updatePermissions, toastId]);
+
   // Handle permission toggle
   const togglePermission = (categoryId: string, permissionId: string) => {
     setPermissionCategories((prev) =>
@@ -301,44 +344,62 @@ const AccessControlPage = () => {
       )
     );
     setHasChanges(true);
+    // Reset dismiss state so toast can appear for new changes
+    setToastDismissed(false);
   };
 
-  // Handle save permissions
-  const handleSavePermissions = async () => {
-    if (!organizationId) return;
-
-    setIsSaving(true);
-    try {
-      // Flatten all permissions into a single array
-      const allPermissions = permissionCategories.flatMap((category) =>
-        category.permissions.map((permission) => ({
-          permission_key: permission.id,
-          enabled: permission.enabled,
-        }))
-      );
-
-      const success = await updatePermissions(allPermissions);
-
-      if (success) {
-        toast.success("Permissions Updated", {
-          description:
-            "Worker access permissions have been successfully updated.",
-        });
-        setHasChanges(false);
-      } else {
-        throw new Error("Failed to update permissions");
-      }
-    } catch (error) {
-      toast.error("Error", {
-        description: "Failed to update permissions. Please try again.",
+  // Show/hide unsaved changes toast
+  useEffect(() => {
+    if (hasChanges && !toastId && !toastDismissed) {
+      const id = toast("Unsaved Changes", {
+        description: "You have unsaved permission changes.",
+        duration: Infinity,
+        action: {
+          label: isSaving ? "Saving..." : "Save Changes",
+          onClick: () => {
+            if (!isSaving) {
+              handleSavePermissions();
+            }
+          },
+        },
+        cancel: {
+          label: "Dismiss",
+          onClick: () => {
+            setToastDismissed(true);
+            setToastId(null);
+          },
+        },
+        onDismiss: () => {
+          setToastDismissed(true);
+          setToastId(null);
+        },
       });
-    } finally {
-      setIsSaving(false);
+      setToastId(id);
+    } else if (!hasChanges && toastId) {
+      toast.dismiss(toastId);
+      setToastId(null);
+      setToastDismissed(false); // Reset dismiss state when changes are saved
     }
-  };
+  }, [hasChanges, isSaving, toastId, toastDismissed, handleSavePermissions]);
+
+  // Cleanup toast on unmount
+  useEffect(() => {
+    return () => {
+      if (toastId) {
+        toast.dismiss(toastId);
+      }
+    };
+  }, [toastId]);
 
   // Handle reset to defaults
   const handleResetToDefaults = () => {
+    // Dismiss the unsaved changes toast if it exists
+    if (toastId) {
+      toast.dismiss(toastId);
+      setToastId(null);
+    }
+    setToastDismissed(false); // Reset dismiss state
+
     // Reset to default state (reload the initial state)
     window.location.reload();
   };
@@ -525,7 +586,7 @@ const AccessControlPage = () => {
             <Button
               onClick={handleSavePermissions}
               disabled={!hasChanges || isSaving}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 bg-primary text-white"
             >
               {isSaving ? (
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />

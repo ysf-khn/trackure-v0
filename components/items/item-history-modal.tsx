@@ -473,7 +473,7 @@ export function ItemHistoryModal({
                 variant="outline"
                 size="sm"
                 onClick={() => setIsPdfModalOpen(true)}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 bg-primary text-white hover:bg-primary/90"
               >
                 <Download className="h-4 w-4" />
                 Download PDF

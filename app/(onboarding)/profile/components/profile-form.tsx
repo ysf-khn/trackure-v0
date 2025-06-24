@@ -17,6 +17,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useMutation } from "@tanstack/react-query";
+import { OnboardingProgress } from "../../layout";
+import { User } from "lucide-react";
 
 const profileSchema = z.object({
   full_name: z.string().min(1, "Full name is required").max(255),
@@ -66,20 +68,41 @@ export function ProfileForm() {
     mutation.mutate(values);
   }
 
+  const stepTitles = ["Your Profile", "Organization", "Workflow Setup"];
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <div className="w-full max-w-md p-6 space-y-6 bg-card text-card-foreground rounded-lg shadow-md">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Welcome to Trakure!
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Let&apos;s start by setting up your profile.
-          </p>
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)]">
+      {/* Progress Indicator */}
+      <OnboardingProgress
+        currentStep={1}
+        totalSteps={3}
+        stepTitles={stepTitles}
+      />
+
+      {/* Main Content */}
+      <div className="w-full max-w-md p-8 space-y-6 bg-card text-card-foreground rounded-lg shadow-md">
+        <div className="text-center space-y-4">
+          {/* Icon */}
+          <div className="flex justify-center">
+            <div className="p-3 bg-primary/20 rounded-full">
+              <User className="w-8 h-8 text-primary" />
+            </div>
+          </div>
+
+          {/* Heading */}
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Welcome to Trackure!
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Let's start by setting up your profile. This will only take a
+              moment.
+            </p>
+          </div>
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
               name="full_name"
@@ -90,7 +113,7 @@ export function ProfileForm() {
                     <Input placeholder="e.g., Ada Lovelace" {...field} />
                   </FormControl>
                   <FormDescription>
-                    This is how your name will appear in Trakure.
+                    This is how your name will appear throughout Trackure.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -98,10 +121,11 @@ export function ProfileForm() {
             />
             <Button
               type="submit"
-              className="w-full"
+              className="w-full bg-primary hover:bg-primary/90 text-white shadow-sm"
               disabled={mutation.isPending}
+              size="lg"
             >
-              {mutation.isPending ? "Saving" : "Save and Continue"}
+              {mutation.isPending ? "Saving..." : "Save and Continue"}
             </Button>
           </form>
         </Form>

@@ -8,8 +8,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal } from "lucide-react";
+import { Terminal, Workflow } from "lucide-react";
 import { WorkflowEditor } from "@/components/settings/workflow-editor";
+import { OnboardingProgress } from "../layout";
 
 // Define expected profile structure
 interface UserProfile {
@@ -59,11 +60,11 @@ export default function WorkflowSetupPage() {
   const advanceMutation = useMutation<{ success: boolean }, Error, void>({
     mutationFn: advanceOnboarding,
     onSuccess: () => {
-      toast.success("Progress saved!");
-      router.push("/invite");
+      toast.success("Setup complete! Welcome to Trakure!");
+      router.push("/dashboard");
     },
     onError: (error) => {
-      toast.error("Error Saving Progress", { description: error.message });
+      toast.error("Error Completing Setup", { description: error.message });
     },
   });
 
@@ -71,11 +72,18 @@ export default function WorkflowSetupPage() {
     advanceMutation.mutate();
   };
 
+  const stepTitles = ["Your Profile", "Organization", "Workflow Setup"];
+
   // --- Loading State ---
   if (isLoadingProfile) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen py-12">
-        <div className="w-full max-w-4xl p-8 space-y-6">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)]">
+        <OnboardingProgress
+          currentStep={3}
+          totalSteps={3}
+          stepTitles={stepTitles}
+        />
+        <div className="w-full max-w-4xl p-8 space-y-6 bg-card rounded-lg shadow-md">
           <Skeleton className="h-8 w-1/3 mb-2" />
           <Skeleton className="h-5 w-2/3 mb-6" />
           <Skeleton className="h-64 w-full border rounded-md p-4" />
@@ -91,7 +99,12 @@ export default function WorkflowSetupPage() {
   // --- Error State ---
   if (isErrorProfile || !profile?.organization_id) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)]">
+        <OnboardingProgress
+          currentStep={3}
+          totalSteps={3}
+          stepTitles={stepTitles}
+        />
         <Alert variant="destructive" className="max-w-lg">
           <Terminal className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
@@ -99,10 +112,7 @@ export default function WorkflowSetupPage() {
             {profileError?.message ||
               "Could not load organization details. Please ensure you have created an organization."}
             <br />
-            <Button
-              variant="link"
-              onClick={() => router.push("/onboarding/organization")}
-            >
+            <Button variant="link" onClick={() => router.push("/organization")}>
               Go back to Organization Setup
             </Button>
           </AlertDescription>
@@ -115,23 +125,44 @@ export default function WorkflowSetupPage() {
   const organizationId = profile.organization_id; // Already checked for null above
 
   return (
-    <div className="flex flex-col items-center min-h-screen py-12 px-4">
-      <div className="w-full max-w-4xl p-8 space-y-6 bg-card text-card-foreground rounded-lg shadow-md">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Define Your Initial Workflow
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Set up the stages and optional sub-stages your items will move
-            through. You can customize this further later in Settings.
-          </p>
+    <div className="flex flex-col items-center min-h-[calc(100vh-120px)] py-8">
+      {/* Progress Indicator */}
+      <OnboardingProgress
+        currentStep={3}
+        totalSteps={3}
+        stepTitles={stepTitles}
+      />
+
+      {/* Main Content */}
+      <div className="w-full max-w-5xl p-8 space-y-6 bg-card text-card-foreground rounded-lg shadow-md">
+        <div className="text-center space-y-4 mb-8">
+          {/* Icon */}
+          <div className="flex justify-center">
+            <div className="p-3 bg-primary/20 rounded-full">
+              <Workflow className="w-8 h-8 text-primary" />
+            </div>
+          </div>
+
+          {/* Heading */}
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Define Your Workflow
+            </h1>
+            <p className="text-sm text-muted-foreground mt-2 max-w-2xl mx-auto">
+              Set up the stages and optional sub-stages your items will move
+              through. This defines how work flows in your organization. You can
+              customize this further later in Settings.
+            </p>
+          </div>
         </div>
 
         {/* Embed the WorkflowEditor */}
-        <WorkflowEditor organizationId={organizationId} />
+        <div className="bg-card/50 rounded-lg p-6 border">
+          <WorkflowEditor organizationId={organizationId} />
+        </div>
 
         {/* Navigation Buttons */}
-        <div className="flex justify-end space-x-4 pt-6">
+        <div className="flex justify-end space-x-4 pt-6 border-t">
           <Button
             variant="outline"
             onClick={handleAdvance}
@@ -139,8 +170,15 @@ export default function WorkflowSetupPage() {
           >
             Complete Setup Later
           </Button>
-          <Button onClick={handleAdvance} disabled={advanceMutation.isPending}>
-            {advanceMutation.isPending ? "Saving..." : "Save & Continue"}
+          <Button
+            onClick={handleAdvance}
+            disabled={advanceMutation.isPending}
+            size="lg"
+            className="bg-primary hover:bg-primary/90 text-white shadow-sm"
+          >
+            {advanceMutation.isPending
+              ? "Completing Setup..."
+              : "Complete Setup"}
           </Button>
         </div>
       </div>

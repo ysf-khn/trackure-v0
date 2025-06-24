@@ -45,7 +45,16 @@ interface ReworkableItem {
 
 interface ItemListTableMeta {
   onViewHistory?: (itemId: string, itemSku: string) => void;
-  onViewDetails?: (details: Record<string, unknown>, itemName: string) => void;
+  onViewDetails?: (
+    item: {
+      id: string;
+      sku: string;
+      instance_details: Record<string, unknown>;
+      composite_group_id?: string | null;
+      parent_composite_sku?: string | null;
+    },
+    itemName: string
+  ) => void;
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
     targetStageId?: string | null,
@@ -95,7 +104,16 @@ interface ItemTableCoreProps {
   isMovingItems: boolean;
   isReworkingItems: boolean;
   onViewHistory: (itemId: string, itemSku: string) => void;
-  onViewDetails: (details: Record<string, unknown>, itemName: string) => void;
+  onViewDetails: (
+    item: {
+      id: string;
+      sku: string;
+      instance_details: Record<string, unknown>;
+      composite_group_id?: string | null;
+      parent_composite_sku?: string | null;
+    },
+    itemName: string
+  ) => void;
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
     targetStageId?: string | null,

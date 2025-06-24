@@ -53,10 +53,28 @@ export async function PUT(request: Request) {
       .single();
 
     if (existingProfile) {
-      // Profile exists - just update the full_name, preserve existing onboarding_status
+      // Profile exists - determine if we need to advance onboarding status
+      let newOnboardingStatus = existingProfile.onboarding_status;
+
+      // If user has subscribed (has product_id and payment_status completed) but profile status is still pending_subscription,
+      // advance to pending_profile, then to pending_org since they're filling out their profile
+      if (
+        existingProfile.onboarding_status === "pending_subscription" &&
+        user.user_metadata?.product_id &&
+        user.user_metadata?.payment_status === "completed"
+      ) {
+        newOnboardingStatus = "pending_org";
+      } else if (existingProfile.onboarding_status === "pending_profile") {
+        // If they're in pending_profile state and updating their profile, advance to pending_org
+        newOnboardingStatus = "pending_org";
+      }
+
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ full_name: full_name })
+        .update({
+          full_name: full_name,
+          onboarding_status: newOnboardingStatus,
+        })
         .eq("id", user.id);
 
       if (updateError) {
@@ -67,11 +85,21 @@ export async function PUT(request: Request) {
         );
       }
     } else {
-      // Profile doesn't exist - create new with onboarding status
+      // Profile doesn't exist - create new with appropriate onboarding status
+      let initialOnboardingStatus = "pending_org";
+
+      // If user doesn't have a subscription, they should be in pending_subscription
+      if (
+        !user.user_metadata?.product_id ||
+        user.user_metadata?.payment_status !== "completed"
+      ) {
+        initialOnboardingStatus = "pending_subscription";
+      }
+
       const { error: insertError } = await supabase.from("profiles").insert({
         id: user.id,
         full_name: full_name,
-        onboarding_status: "pending_org", // Only set this for new profiles
+        onboarding_status: initialOnboardingStatus,
       });
 
       if (insertError) {

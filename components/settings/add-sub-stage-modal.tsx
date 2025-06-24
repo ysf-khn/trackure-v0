@@ -217,7 +217,11 @@ export function AddSubStageModal({
                   Cancel
                 </Button>
               </DialogClose>
-              <Button type="submit" disabled={mutation.isPending}>
+              <Button
+                type="submit"
+                disabled={mutation.isPending}
+                className="bg-primary hover:bg-primary/90 text-white shadow-sm"
+              >
                 {mutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
