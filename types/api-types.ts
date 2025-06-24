@@ -78,3 +78,15 @@ export interface DodoSubscriptionWebhookPayload {
 export type WebhookPayload =
   | DodoPaymentWebhookPayload
   | DodoSubscriptionWebhookPayload;
+
+// Dashboard API Types
+export interface BottleneckItem {
+  item_id: string;
+  sku: string;
+  order_number: string;
+  current_stage_name: string;
+  current_sub_stage_name: string | null;
+  time_in_current_stage: string; // Human-readable duration
+  stage_entry_time: string; // ISO timestamp
+  quantity: number;
+}

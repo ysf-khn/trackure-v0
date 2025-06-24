@@ -1,16 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-
-export interface BottleneckItem {
-  item_id: string;
-  sku: string;
-  order_number: string;
-  current_stage_name: string;
-  current_sub_stage_name: string | null;
-  time_in_current_stage: string; // Human-readable duration
-  stage_entry_time: string; // ISO timestamp
-  quantity: number;
-}
+import type { BottleneckItem } from "@/types/api-types";
 
 export async function GET(request: NextRequest) {
   try {
