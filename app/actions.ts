@@ -235,8 +235,10 @@ export const selectPlanAction = async (formData: FormData) => {
   // Redirect to DodoPayments checkout
   const redirectUrl = encodeURIComponent(`${baseUrl}/profile`);
   const encodedProductId = encodeURIComponent(productId);
+  const isDev = process.env.NODE_ENV === "development";
+  const isPreview = process.env.NEXT_PUBLIC_ENV === "preview";
   const checkoutBaseUrl =
-    process.env.NODE_ENV === "development"
+    isDev || isPreview
       ? "https://test.checkout.dodopayments.com"
       : "https://checkout.dodopayments.com";
 

@@ -11,10 +11,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiKey =
-      process.env.NODE_ENV === "production"
-        ? process.env.DODO_API_KEY_LIVE
-        : process.env.DODO_API_KEY_TEST;
+    const isPreview = process.env.NEXT_PUBLIC_ENV === "preview";
+    const isProduction = process.env.NODE_ENV === "production" && !isPreview;
+
+    const apiKey = isProduction
+      ? process.env.DODO_API_KEY_LIVE
+      : process.env.DODO_API_KEY_TEST;
     if (!apiKey) {
       console.error("DODO_API_KEY is not configured");
       return NextResponse.json(
@@ -24,10 +26,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine the base URL based on environment
-    const baseUrl =
-      process.env.NODE_ENV === "production"
-        ? "https://live.dodopayments.com"
-        : "https://test.dodopayments.com";
+    const baseUrl = isProduction
+      ? "https://live.dodopayments.com"
+      : "https://test.dodopayments.com";
 
     const response = await fetch(
       `${baseUrl}/customers/${customer_id}/customer-portal/session`,

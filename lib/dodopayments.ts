@@ -1,9 +1,13 @@
 import DodoPayments from "dodopayments";
+
+const isDev = process.env.NODE_ENV === "development";
+const isPreview = process.env.NEXT_PUBLIC_ENV === "preview";
+
 export const dodopayments = new DodoPayments({
   bearerToken:
-    process.env.NODE_ENV === "development"
+    isDev || isPreview
       ? process.env.DODO_API_KEY_TEST
-      : process.env.DODO_API_KEY_LIVE, // This is the default and can be omitted if env is named as DODO_PAYMENTS_API_KEY
-  environment:
-    process.env.NODE_ENV === "development" ? "test_mode" : "live_mode", // defaults to 'live_mode'
+      : process.env.DODO_API_KEY_LIVE,
+
+  environment: isDev || isPreview ? "test_mode" : "live_mode",
 });

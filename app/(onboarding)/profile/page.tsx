@@ -61,8 +61,10 @@ export default async function OnboardingProfilePage({
         const origin = process.env.NEXT_PUBLIC_BASE_URL;
         const redirectUrl = encodeURIComponent(`${origin}/profile`);
         const productId = encodeURIComponent(user.user_metadata.product_id);
+        const isDev = process.env.NODE_ENV === "development";
+        const isPreview = process.env.NEXT_PUBLIC_ENV === "preview";
         const baseUrl =
-          process.env.NODE_ENV === "development"
+          isDev || isPreview
             ? "https://test.checkout.dodopayments.com"
             : "https://checkout.dodopayments.com";
 
