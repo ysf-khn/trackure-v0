@@ -1,6 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import type { BottleneckItem } from "@/types/api-types";
 
 export async function GET(request: NextRequest) {
   try {
