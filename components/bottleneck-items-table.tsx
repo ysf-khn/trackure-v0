@@ -35,7 +35,7 @@ export function BottleneckItemsTable({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-orange-500" />
+            <AlertTriangle className="h-5 w-5 text-primary" />
             Items Waiting Longest (Potential Bottlenecks)
           </CardTitle>
           <CardDescription>
@@ -50,7 +50,6 @@ export function BottleneckItemsTable({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Clock className="h-5 w-5 text-orange-500" />
           Items Waiting Longest (Potential Bottlenecks)
         </CardTitle>
         <CardDescription>

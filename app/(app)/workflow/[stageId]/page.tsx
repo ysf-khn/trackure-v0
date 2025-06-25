@@ -243,7 +243,7 @@ function StageViewContent() {
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink href="/workflow">Workflow</BreadcrumbLink>
+            <BreadcrumbPage>Workflow</BreadcrumbPage>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>

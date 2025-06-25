@@ -437,14 +437,6 @@ export async function POST(
         // Create component items individually with their specific instance details
         compositeGroupId = crypto.randomUUID();
 
-        // Get the first workflow stage for new items
-        const { stageId: firstStageId, subStageId: firstSubStageId } =
-          await getFirstWorkflowStep(supabase, orgId);
-
-        if (!firstStageId) {
-          throw new Error("Workflow configuration incomplete or missing.");
-        }
-
         for (const component of components) {
           const componentTotalQuantity =
             component.quantity_per_composite * compositeQuantity;
@@ -484,28 +476,8 @@ export async function POST(
             );
           }
 
-          // Create movement history for the component item
-          const { error: movementError } = await supabase
-            .from("item_movement_history")
-            .insert({
-              item_id: componentItem.id,
-              from_stage_id: null,
-              from_sub_stage_id: null,
-              to_stage_id: firstStageId,
-              to_sub_stage_id: firstSubStageId,
-              quantity: componentTotalQuantity,
-              moved_at: new Date().toISOString(),
-              moved_by: userId,
-              organization_id: orgId,
-            });
-
-          if (movementError) {
-            console.error(
-              `Error creating movement history for component item ${component.component_sku}:`,
-              movementError
-            );
-            // Log error but don't fail the whole request
-          }
+          // Movement history will be created when the item is allocated from New Order Items
+          // Do not create movement history here to avoid duplicates
         }
       } else {
         // Use existing database function for backward compatibility
@@ -542,18 +514,7 @@ export async function POST(
       );
     }
 
-    // 4. Get the first workflow stage/sub-stage ID for the orgId (for regular items)
-    const { stageId: firstStageId, subStageId: firstSubStageId } =
-      await getFirstWorkflowStep(supabase, orgId);
-
-    if (!firstStageId) {
-      console.error(
-        `No initial workflow stage found for organization ${orgId}`
-      );
-      throw new Error("Workflow configuration incomplete or missing.");
-    }
-
-    // 5. INSERT into items table (for regular items only)
+    // 4. INSERT into items table (for regular items only)
     const { data: newItem, error: itemInsertError } = await supabase
       .from("items")
       .insert({
@@ -564,9 +525,7 @@ export async function POST(
         buyer_id: instance_details?.buyer_id,
         total_quantity: instance_details?.total_quantity,
         remaining_quantity: instance_details?.total_quantity,
-        // current_stage_id: firstStageId,
-        // current_sub_stage_id: firstSubStageId,
-        // created_by: userId,
+        // status defaults to 'New' and will be updated when allocated from New Order Items
       })
       .select("id, total_quantity") // Select the ID and total_quantity of the newly created item
       .single();
@@ -575,36 +534,9 @@ export async function POST(
       console.error("Error inserting item:", itemInsertError);
       throw new Error("Failed to add item to the order.");
     }
-    // const newItemId = newItem.id; // newItem now contains id and total_quantity
 
-    // 6. INSERT into item_movement_history for the initial creation (for regular items only)
-    const { error: movementHistoryInsertError } = await supabase
-      .from("item_movement_history")
-      .insert({
-        item_id: newItem.id,
-        from_stage_id: null, // Initial entry, no 'from' stage
-        from_sub_stage_id: null, // Initial entry, no 'from' sub-stage
-        to_stage_id: firstStageId,
-        to_sub_stage_id: firstSubStageId,
-        quantity: newItem.total_quantity, // Quantity of the item created
-        moved_at: new Date().toISOString(),
-        moved_by: userId, // User who performed the action (creation)
-        organization_id: orgId,
-        // rework_reason is omitted, defaults to null
-      });
-
-    if (movementHistoryInsertError) {
-      // This is problematic as the item exists but movement history tracking failed.
-      // Log error, but maybe don't fail the whole request?
-      // Alternatively, attempt to delete the item created in step 4 for consistency.
-      console.error(
-        `Error inserting item_movement_history for item ${newItem.id}:`,
-        movementHistoryInsertError
-      );
-      // Consider returning success but logging the history failure
-      // return NextResponse.json({ message: 'Item added, but movement history logging failed', itemId: newItem.id }, { status: 207 });
-      throw new Error("Failed to record initial item movement history."); // Fail request for now
-    }
+    // Movement history will be created when the item is allocated from New Order Items
+    // Do not create movement history here to avoid duplicates
 
     return NextResponse.json(
       {

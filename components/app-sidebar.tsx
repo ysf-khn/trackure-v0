@@ -340,8 +340,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                               }
                               className={cn(
                                 "flex-shrink-0 mr-1",
-                                stage.itemCount > 0 &&
-                                  "bg-primary text-primary-foreground"
+                                stage.itemCount > 0 && "bg-primary text-white"
                               )}
                             >
                               {stage.itemCount}

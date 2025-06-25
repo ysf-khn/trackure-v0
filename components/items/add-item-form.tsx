@@ -324,11 +324,9 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
     },
     onSuccess: (data) => {
       if (data.type === "composite") {
-        toast.success(
-          `Composite item added successfully! Component items created with group ID: ${data.composite_group_id}`
-        );
+        toast.success(`Composite item added successfully!`);
       } else {
-        toast.success(`Item added successfully (ID: ${data.itemId})`);
+        toast.success(`Item added successfully`);
       }
       form.reset(); // Reset form fields
       setSkuSearch(""); // Reset SKU search input
@@ -343,6 +341,9 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
 
       // Invalidate the new items count query
       queryClient.invalidateQueries({ queryKey: ["newItemsCount"] });
+
+      // Invalidate the new order items query (for the new-orders page)
+      queryClient.invalidateQueries({ queryKey: ["newOrderItems"] });
 
       // Invalidate the completed items count query
       queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });

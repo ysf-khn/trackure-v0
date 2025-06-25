@@ -179,6 +179,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
           }
           aria-label="Select all"
           disabled={meta?.isMovingItems || meta?.isReworkingItems}
+          className="data-[state=checked]:text-white data-[state=checked]:bg-primary data-[state=checked]:border-primary data-[state=checked]:hover:bg-primary/90"
         />
       );
     },
@@ -196,6 +197,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
           onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
           aria-label="Select row"
           disabled={meta?.isMovingItems || meta?.isReworkingItems}
+          className="data-[state=checked]:text-white data-[state=checked]:bg-primary data-[state=checked]:border-primary data-[state=checked]:hover:bg-primary/90"
         />
       );
     },
@@ -413,7 +415,8 @@ export const columns: ColumnDef<ItemInStage>[] = [
     enableSorting: false,
   },
   {
-    id: "actions",
+    id: "move_forward",
+    header: "Move Forward",
     cell: ({ row, table }) => {
       const item = row.original;
       const meta = table.options.meta as ItemListTableMeta | undefined;
@@ -427,7 +430,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
         currentSubStageId,
       } = meta || {};
 
-      // Determine if there are next or previous steps
+      // Determine if there are next steps
       const hasNextStep =
         workflowData && currentStageId
           ? determineNextStage(
@@ -436,26 +439,6 @@ export const columns: ColumnDef<ItemInStage>[] = [
               workflowData
             ) !== null
           : false;
-      const hasPreviousStep =
-        workflowData && currentStageId
-          ? determinePreviousStage(
-              currentStageId,
-              currentSubStageId ?? null,
-              workflowData
-            ) !== null
-          : false;
-
-      const handleOpenSingleItemRework = () => {
-        if (meta?.handleOpenSingleReworkQuantityModal && meta.currentStageId) {
-          meta.handleOpenSingleReworkQuantityModal({
-            id: item.id,
-            sku: item.sku,
-            currentQuantity: item.quantity,
-            currentStageId: meta.currentStageId,
-            currentSubStageId: meta.currentSubStageId,
-          });
-        }
-      };
 
       const handleOpenMoveModal = (targetId?: string | null) => {
         let targetStageId: string | null = null;
@@ -502,13 +485,114 @@ export const columns: ColumnDef<ItemInStage>[] = [
       };
 
       const canMove = meta?.hasPermission("items.move") ?? false;
+
+      // If user can't move items or there's no next step, don't show anything
+      if (!canMove || !hasNextStep) {
+        if (!hasNextStep) {
+          return (
+            <span className="text-xs text-muted-foreground">
+              End of workflow
+            </span>
+          );
+        }
+        return null;
+      }
+
+      // If there's only immediate next stage or no subsequent stages, show simple button
+      if (!subsequentStages || subsequentStages.length === 0) {
+        return (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleOpenMoveModal()}
+            disabled={meta?.isMovingItems || meta?.isReworkingItems}
+          >
+            <ChevronsRight className="mr-2 h-4 w-4" />
+            Move Forward
+          </Button>
+        );
+      }
+
+      // If there are multiple subsequent stages, show dropdown
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={meta?.isMovingItems || meta?.isReworkingItems}
+            >
+              <ChevronsRight className="mr-2 h-4 w-4" />
+              Move Forward
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => handleOpenMoveModal()} // No targetStageId means immediate next
+              disabled={meta?.isMovingItems || meta?.isReworkingItems}
+            >
+              Immediate Next Stage
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {isWorkflowLoading ? (
+              <DropdownMenuItem disabled>Loading stages...</DropdownMenuItem>
+            ) : (
+              subsequentStages?.map(
+                (stage: { id: string; name: string | null }) => (
+                  <DropdownMenuItem
+                    key={stage.id}
+                    onClick={() => handleOpenMoveModal(stage.id)} // Pass targetStageId
+                    disabled={meta?.isMovingItems || meta?.isReworkingItems}
+                  >
+                    {stage.name || `Stage ${stage.id.substring(0, 6)}`}
+                  </DropdownMenuItem>
+                )
+              )
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    id: "actions",
+    cell: ({ row, table }) => {
+      const item = row.original;
+      const meta = table.options.meta as ItemListTableMeta | undefined;
+
+      // Extract necessary info from meta
+      const { workflowData, currentStageId, currentSubStageId } = meta || {};
+
+      // Determine if there are previous steps
+      const hasPreviousStep =
+        workflowData && currentStageId
+          ? determinePreviousStage(
+              currentStageId,
+              currentSubStageId ?? null,
+              workflowData
+            ) !== null
+          : false;
+
+      const handleOpenSingleItemRework = () => {
+        if (meta?.handleOpenSingleReworkQuantityModal && meta.currentStageId) {
+          meta.handleOpenSingleReworkQuantityModal({
+            id: item.id,
+            sku: item.sku,
+            currentQuantity: item.quantity,
+            currentStageId: meta.currentStageId,
+            currentSubStageId: meta.currentSubStageId,
+          });
+        }
+      };
+
       const canRework = meta?.hasPermission("items.move") ?? false; // Rework is also a move operation
       const canAddRemark = meta?.hasPermission("items.view") ?? false; // Basic permission for remarks
       const canDelete = meta?.hasPermission("items.delete") ?? false;
 
       // If no actions are possible at all, don't render the dropdown
       if (
-        (!canMove || !hasNextStep) && // Can't move if no role OR no next step
         (!canRework || !hasPreviousStep) && // Can't rework if no role OR no prev step
         !canAddRemark && // No remark permission
         !canDelete // No delete permission
@@ -530,65 +614,6 @@ export const columns: ColumnDef<ItemInStage>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            {canMove && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger
-                  disabled={
-                    // Disable if moving/reworking, or no next step
-                    meta?.isMovingItems ||
-                    meta?.isReworkingItems ||
-                    !hasNextStep
-                  }
-                >
-                  <ChevronsRight className="mr-2 h-4 w-4" />
-                  <span>Move Forward</span>
-                  {!hasNextStep && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      (End of workflow)
-                    </span>
-                  )}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuItem
-                      onClick={() => handleOpenMoveModal()} // No targetStageId means immediate next
-                      disabled={
-                        // Disable if moving/reworking, or no next step
-                        meta?.isMovingItems ||
-                        meta?.isReworkingItems ||
-                        !hasNextStep
-                      }
-                    >
-                      Immediate Next Stage
-                    </DropdownMenuItem>
-                    {/* Render subsequent stages if available and there is a next step */}
-                    {hasNextStep && (subsequentStages?.length ?? 0) > 0 && (
-                      <DropdownMenuSeparator />
-                    )}
-                    {hasNextStep && isWorkflowLoading ? (
-                      <DropdownMenuItem disabled>
-                        Loading stages...
-                      </DropdownMenuItem>
-                    ) : hasNextStep && subsequentStages?.length ? (
-                      subsequentStages?.map(
-                        (stage: { id: string; name: string | null }) => (
-                          <DropdownMenuItem
-                            key={stage.id}
-                            onClick={() => handleOpenMoveModal(stage.id)} // Pass targetStageId
-                            disabled={
-                              meta?.isMovingItems || meta?.isReworkingItems
-                            }
-                          >
-                            {stage.name || `Stage ${stage.id.substring(0, 6)}`}
-                          </DropdownMenuItem>
-                        )
-                      )
-                    ) : null}{" "}
-                    {/* Null if no subsequent stages or not hasNextStep */}
-                  </DropdownMenuSubContent>
-                </DropdownMenuPortal>
-              </DropdownMenuSub>
-            )}
             {canRework && (
               <DropdownMenuItem
                 onClick={handleOpenSingleItemRework}
@@ -614,8 +639,6 @@ export const columns: ColumnDef<ItemInStage>[] = [
                   onSelect={(e) => e.preventDefault()}
                   disabled={meta?.isMovingItems || meta?.isReworkingItems}
                 >
-                  {" "}
-                  {/* Prevent closing menu */}
                   Add Remark
                 </DropdownMenuItem>
               </AddRemarkModal>
@@ -738,6 +761,7 @@ export function ItemListTable({
   const permissionsToCheck = [
     "items.move",
     "items.add",
+    "items.view",
     "items.delete",
     "documents.export",
     "documents.vouchers",
