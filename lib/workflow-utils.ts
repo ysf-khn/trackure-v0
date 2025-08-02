@@ -1,22 +1,139 @@
 // Type definition for the expected structure of workflow stages fetched from DB
-// Should align with the select query in the API route
+// Updated to use the new tree structure
 export type WorkflowStage = {
   id: string;
   sequence_order: number;
+  parent_stage_id: string | null;
+  depth_level: number;
   sub_stages: {
     id: string;
     sequence_order: number;
   }[];
 };
 
+// Import the new tree structure type
+import { type FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
+
+// Helper function to convert tree structure to flat array for legacy functions
+export function convertTreeToFlat(treeStages: FetchedWorkflowStage[]): WorkflowStage[] {
+  const flatStages: WorkflowStage[] = [];
+  
+  function processStage(stage: FetchedWorkflowStage) {
+    // Add the stage with its immediate children
+    flatStages.push({
+      id: stage.id,
+      sequence_order: stage.sequence_order,
+      parent_stage_id: stage.parent_stage_id,
+      depth_level: stage.depth_level,
+      sub_stages: stage.sub_stages.map(sub => ({
+        id: sub.id,
+        sequence_order: sub.sequence_order
+      }))
+    });
+    
+    // Recursively process sub-stages as main stages
+    stage.sub_stages.forEach(processStage);
+  }
+  
+  treeStages.forEach(processStage);
+  return flatStages;
+}
+
 /**
- * Determines the next stage and/or sub-stage in the workflow sequence.
+ * Determines the next stage in the workflow sequence.
+ * Updated to work with tree structure - in tree structure, sub_stage_id is not used.
  * @param currentStageId The ID of the item's current stage.
- * @param currentSubStageId The ID of the item's current sub-stage (null if none).
- * @param workflowStages The ordered list of stages and their ordered sub-stages for the organization.
+ * @param currentSubStageId The ID of the item's current sub-stage (null if none) - DEPRECATED in tree structure.
+ * @param workflowStages The workflow stages (can be tree structure or flat).
  * @returns An object containing the next { stageId, subStageId } or null if at the end of the workflow.
  */
 export function determineNextStage(
+  currentStageId: string,
+  currentSubStageId: string | null,
+  workflowStages: WorkflowStage[] | FetchedWorkflowStage[]
+): { stageId: string; subStageId: string | null } | null {
+  // Check if we're working with tree structure
+  const isTreeStructure = workflowStages.length > 0 && 'parent_stage_id' in workflowStages[0];
+  
+  console.log(`[determineNextStage] Current stage: ${currentStageId}, isTreeStructure: ${isTreeStructure}, total stages: ${workflowStages.length}`);
+  
+  if (isTreeStructure) {
+    // Tree structure logic
+    const treeStages = workflowStages as FetchedWorkflowStage[];
+    const result = determineNextStageTree(currentStageId, treeStages);
+    console.log(`[determineNextStage] Tree result:`, result);
+    return result;
+  } else {
+    // Legacy flat structure logic
+    const flatStages = workflowStages as WorkflowStage[];
+    const result = determineNextStageFlat(currentStageId, currentSubStageId, flatStages);
+    console.log(`[determineNextStage] Flat result:`, result);
+    return result;
+  }
+}
+
+/**
+ * Determines next stage for tree structure
+ */
+function determineNextStageTree(
+  currentStageId: string,
+  workflowStages: FetchedWorkflowStage[]
+): { stageId: string; subStageId: string | null } | null {
+  // Flatten the tree to get a sequence-ordered list of all stages
+  const allStages: { id: string; sequence_order: number; full_path: string | null }[] = [];
+  
+  function flattenTree(stages: FetchedWorkflowStage[], parentPath = "") {
+    stages.forEach(stage => {
+      const currentPath = parentPath ? `${parentPath}.${stage.sequence_order}` : stage.sequence_order.toString();
+      allStages.push({
+        id: stage.id,
+        sequence_order: stage.sequence_order,
+        full_path: currentPath
+      });
+      
+      if (stage.sub_stages && stage.sub_stages.length > 0) {
+        flattenTree(stage.sub_stages, currentPath);
+      }
+    });
+  }
+  
+  flattenTree(workflowStages);
+  
+  console.log(`[determineNextStageTree] Flattened ${allStages.length} stages:`, allStages.map(s => ({ id: s.id, path: s.full_path })));
+  
+  // Sort by full path to get the correct sequence
+  allStages.sort((a, b) => {
+    const aPath = a.full_path?.split('.').map(Number) || [a.sequence_order];
+    const bPath = b.full_path?.split('.').map(Number) || [b.sequence_order];
+    
+    for (let i = 0; i < Math.max(aPath.length, bPath.length); i++) {
+      const aVal = aPath[i] || 0;
+      const bVal = bPath[i] || 0;
+      if (aVal !== bVal) return aVal - bVal;
+    }
+    return 0;
+  });
+  
+  console.log(`[determineNextStageTree] Sorted stages:`, allStages.map(s => ({ id: s.id, path: s.full_path })));
+  
+  // Find current stage and return next
+  const currentIndex = allStages.findIndex(stage => stage.id === currentStageId);
+  console.log(`[determineNextStageTree] Current stage ${currentStageId} found at index: ${currentIndex}`);
+  
+  if (currentIndex === -1 || currentIndex === allStages.length - 1) {
+    console.log(`[determineNextStageTree] No next stage found (current index: ${currentIndex}, total: ${allStages.length})`);
+    return null;
+  }
+  
+  const nextStage = allStages[currentIndex + 1];
+  console.log(`[determineNextStageTree] Next stage found:`, nextStage);
+  return { stageId: nextStage.id, subStageId: null };
+}
+
+/**
+ * Legacy flat structure logic
+ */
+function determineNextStageFlat(
   currentStageId: string,
   currentSubStageId: string | null,
   workflowStages: WorkflowStage[]
@@ -29,7 +146,7 @@ export function determineNextStage(
     console.error(
       `determineNextStage: Current stage ID ${currentStageId} not found in workflow.`
     );
-    return null; // Current stage doesn't exist in the provided workflow
+    return null;
   }
 
   const currentStage = workflowStages[currentStageIndex];
@@ -45,7 +162,7 @@ export function determineNextStage(
       console.error(
         `determineNextStage: Current sub-stage ID ${currentSubStageId} not found in stage ${currentStageId}.`
       );
-      return null; // Data inconsistency
+      return null;
     }
 
     // Case 1a: There is a next sub-stage within the current stage
@@ -53,40 +170,119 @@ export function determineNextStage(
       const nextSubStage = currentSubStages[currentSubStageIndex + 1];
       return { stageId: currentStageId, subStageId: nextSubStage.id };
     }
-    // Case 1b: This was the last sub-stage; move to the next main stage
-    // Fall through to Case 2 logic below
   }
 
-  // Case 2: Currently at a main stage (or finished the last sub-stage of the current main stage)
-  // Find the next main stage in the sequence
+  // Case 2: Find the next main stage
   if (currentStageIndex < workflowStages.length - 1) {
     const nextStage = workflowStages[currentStageIndex + 1];
     const nextSubStages = nextStage.sub_stages ?? [];
 
-    // Case 2a: The next main stage has sub-stages; move to its first sub-stage
     if (nextSubStages.length > 0) {
       return { stageId: nextStage.id, subStageId: nextSubStages[0].id };
-    }
-    // Case 2b: The next main stage has no sub-stages; move directly to it
-    else {
+    } else {
       return { stageId: nextStage.id, subStageId: null };
     }
   }
 
-  // Case 3: Currently at the last main stage (and potentially its last sub-stage)
-  // This is the end of the workflow
   return null;
 }
 
 /**
  * Determines the previous stage and/or sub-stage in the workflow sequence.
  * Used for actions like "Send Back" or "Rework".
+ * Updated to work with tree structure - in tree structure, sub_stage_id is not used.
  * @param currentStageId The ID of the item's current stage.
- * @param currentSubStageId The ID of the item's current sub-stage (null if none).
- * @param workflowStages The ordered list of stages and their ordered sub-stages for the organization.
+ * @param currentSubStageId The ID of the item's current sub-stage (null if none) - DEPRECATED in tree structure.
+ * @param workflowStages The workflow stages (can be tree structure or flat).
  * @returns An object containing the previous { stageId, subStageId } or null if at the start of the workflow.
  */
 export function determinePreviousStage(
+  currentStageId: string,
+  currentSubStageId: string | null,
+  workflowStages: WorkflowStage[] | FetchedWorkflowStage[]
+): { stageId: string; subStageId: string | null } | null {
+  // Check if we're working with tree structure
+  const isTreeStructure = workflowStages.length > 0 && 'parent_stage_id' in workflowStages[0];
+  
+  console.log(`[determinePreviousStage] Current stage: ${currentStageId}, isTreeStructure: ${isTreeStructure}, total stages: ${workflowStages.length}`);
+  
+  if (isTreeStructure) {
+    // Tree structure logic
+    const treeStages = workflowStages as FetchedWorkflowStage[];
+    const result = determinePreviousStageTree(currentStageId, treeStages);
+    console.log(`[determinePreviousStage] Tree result:`, result);
+    return result;
+  } else {
+    // Legacy flat structure logic
+    const flatStages = workflowStages as WorkflowStage[];
+    const result = determinePreviousStageFlat(currentStageId, currentSubStageId, flatStages);
+    console.log(`[determinePreviousStage] Flat result:`, result);
+    return result;
+  }
+}
+
+/**
+ * Determines previous stage for tree structure
+ */
+function determinePreviousStageTree(
+  currentStageId: string,
+  workflowStages: FetchedWorkflowStage[]
+): { stageId: string; subStageId: string | null } | null {
+  // Flatten the tree to get a sequence-ordered list of all stages
+  const allStages: { id: string; sequence_order: number; full_path: string | null }[] = [];
+  
+  function flattenTree(stages: FetchedWorkflowStage[], parentPath = "") {
+    stages.forEach(stage => {
+      const currentPath = parentPath ? `${parentPath}.${stage.sequence_order}` : stage.sequence_order.toString();
+      allStages.push({
+        id: stage.id,
+        sequence_order: stage.sequence_order,
+        full_path: currentPath
+      });
+      
+      if (stage.sub_stages && stage.sub_stages.length > 0) {
+        flattenTree(stage.sub_stages, currentPath);
+      }
+    });
+  }
+  
+  flattenTree(workflowStages);
+  
+  console.log(`[determinePreviousStageTree] Flattened ${allStages.length} stages:`, allStages.map(s => ({ id: s.id, path: s.full_path })));
+  
+  // Sort by full path to get the correct sequence
+  allStages.sort((a, b) => {
+    const aPath = a.full_path?.split('.').map(Number) || [a.sequence_order];
+    const bPath = b.full_path?.split('.').map(Number) || [b.sequence_order];
+    
+    for (let i = 0; i < Math.max(aPath.length, bPath.length); i++) {
+      const aVal = aPath[i] || 0;
+      const bVal = bPath[i] || 0;
+      if (aVal !== bVal) return aVal - bVal;
+    }
+    return 0;
+  });
+  
+  console.log(`[determinePreviousStageTree] Sorted stages:`, allStages.map(s => ({ id: s.id, path: s.full_path })));
+  
+  // Find current stage and return previous
+  const currentIndex = allStages.findIndex(stage => stage.id === currentStageId);
+  console.log(`[determinePreviousStageTree] Current stage ${currentStageId} found at index: ${currentIndex}`);
+  
+  if (currentIndex === -1 || currentIndex === 0) {
+    console.log(`[determinePreviousStageTree] No previous stage found (current index: ${currentIndex}, total: ${allStages.length})`);
+    return null;
+  }
+  
+  const previousStage = allStages[currentIndex - 1];
+  console.log(`[determinePreviousStageTree] Previous stage found:`, previousStage);
+  return { stageId: previousStage.id, subStageId: null };
+}
+
+/**
+ * Legacy flat structure logic
+ */
+function determinePreviousStageFlat(
   currentStageId: string,
   currentSubStageId: string | null,
   workflowStages: WorkflowStage[]
@@ -153,8 +349,6 @@ export function determinePreviousStage(
   return null;
 }
 
-import { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure"; // Import the EXPORTED type
-
 // --- NEW FUNCTION --- //
 interface SubsequentStageInfo {
   id: string;
@@ -164,8 +358,16 @@ interface SubsequentStageInfo {
   parentStageName?: string | null;
 }
 
+interface PreviousStageInfo {
+  id: string;
+  name: string | null;
+  isSubStage?: boolean;
+  parentStageId?: string;
+  parentStageName?: string | null;
+}
+
 export function getSubsequentStages(
-  workflowData: FetchedWorkflowStage[], // Use the type from the hook
+  workflowData: FetchedWorkflowStage[],
   currentStageId: string,
   currentSubStageId: string | null | undefined
 ): SubsequentStageInfo[] {
@@ -174,73 +376,180 @@ export function getSubsequentStages(
     return [];
   }
 
-  // Find the current stage's index
-  const currentStageIndex = workflowData.findIndex(
-    (stage) => stage.id === currentStageId
-  );
-
-  if (currentStageIndex === -1) {
+  // Flatten the tree to get all stages in sequence order
+  const allStages: { stage: FetchedWorkflowStage; path: string; isLeaf: boolean }[] = [];
+  
+  function flattenTree(stages: FetchedWorkflowStage[], parentPath = "") {
+    stages.forEach(stage => {
+      const currentPath = parentPath ? `${parentPath}.${stage.sequence_order}` : stage.sequence_order.toString();
+      const isLeaf = !stage.sub_stages || stage.sub_stages.length === 0;
+      
+      // Only add leaf stages as they can receive items
+      if (isLeaf) {
+        allStages.push({
+          stage,
+          path: currentPath,
+          isLeaf
+        });
+      }
+      
+      if (stage.sub_stages && stage.sub_stages.length > 0) {
+        flattenTree(stage.sub_stages, currentPath);
+      }
+    });
+  }
+  
+  flattenTree(workflowData);
+  
+  // Sort by path to get the correct sequence
+  allStages.sort((a, b) => {
+    const aPath = a.path.split('.').map(Number);
+    const bPath = b.path.split('.').map(Number);
+    
+    for (let i = 0; i < Math.max(aPath.length, bPath.length); i++) {
+      const aVal = aPath[i] || 0;
+      const bVal = bPath[i] || 0;
+      if (aVal !== bVal) return aVal - bVal;
+    }
+    return 0;
+  });
+  
+  // Find current stage index and return all subsequent stages
+  const currentIndex = allStages.findIndex(item => item.stage.id === currentStageId);
+  if (currentIndex === -1) {
     console.error("getSubsequentStages: Current stage not found");
     return [];
   }
+  
+  // Add all subsequent stages
+  for (let i = currentIndex + 1; i < allStages.length; i++) {
+    const item = allStages[i];
+    const stage = item.stage;
+    
+    // Build breadcrumb name from full_path or fallback to stage name
+    const breadcrumbName = stage.full_path || stage.name;
+    
+    subsequent.push({
+      id: stage.id,
+      name: breadcrumbName,
+      isSubStage: stage.depth_level > 0,
+      parentStageId: stage.parent_stage_id,
+      parentStageName: stage.parent_stage_id ? findParentStageName(workflowData, stage.parent_stage_id) : null,
+    });
+  }
+  
+  return subsequent;
+}
 
-  const currentStage = workflowData[currentStageIndex];
+export function getPreviousStages(
+  workflowData: FetchedWorkflowStage[],
+  currentStageId: string,
+  currentSubStageId: string | null | undefined
+): PreviousStageInfo[] {
+  console.log(`[getPreviousStages] Called with:`, {
+    workflowDataLength: workflowData?.length || 0,
+    currentStageId,
+    currentSubStageId
+  });
 
-  // If we're currently in a sub-stage, check if there are more sub-stages in the current stage
-  if (
-    currentSubStageId &&
-    currentStage.sub_stages &&
-    currentStage.sub_stages.length > 0
-  ) {
-    const currentSubStageIndex = currentStage.sub_stages.findIndex(
-      (subStage) => subStage.id === currentSubStageId
-    );
+  const previous: PreviousStageInfo[] = [];
+  if (!workflowData || workflowData.length === 0) {
+    console.log(`[getPreviousStages] No workflow data, returning empty array`);
+    return [];
+  }
 
-    if (currentSubStageIndex !== -1) {
-      // Add remaining sub-stages in the current stage
-      for (
-        let i = currentSubStageIndex + 1;
-        i < currentStage.sub_stages.length;
-        i++
-      ) {
-        const subStage = currentStage.sub_stages[i];
-        subsequent.push({
-          id: subStage.id,
-          name: `${currentStage.name} > ${subStage.name}`,
-          isSubStage: true,
-          parentStageId: currentStage.id,
-          parentStageName: currentStage.name,
+  // Flatten the tree to get all stages in sequence order
+  const allStages: { stage: FetchedWorkflowStage; path: string; isLeaf: boolean }[] = [];
+  
+  function flattenTree(stages: FetchedWorkflowStage[], parentPath = "") {
+    stages.forEach(stage => {
+      const currentPath = parentPath ? `${parentPath}.${stage.sequence_order}` : stage.sequence_order.toString();
+      const isLeaf = !stage.sub_stages || stage.sub_stages.length === 0;
+      
+      // Only add leaf stages as they can receive items
+      if (isLeaf) {
+        allStages.push({
+          stage,
+          path: currentPath,
+          isLeaf
         });
       }
-    }
+      
+      if (stage.sub_stages && stage.sub_stages.length > 0) {
+        flattenTree(stage.sub_stages, currentPath);
+      }
+    });
   }
-
-  // Add all subsequent main stages and their sub-stages
-  for (let i = currentStageIndex + 1; i < workflowData.length; i++) {
-    const stage = workflowData[i];
-
-    // If the stage has sub-stages, add each sub-stage as an option
-    if (stage.sub_stages && stage.sub_stages.length > 0) {
-      stage.sub_stages.forEach((subStage) => {
-        subsequent.push({
-          id: subStage.id,
-          name: `${stage.name} > ${subStage.name}`,
-          isSubStage: true,
-          parentStageId: stage.id,
-          parentStageName: stage.name,
-        });
-      });
-    } else {
-      // If no sub-stages, add the stage itself
-      subsequent.push({
-        id: stage.id,
-        name: stage.name,
-        isSubStage: false,
-      });
+  
+  flattenTree(workflowData);
+  
+  console.log(`[getPreviousStages] Flattened ${allStages.length} leaf stages:`, 
+    allStages.map(s => ({ id: s.stage.id, name: s.stage.name, path: s.path, isLeaf: s.isLeaf }))
+  );
+  
+  // Sort by path to get the correct sequence
+  allStages.sort((a, b) => {
+    const aPath = a.path.split('.').map(Number);
+    const bPath = b.path.split('.').map(Number);
+    
+    for (let i = 0; i < Math.max(aPath.length, bPath.length); i++) {
+      const aVal = aPath[i] || 0;
+      const bVal = bPath[i] || 0;
+      if (aVal !== bVal) return aVal - bVal;
     }
+    return 0;
+  });
+  
+  console.log(`[getPreviousStages] Sorted stages:`, 
+    allStages.map(s => ({ id: s.stage.id, name: s.stage.name, path: s.path }))
+  );
+  
+  // Find current stage index and return all previous stages
+  const currentIndex = allStages.findIndex(item => item.stage.id === currentStageId);
+  console.log(`[getPreviousStages] Current stage ${currentStageId} found at index: ${currentIndex}`);
+  
+  if (currentIndex === -1) {
+    console.error("getPreviousStages: Current stage not found in flattened stages");
+    return [];
   }
+  
+  // Add all previous stages
+  for (let i = 0; i < currentIndex; i++) {
+    const item = allStages[i];
+    const stage = item.stage;
+    
+    // Build breadcrumb name from full_path or fallback to stage name
+    const breadcrumbName = stage.full_path || stage.name;
+    
+    previous.push({
+      id: stage.id,
+      name: breadcrumbName,
+      isSubStage: stage.depth_level > 0,
+      parentStageId: stage.parent_stage_id,
+      parentStageName: stage.parent_stage_id ? findParentStageName(workflowData, stage.parent_stage_id) : null,
+    });
+  }
+  
+  console.log(`[getPreviousStages] Returning ${previous.length} previous stages:`, previous);
+  return previous;
+}
 
-  return subsequent;
+// Helper function to find parent stage name
+function findParentStageName(workflowData: FetchedWorkflowStage[], parentId: string): string | null {
+  function searchInStages(stages: FetchedWorkflowStage[]): string | null {
+    for (const stage of stages) {
+      if (stage.id === parentId) {
+        return stage.name;
+      }
+      if (stage.sub_stages && stage.sub_stages.length > 0) {
+        const found = searchInStages(stage.sub_stages);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+  
+  return searchInStages(workflowData);
 }
 
 /**
@@ -274,35 +583,46 @@ export function isLastWorkflowStage(
   subStageId: string | null,
   workflowStages: FetchedWorkflowStage[]
 ): boolean {
-  // Filter out the "Completed" stage from regular workflow stages
-  const regularWorkflowStages = workflowStages.filter(
-    (stage) => stage.name !== "Completed"
-  );
-
-  if (regularWorkflowStages.length === 0) {
-    return false;
+  // Get all leaf stages (stages that can actually contain items)
+  const allLeafStages: { id: string; path: string }[] = [];
+  
+  function collectLeafStages(stages: FetchedWorkflowStage[], parentPath = "") {
+    stages.forEach(stage => {
+      // Skip "Completed" stage
+      if (stage.name === "Completed") return;
+      
+      const currentPath = parentPath ? `${parentPath}.${stage.sequence_order}` : stage.sequence_order.toString();
+      
+      if (!stage.sub_stages || stage.sub_stages.length === 0) {
+        // This is a leaf stage
+        allLeafStages.push({ id: stage.id, path: currentPath });
+      } else {
+        // Recursively collect from sub-stages
+        collectLeafStages(stage.sub_stages, currentPath);
+      }
+    });
   }
-
-  // Sort by sequence order
-  regularWorkflowStages.sort((a, b) => a.sequence_order - b.sequence_order);
-
-  const lastStage = regularWorkflowStages[regularWorkflowStages.length - 1];
-
-  // If we're in the last stage
-  if (stageId === lastStage.id) {
-    // If there are sub-stages, check if we're in the last sub-stage
-    if (lastStage.sub_stages && lastStage.sub_stages.length > 0) {
-      const lastSubStage = lastStage.sub_stages.sort(
-        (a, b) => a.sequence_order - b.sequence_order
-      )[lastStage.sub_stages.length - 1];
-      return subStageId === lastSubStage.id;
-    } else {
-      // No sub-stages, so being in this stage means we're at the end
-      return true;
+  
+  collectLeafStages(workflowStages);
+  
+  if (allLeafStages.length === 0) return false;
+  
+  // Sort by path to get the correct sequence
+  allLeafStages.sort((a, b) => {
+    const aPath = a.path.split('.').map(Number);
+    const bPath = b.path.split('.').map(Number);
+    
+    for (let i = 0; i < Math.max(aPath.length, bPath.length); i++) {
+      const aVal = aPath[i] || 0;
+      const bVal = bPath[i] || 0;
+      if (aVal !== bVal) return aVal - bVal;
     }
-  }
-
-  return false;
+    return 0;
+  });
+  
+  // Check if current stage is the last leaf stage
+  const lastLeafStage = allLeafStages[allLeafStages.length - 1];
+  return stageId === lastLeafStage.id;
 }
 
 /**

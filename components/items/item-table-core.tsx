@@ -169,6 +169,7 @@ interface ItemTableCoreProps {
 export interface ItemTableCoreHandles {
   getSelectedItemsData: () => ItemInStage[];
   refetch: () => Promise<any>;
+  getCurrentStageSKU: () => string | null;
 }
 
 const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
@@ -286,6 +287,10 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       },
       refetch: () => {
         return refetchItems();
+      },
+      getCurrentStageSKU: () => {
+        // Since all items in a stage have the same SKU, get it from the first item
+        return items && items.length > 0 ? items[0].sku : null;
       },
     }));
 
@@ -470,14 +475,7 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
             item={itemForSingleRework}
             onConfirmRework={handleConfirmSingleRework}
             isProcessing={isReworkingItems}
-            availableStages={
-              workflowData?.map((stage) => ({
-                id: stage.id,
-                name: stage.name,
-                sequence_order: stage.sequence_order,
-                sub_stages: stage.sub_stages,
-              })) || []
-            }
+            workflowData={workflowData}
             userRole={userRole}
           />
         )}
@@ -489,14 +487,7 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
             itemsToRework={itemsForBulkRework}
             onConfirmBulkRework={handleConfirmBulkRework}
             isProcessing={isReworkingItems}
-            availableStages={
-              workflowData?.map((stage) => ({
-                id: stage.id,
-                name: stage.name,
-                sequence_order: stage.sequence_order,
-                sub_stages: stage.sub_stages,
-              })) || []
-            }
+            workflowData={workflowData}
             userRole={userRole}
           />
         )}

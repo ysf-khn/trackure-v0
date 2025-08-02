@@ -25,6 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
+import { getPreviousStages } from "@/lib/workflow-utils";
 
 export interface ItemForBulkRework {
   id: string;
@@ -38,16 +40,7 @@ interface BulkReworkQuantityModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   itemsToRework: ItemForBulkRework[];
-  availableStages: {
-    id: string;
-    name: string | null;
-    sequence_order: number;
-    sub_stages?: {
-      id: string;
-      name: string | null;
-      sequence_order: number;
-    }[];
-  }[];
+  workflowData?: FetchedWorkflowStage[];
   onConfirmBulkRework: (
     reworkedItems: { id: string; quantity: number }[],
     reason: string,
@@ -62,7 +55,7 @@ export function BulkReworkQuantityModal({
   isOpen,
   onOpenChange,
   itemsToRework,
-  availableStages,
+  workflowData,
   onConfirmBulkRework,
   isProcessing,
   userRole,
@@ -75,61 +68,28 @@ export function BulkReworkQuantityModal({
   const [selectedStageId, setSelectedStageId] = useState("");
   const [downloadVouchers, setDownloadVouchers] = useState<boolean>(false);
 
-  // Calculate valid rework target options based on the first item (assuming all items are in similar stages for bulk rework)
+  // Get rework target options using tree structure based on the first item
   const reworkTargetOptions = React.useMemo(() => {
-    const options: { id: string; name: string | null }[] = [];
-
-    // Use the first item as reference for bulk rework filtering
-    if (itemsToRework.length === 0) return options;
-
-    const referenceItem = itemsToRework[0];
-    const currentStage = availableStages.find(
-      (s) => s.id === referenceItem.currentStageId
-    );
-    const currentStageSequence = currentStage?.sequence_order ?? Infinity;
-
-    // Add all stages before the current stage (and their substages)
-    availableStages
-      .filter((stage) => stage.sequence_order < currentStageSequence)
-      .forEach((stage) => {
-        if (stage.sub_stages && stage.sub_stages.length > 0) {
-          // If stage has substages, add all substages
-          stage.sub_stages.forEach((subStage) => {
-            options.push({
-              id: subStage.id,
-              name: `${stage.name} > ${subStage.name || "Unnamed Substage"}`,
-            });
-          });
-        } else {
-          // If no substages, add the stage itself
-          options.push({
-            id: stage.id,
-            name: stage.name,
-          });
-        }
-      });
-
-    // If the reference item is in a substage, also add earlier substages within the same parent stage
-    if (referenceItem.currentSubStageId && currentStage?.sub_stages) {
-      const currentSubStage = currentStage.sub_stages.find(
-        (sub) => sub.id === referenceItem.currentSubStageId
-      );
-      const currentSubStageSequence =
-        currentSubStage?.sequence_order ?? Infinity;
-
-      // Add substages that come before the current substage within the same parent stage
-      currentStage.sub_stages
-        .filter((sub) => sub.sequence_order < currentSubStageSequence)
-        .forEach((subStage) => {
-          options.push({
-            id: subStage.id,
-            name: `${currentStage.name} > ${subStage.name || "Unnamed Substage"}`,
-          });
-        });
+    if (!workflowData || workflowData.length === 0 || itemsToRework.length === 0) {
+      return [];
     }
 
-    return options;
-  }, [availableStages, itemsToRework]);
+    // Use the first item as reference for bulk rework filtering
+    const referenceItem = itemsToRework[0];
+
+    // Use getPreviousStages to get all valid rework targets
+    const previousStages = getPreviousStages(
+      workflowData,
+      referenceItem.currentStageId,
+      referenceItem.currentSubStageId
+    );
+
+    // Convert to the format expected by the select component
+    return previousStages.map(stage => ({
+      id: stage.id,
+      name: stage.name || `Stage ${stage.id}`,
+    }));
+  }, [workflowData, itemsToRework]);
 
   useEffect(() => {
     if (isOpen) {
@@ -177,40 +137,16 @@ export function BulkReworkQuantityModal({
       return;
     }
 
-    // Find the selected stage/substage in the available stages
-    let targetStageId = selectedStageId;
-    let targetStageIdForVoucher = selectedStageId; // For voucher generation
-    let isSubStage = false;
-
-    // Look through all stages and their substages to find the selected ID
-    for (const stage of availableStages) {
-      if (stage.id === selectedStageId) {
-        // It's a main stage
-        targetStageId = selectedStageId;
-        targetStageIdForVoucher = selectedStageId;
-        break;
-      }
-      // Check substages
-      if (stage.sub_stages) {
-        const foundSubStage = stage.sub_stages.find(
-          (sub) => sub.id === selectedStageId
-        );
-        if (foundSubStage) {
-          // It's a substage, use the parent stage's ID for rework operation
-          targetStageId = stage.id;
-          // But use the actual sub-stage ID for voucher
-          targetStageIdForVoucher = selectedStageId;
-          isSubStage = true;
-          break;
-        }
-      }
-    }
+    // In tree structure, the selected stage ID is always the target stage ID
+    // No sub-stage complexity needed
+    const targetStageId = selectedStageId;
+    const targetStageIdForVoucher = selectedStageId; // For voucher generation
 
     onConfirmBulkRework(
       itemsToSubmit,
       reworkReason.trim(),
       targetStageId,
-      isSubStage ? selectedStageId : null
+      null // sub_stage_id is always null in tree structure
     );
 
     if (userRole === "Owner" && downloadVouchers) {

@@ -2,6 +2,7 @@ import { determinePreviousStage, WorkflowStage } from "@/lib/workflow-utils";
 import { createClient } from "@/utils/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
 
 // Zod schema for input validation - Updated for items with quantity
 const reworkInputSchema = z.object({
@@ -122,18 +123,47 @@ export async function POST(request: NextRequest) {
   } = parseResult.data;
 
   try {
-    // Fetch workflow configuration
-    const { data: workflowStagesData, error: workflowError } = await supabase
+    // First, get the SKU of the first item to determine the workflow
+    const firstItemId = itemsToRework[0]?.id;
+    let itemSKU: string | null = null;
+    
+    if (firstItemId) {
+      const { data: itemData, error: itemError } = await supabase
+        .from("items")
+        .select("sku")
+        .eq("id", firstItemId)
+        .single();
+      
+      if (!itemError && itemData) {
+        itemSKU = itemData.sku;
+      }
+    }
+
+    // Fetch workflow configuration using the new tree structure
+    // Filter by SKU if available, otherwise get organization default
+    let workflowQuery = supabase
       .from("workflow_stages")
-      .select(
-        "id, sequence_order, sub_stages:workflow_sub_stages ( id, sequence_order )"
-      )
+      .select(`
+        id,
+        name,
+        sequence_order,
+        location,
+        parent_stage_id,
+        depth_level,
+        full_path,
+        is_leaf_stage,
+        sku
+      `)
       .eq("organization_id", organizationId)
-      .order("sequence_order", { ascending: true })
-      .order("sequence_order", {
-        foreignTable: "workflow_sub_stages",
-        ascending: true,
-      });
+      .order("sequence_order", { ascending: true });
+
+    if (itemSKU) {
+      workflowQuery = workflowQuery.eq("sku", itemSKU);
+    } else {
+      workflowQuery = workflowQuery.is("sku", null);
+    }
+
+    const { data: workflowStagesData, error: workflowError } = await workflowQuery;
 
     if (workflowError || !workflowStagesData) {
       console.error("Rework API Workflow Fetch Error:", workflowError);
@@ -143,16 +173,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate that target stage exists in workflow
-    const targetStageExists = workflowStagesData.some(
-      (stage) => stage.id === target_rework_stage_id
-    );
-    if (!targetStageExists) {
+    // Build tree structure from flat data
+    const buildTree = (stages: any[], parentId: string | null = null): FetchedWorkflowStage[] => {
+      return stages
+        .filter(stage => stage.parent_stage_id === parentId)
+        .map(stage => ({
+          ...stage,
+          sub_stages: buildTree(stages, stage.id)
+        }))
+        .sort((a, b) => a.sequence_order - b.sequence_order);
+    };
+
+    const workflowStages: FetchedWorkflowStage[] = buildTree(workflowStagesData);
+
+    // Helper function to find a stage anywhere in the tree structure
+    const findStageInTree = (stages: FetchedWorkflowStage[], targetId: string): FetchedWorkflowStage | undefined => {
+      for (const stage of stages) {
+        if (stage.id === targetId) {
+          return stage;
+        }
+        if (stage.sub_stages && stage.sub_stages.length > 0) {
+          const found = findStageInTree(stage.sub_stages, targetId);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+
+    // Validate that target stage exists in workflow using tree search
+    const targetStage = findStageInTree(workflowStages, target_rework_stage_id);
+    if (!targetStage) {
       return NextResponse.json(
         { error: "Invalid target stage: Stage not found in workflow." },
         { status: 400 }
       );
     }
+
+    console.log(`[Rework API] Target stage found:`, {
+      id: targetStage.id,
+      name: targetStage.name,
+      full_path: targetStage.full_path,
+      sku: itemSKU
+    });
 
     const results = [];
     const errors = [];
@@ -166,8 +228,9 @@ export async function POST(request: NextRequest) {
         source_sub_stage_id,
       } = itemInput;
 
-      // Fetch current item allocation state - now with stage filters
-      let { data: currentAllocation, error: allocationError } = await supabase
+      // Fetch current item allocation state for tree structure
+      // In tree structure, there are no sub-stages, only stage allocations
+      const { data: currentAllocation, error: allocationError } = await supabase
         .from("item_stage_allocations")
         .select("id, stage_id, sub_stage_id, quantity, organization_id")
         .eq("item_id", itemId)
@@ -175,57 +238,44 @@ export async function POST(request: NextRequest) {
         .eq("stage_id", source_stage_id)
         .single();
 
-      // Add sub-stage filter if it exists
-      if (source_sub_stage_id) {
-        const { data: subStageAllocation, error: subStageError } =
-          await supabase
-            .from("item_stage_allocations")
-            .select("id, stage_id, sub_stage_id, quantity, organization_id")
-            .eq("item_id", itemId)
-            .eq("organization_id", organizationId)
-            .eq("stage_id", source_stage_id)
-            .eq("sub_stage_id", source_sub_stage_id)
-            .single();
-
-        if (subStageError || !subStageAllocation) {
-          errors.push({
-            itemId,
-            error: `Allocation for item not found in specified sub-stage. ${subStageError?.message || ""}`,
-          });
-          continue;
-        }
-
-        if (requestedQuantity > subStageAllocation.quantity) {
-          errors.push({
-            itemId,
-            error: `Requested rework quantity (${requestedQuantity}) exceeds available quantity (${subStageAllocation.quantity}) in sub-stage.`,
-          });
-          continue;
-        }
-
-        // Use the sub-stage allocation
-        currentAllocation = subStageAllocation;
-      } else {
-        // If no sub-stage, use the stage allocation
-        if (allocationError || !currentAllocation) {
-          errors.push({
-            itemId,
-            error: `Allocation for item not found in specified stage. ${allocationError?.message || ""}`,
-          });
-          continue;
-        }
-
-        if (requestedQuantity > currentAllocation.quantity) {
-          errors.push({
-            itemId,
-            error: `Requested rework quantity (${requestedQuantity}) exceeds available quantity (${currentAllocation.quantity}) in stage.`,
-          });
-          continue;
-        }
+      if (allocationError || !currentAllocation) {
+        console.error(`[Rework API] Allocation not found:`, {
+          itemId,
+          source_stage_id,
+          error: allocationError?.message
+        });
+        errors.push({
+          itemId,
+          error: `Allocation for item not found in specified stage. ${allocationError?.message || ""}`,
+        });
+        continue;
       }
+
+      if (requestedQuantity > currentAllocation.quantity) {
+        console.error(`[Rework API] Insufficient quantity:`, {
+          itemId,
+          requestedQuantity,
+          availableQuantity: currentAllocation.quantity
+        });
+        errors.push({
+          itemId,
+          error: `Requested rework quantity (${requestedQuantity}) exceeds available quantity (${currentAllocation.quantity}) in stage.`,
+        });
+        continue;
+      }
+
+      console.log(`[Rework API] Found allocation:`, {
+        itemId,
+        allocationId: currentAllocation.id,
+        stageId: currentAllocation.stage_id,
+        quantity: currentAllocation.quantity,
+        requestedQuantity,
+        moveType: requestedQuantity === currentAllocation.quantity ? "FULL_REWORK" : "PARTIAL_REWORK"
+      });
 
       // Handle the source allocation for Rework
       if (requestedQuantity === currentAllocation.quantity) {
+        console.log(`[Rework API] Processing full rework for item ${itemId}`);
         // FULL REWORK from source: Delete the source allocation
         const { error: deleteSourceError } = await supabase
           .from("item_stage_allocations")
@@ -262,21 +312,14 @@ export async function POST(request: NextRequest) {
       }
 
       // Handle the target allocation for Rework
-      let targetAllocationQuery = supabase
+      // In tree structure, sub_stage_id is always null, so we only filter by stage_id
+      const targetAllocationQuery = supabase
         .from("item_stage_allocations")
         .select("id, quantity")
         .eq("item_id", itemId)
         .eq("organization_id", organizationId)
-        .eq("stage_id", target_rework_stage_id);
-
-      if (target_rework_sub_stage_id === null) {
-        targetAllocationQuery = targetAllocationQuery.is("sub_stage_id", null);
-      } else {
-        targetAllocationQuery = targetAllocationQuery.eq(
-          "sub_stage_id",
-          target_rework_sub_stage_id
-        );
-      }
+        .eq("stage_id", target_rework_stage_id)
+        .is("sub_stage_id", null);
 
       const { data: targetAllocation, error: targetAllocationFetchError } =
         await targetAllocationQuery.limit(1).single();
@@ -312,11 +355,12 @@ export async function POST(request: NextRequest) {
         }
       } else {
         // No target allocation exists: Create a new one
+        // In tree structure, sub_stage_id is always null
         const newAllocationData = {
           item_id: itemId,
           organization_id: organizationId,
           stage_id: target_rework_stage_id,
-          sub_stage_id: target_rework_sub_stage_id,
+          sub_stage_id: null, // Always null in tree structure
           quantity: requestedQuantity,
           created_at: timestamp,
           updated_at: timestamp,
@@ -336,14 +380,15 @@ export async function POST(request: NextRequest) {
       }
 
       // Insert movement history record
+      // In tree structure, sub_stage_ids are always null
       const { error: movementLogInsertError } = await supabase
         .from("item_movement_history")
         .insert({
           item_id: itemId,
           from_stage_id: currentAllocation.stage_id,
-          from_sub_stage_id: currentAllocation.sub_stage_id,
+          from_sub_stage_id: null, // Always null in tree structure
           to_stage_id: target_rework_stage_id,
-          to_sub_stage_id: target_rework_sub_stage_id,
+          to_sub_stage_id: null, // Always null in tree structure
           quantity: requestedQuantity,
           moved_at: timestamp,
           moved_by: user.id,
@@ -358,6 +403,12 @@ export async function POST(request: NextRequest) {
         });
         continue;
       }
+
+      console.log(`[Rework API] Successfully completed rework for item ${itemId}:`, {
+        targetStageId: target_rework_stage_id,
+        quantity: requestedQuantity,
+        reason: rework_reason
+      });
 
       results.push({
         itemId,

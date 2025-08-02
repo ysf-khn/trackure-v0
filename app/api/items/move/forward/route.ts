@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
 import { determineNextStage, WorkflowStage } from "@/lib/workflow-utils";
+import { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
 
 // Use the specific type from the utils file if needed, or define locally
 // type FetchedStage = {
@@ -68,6 +69,13 @@ export async function POST(request: Request) {
   const { items, target_stage_id, target_sub_stage_id, source_stage_id } =
     validationResult.data;
 
+  console.log(`[Move Forward API] Request params:`, {
+    items: items.map(i => ({ id: i.id, quantity: i.quantity })),
+    target_stage_id,
+    target_sub_stage_id,
+    source_stage_id
+  });
+
   // Fetch user profile to get organization_id and role (adjust table/column names)
   const { data: profile, error: profileError } = await supabase
     .from("profiles") // Assuming 'profiles' table stores org and role
@@ -117,22 +125,48 @@ export async function POST(request: Request) {
   const organizationId = profile.organization_id;
 
   try {
-    // Fetch workflow configuration for the organization once
-    const { data: workflowStagesData, error: workflowError } = await supabase
+    // First, get the SKU of the first item to determine the workflow
+    // In a proper implementation, we should handle mixed SKUs differently
+    const firstItemId = items[0]?.id;
+    let itemSKU: string | null = null;
+    
+    if (firstItemId) {
+      const { data: itemData, error: itemError } = await supabase
+        .from("items")
+        .select("sku")
+        .eq("id", firstItemId)
+        .single();
+      
+      if (!itemError && itemData) {
+        itemSKU = itemData.sku;
+      }
+    }
+
+    // Fetch workflow configuration using the new tree structure
+    // Filter by SKU if available, otherwise get organization default
+    let workflowQuery = supabase
       .from("workflow_stages")
-      .select(
-        `
-            id,
-            sequence_order,
-            sub_stages:workflow_sub_stages ( id, sequence_order )
-        `
-      )
+      .select(`
+        id,
+        name,
+        sequence_order,
+        location,
+        parent_stage_id,
+        depth_level,
+        full_path,
+        is_leaf_stage,
+        sku
+      `)
       .eq("organization_id", organizationId)
-      .order("sequence_order", { ascending: true })
-      .order("sequence_order", {
-        foreignTable: "workflow_sub_stages",
-        ascending: true,
-      });
+      .order("sequence_order", { ascending: true });
+
+    if (itemSKU) {
+      workflowQuery = workflowQuery.eq("sku", itemSKU);
+    } else {
+      workflowQuery = workflowQuery.is("sku", null);
+    }
+
+    const { data: workflowStagesData, error: workflowError } = await workflowQuery;
 
     if (workflowError || !workflowStagesData) {
       console.error("Move Forward Workflow Fetch Error:", workflowError);
@@ -142,11 +176,108 @@ export async function POST(request: Request) {
       );
     }
 
-    // Ensure sub_stages is always an array and cast to the expected type
-    const workflowStages: WorkflowStage[] = workflowStagesData.map((stage) => ({
-      ...stage,
-      sub_stages: stage.sub_stages || [],
-    }));
+    // Build tree structure from flat data
+    const buildTree = (stages: any[], parentId: string | null = null): FetchedWorkflowStage[] => {
+      return stages
+        .filter(stage => stage.parent_stage_id === parentId)
+        .map(stage => ({
+          ...stage,
+          sub_stages: buildTree(stages, stage.id)
+        }))
+        .sort((a, b) => a.sequence_order - b.sequence_order);
+    };
+
+    const workflowStages: FetchedWorkflowStage[] = buildTree(workflowStagesData);
+
+    // Helper function to find a stage anywhere in the tree structure
+    const findStageInTree = (stages: FetchedWorkflowStage[], targetId: string): FetchedWorkflowStage | undefined => {
+      for (const stage of stages) {
+        if (stage.id === targetId) {
+          return stage;
+        }
+        if (stage.sub_stages && stage.sub_stages.length > 0) {
+          const found = findStageInTree(stage.sub_stages, targetId);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+
+    // Helper function to determine if source stage comes before target stage in workflow
+    const isStageBeforeInWorkflow = (sourceStage: FetchedWorkflowStage, targetStage: FetchedWorkflowStage): boolean => {
+      console.log(`[isStageBeforeInWorkflow] Comparing:`, {
+        source: { 
+          id: sourceStage.id,
+          name: sourceStage.name, 
+          full_path: sourceStage.full_path, 
+          sequence_order: sourceStage.sequence_order,
+          depth_level: sourceStage.depth_level
+        },
+        target: { 
+          id: targetStage.id,
+          name: targetStage.name, 
+          full_path: targetStage.full_path, 
+          sequence_order: targetStage.sequence_order,
+          depth_level: targetStage.depth_level
+        }
+      });
+      
+      // Use the same tree flattening logic as in workflow-utils.ts to get correct ordering
+      const allStages: { id: string; sequence_order: number; full_path: string | null; position: number }[] = [];
+      
+      const flattenTreeForComparison = (stages: FetchedWorkflowStage[], parentPath = "") => {
+        stages.forEach(stage => {
+          const currentPath = parentPath ? `${parentPath}.${stage.sequence_order}` : stage.sequence_order.toString();
+          allStages.push({
+            id: stage.id,
+            sequence_order: stage.sequence_order,
+            full_path: currentPath,
+            position: allStages.length
+          });
+          
+          if (stage.sub_stages && stage.sub_stages.length > 0) {
+            flattenTreeForComparison(stage.sub_stages, currentPath);
+          }
+        });
+      };
+      
+      flattenTreeForComparison(workflowStages);
+      
+      // Sort by full path to get the correct sequence (same logic as workflow-utils.ts)
+      allStages.sort((a, b) => {
+        const aPath = a.full_path?.split('.').map(Number) || [a.sequence_order];
+        const bPath = b.full_path?.split('.').map(Number) || [b.sequence_order];
+        
+        for (let i = 0; i < Math.max(aPath.length, bPath.length); i++) {
+          const aVal = aPath[i] || 0;
+          const bVal = bPath[i] || 0;
+          if (aVal !== bVal) return aVal - bVal;
+        }
+        return 0;
+      });
+      
+      console.log(`[isStageBeforeInWorkflow] Flattened and sorted stages:`, 
+        allStages.map(s => ({ id: s.id, path: s.full_path }))
+      );
+      
+      // Find positions of source and target stages
+      const sourceIndex = allStages.findIndex(s => s.id === sourceStage.id);
+      const targetIndex = allStages.findIndex(s => s.id === targetStage.id);
+      
+      console.log(`[isStageBeforeInWorkflow] Source index: ${sourceIndex}, Target index: ${targetIndex}`);
+      
+      if (sourceIndex === -1 || targetIndex === -1) {
+        console.log(`[isStageBeforeInWorkflow] Stage not found in flattened tree, using fallback`);
+        // Fallback to sequence order comparison
+        const result = sourceStage.sequence_order < targetStage.sequence_order;
+        console.log(`[isStageBeforeInWorkflow] Using sequence order fallback: ${result}`);
+        return result;
+      }
+      
+      const result = sourceIndex < targetIndex;
+      console.log(`[isStageBeforeInWorkflow] Tree position comparison result: ${result}`);
+      return result;
+    };
 
     // --- Transaction Start ---
     // Note: Supabase JS client doesn't have built-in transactions across multiple awaits easily.
@@ -174,41 +305,29 @@ export async function POST(request: Request) {
 
       if (target_stage_id || target_sub_stage_id) {
         // Determine the target stage for validation
-        let targetStageForValidation: WorkflowStage | undefined;
+        let targetStageForValidation: FetchedWorkflowStage | undefined;
 
         if (target_sub_stage_id) {
-          // Find which stage the target sub-stage belongs to
-
-          for (const stage of workflowStages) {
-            const foundSubStage = stage.sub_stages?.find(
-              (sub) => sub.id === target_sub_stage_id
-            );
-            if (foundSubStage) {
-              targetStageForValidation = stage;
-              console.log("Move Forward API - Found sub-stage in stage:", {
-                stageId: stage.id,
-                subStageId: foundSubStage.id,
-                subStageSequence: foundSubStage.sequence_order,
-              });
-              break;
-            }
-          }
-          if (!targetStageForValidation) {
-            console.log(
-              "Move Forward API - Sub-stage not found in any workflow stage!"
-            );
-          }
-        } else if (target_stage_id) {
-          targetStageForValidation = workflowStages.find(
-            (s) => s.id === target_stage_id
-          );
+          targetStageForValidation = findStageInTree(workflowStages, target_sub_stage_id);
           if (targetStageForValidation) {
-            console.log("Move Forward API - Found stage:", {
+            console.log("Move Forward API - Found sub-stage in tree:", {
               stageId: targetStageForValidation.id,
-              subStagesCount: targetStageForValidation.sub_stages?.length || 0,
+              stageName: targetStageForValidation.name,
+              depthLevel: targetStageForValidation.depth_level,
             });
           } else {
-            console.log("Move Forward API - Stage not found!");
+            console.log("Move Forward API - Sub-stage not found in workflow tree!");
+          }
+        } else if (target_stage_id) {
+          targetStageForValidation = findStageInTree(workflowStages, target_stage_id);
+          if (targetStageForValidation) {
+            console.log("Move Forward API - Found stage in tree:", {
+              stageId: targetStageForValidation.id,
+              stageName: targetStageForValidation.name,
+              depthLevel: targetStageForValidation.depth_level,
+            });
+          } else {
+            console.log("Move Forward API - Stage not found in workflow tree!");
           }
         }
 
@@ -239,9 +358,8 @@ export async function POST(request: Request) {
         } else {
           const validSourceAllocations = potentialSourceAllocations
             .map((alloc) => {
-              const stageDetails = workflowStages.find(
-                (s) => s.id === alloc.stage_id
-              );
+              // Find the stage in the tree structure using the global helper
+              const stageDetails = findStageInTree(workflowStages, alloc.stage_id);
               return { ...alloc, stage: stageDetails };
             })
             .filter((alloc) => {
@@ -249,38 +367,17 @@ export async function POST(request: Request) {
                 return false;
               }
 
-              // If moving to a different stage, require source stage to be before target stage
-              if (
-                alloc.stage.sequence_order <
-                targetStageForValidation.sequence_order
-              ) {
+              // Use tree-aware comparison to check if source comes before target
+              const isBefore = isStageBeforeInWorkflow(alloc.stage, targetStageForValidation);
+              console.log(`[Move Forward API] Comparing stages - Source: ${alloc.stage.full_path || alloc.stage.name} vs Target: ${targetStageForValidation.full_path || targetStageForValidation.name}, isBefore: ${isBefore}`);
+              
+              if (isBefore) {
                 return true;
               }
 
-              // If moving within the same stage (substage movement), allow it
-              if (
-                alloc.stage.sequence_order ===
-                targetStageForValidation.sequence_order
-              ) {
-                // For same stage movements, we need to check if it's a valid substage progression
-                if (target_sub_stage_id && alloc.sub_stage_id) {
-                  const currentSubStage = alloc.stage.sub_stages?.find(
-                    (sub) => sub.id === alloc.sub_stage_id
-                  );
-                  const targetSubStage = alloc.stage.sub_stages?.find(
-                    (sub) => sub.id === target_sub_stage_id
-                  );
-
-                  // Allow if target substage has higher sequence order than current
-                  return (
-                    currentSubStage &&
-                    targetSubStage &&
-                    targetSubStage.sequence_order >
-                      currentSubStage.sequence_order
-                  );
-                }
-                // If no substages involved, allow same stage movement
-                return !target_sub_stage_id && !alloc.sub_stage_id;
+              // Allow same stage if it's the exact same stage (shouldn't happen in normal flow)
+              if (alloc.stage.id === targetStageForValidation.id) {
+                return true;
               }
 
               return false;
@@ -290,26 +387,10 @@ export async function POST(request: Request) {
             // Check for a more specific reason for failure
             const anyBeforeAllocations = potentialSourceAllocations.some(
               (alloc) => {
-                const stageDetails = workflowStages.find(
-                  (s) => s.id === alloc.stage_id
-                );
+                const stageDetails = findStageInTree(workflowStages, alloc.stage_id);
                 return (
                   stageDetails &&
-                  stageDetails.sequence_order <
-                    targetStageForValidation.sequence_order
-                );
-              }
-            );
-
-            const anySameStageAllocations = potentialSourceAllocations.some(
-              (alloc) => {
-                const stageDetails = workflowStages.find(
-                  (s) => s.id === alloc.stage_id
-                );
-                return (
-                  stageDetails &&
-                  stageDetails.sequence_order ===
-                    targetStageForValidation.sequence_order
+                  isStageBeforeInWorkflow(stageDetails, targetStageForValidation)
                 );
               }
             );
@@ -317,10 +398,6 @@ export async function POST(request: Request) {
             if (anyBeforeAllocations) {
               fetchError = {
                 message: `Sufficient quantity (${requestedQuantity}) not found in any single allocation before target stage ${target_stage_id || targetStageForValidation.id}.`,
-              };
-            } else if (anySameStageAllocations && target_sub_stage_id) {
-              fetchError = {
-                message: `No valid allocation found for substage movement. Item may not be in a substage that comes before the target substage ${target_sub_stage_id}.`,
               };
             } else {
               fetchError = {
@@ -385,27 +462,21 @@ export async function POST(request: Request) {
 
       // --- Determine Target Location --- //
       if (target_stage_id || target_sub_stage_id) {
-        // Determine the target stage for validation
-        let targetStageForValidation: WorkflowStage | undefined;
-
+        // Use the targetStageForValidation that was already found earlier in the allocation logic
+        let targetStageForValidation: FetchedWorkflowStage | undefined;
+        
         if (target_sub_stage_id) {
-          // Find which stage the target sub-stage belongs to
-          for (const stage of workflowStages) {
-            const foundSubStage = stage.sub_stages?.find(
-              (sub) => sub.id === target_sub_stage_id
-            );
-            if (foundSubStage) {
-              targetStageForValidation = stage;
-              break;
-            }
-          }
+          targetStageForValidation = findStageInTree(workflowStages, target_sub_stage_id);
         } else if (target_stage_id) {
-          targetStageForValidation = workflowStages.find(
-            (s) => s.id === target_stage_id
-          );
+          targetStageForValidation = findStageInTree(workflowStages, target_stage_id);
         }
 
         if (!targetStageForValidation) {
+          console.error(`[Move Forward API] Target stage not found:`, {
+            target_stage_id,
+            target_sub_stage_id,
+            workflowStagesCount: workflowStages.length
+          });
           errors.push({
             itemId,
             error: `Target ${target_sub_stage_id ? "sub-stage" : "stage"} ID ${target_sub_stage_id || target_stage_id} not found in workflow.`,
@@ -413,12 +484,20 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Validate the target stage exists
-        const currentStageIndex = workflowStages.findIndex(
-          (s) => s.id === currentAllocation.stage_id
-        );
+        console.log(`[Move Forward API] Target stage found:`, {
+          id: targetStageForValidation.id,
+          name: targetStageForValidation.name,
+          full_path: targetStageForValidation.full_path
+        });
 
-        if (currentStageIndex === -1) {
+        // Find the current stage using tree search instead of flat array search
+        const currentStage = findStageInTree(workflowStages, currentAllocation.stage_id);
+
+        if (!currentStage) {
+          console.error(`[Move Forward API] Current stage not found:`, {
+            currentAllocationStageId: currentAllocation.stage_id,
+            workflowStagesCount: workflowStages.length
+          });
           errors.push({
             itemId,
             error: `Current stage ID ${currentAllocation.stage_id} (from allocation) not found in workflow.`,
@@ -426,13 +505,23 @@ export async function POST(request: Request) {
           continue;
         }
 
-        const currentStage = workflowStages[currentStageIndex];
+        console.log(`[Move Forward API] Current stage found:`, {
+          id: currentStage.id,
+          name: currentStage.name,
+          full_path: currentStage.full_path
+        });
 
         // Check if we're trying to move to the same stage and sub-stage
         if (
           currentStage.id === targetStageForValidation.id &&
           currentAllocation.sub_stage_id === target_sub_stage_id
         ) {
+          console.warn(`[Move Forward API] Same location validation failed:`, {
+            currentStageId: currentStage.id,
+            targetStageId: targetStageForValidation.id,
+            currentSubStageId: currentAllocation.sub_stage_id,
+            targetSubStageId: target_sub_stage_id
+          });
           errors.push({
             itemId,
             error: `Cannot move to the same location (stage: ${currentStage.id}, sub-stage: ${target_sub_stage_id || "none"}).`,
@@ -440,43 +529,29 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Compare sequence orders for stages
-        if (
-          targetStageForValidation.sequence_order < currentStage.sequence_order
-        ) {
+        console.log(`[Move Forward API] About to validate stage order:`, {
+          current: { id: currentStage.id, name: currentStage.name },
+          target: { id: targetStageForValidation.id, name: targetStageForValidation.name }
+        });
+
+        // Use tree-aware comparison for stage validation
+        if (isStageBeforeInWorkflow(targetStageForValidation, currentStage)) {
+          console.error(`[Move Forward API] Target stage is before current stage:`, {
+            targetStage: { id: targetStageForValidation.id, path: targetStageForValidation.full_path },
+            currentStage: { id: currentStage.id, path: currentStage.full_path }
+          });
           errors.push({
             itemId,
-            error: `Target stage ${targetStageForValidation.id} (sequence: ${targetStageForValidation.sequence_order}) is before the current stage ${currentAllocation.stage_id} (sequence: ${currentStage.sequence_order}).`,
+            error: `Target stage ${targetStageForValidation.id} (${targetStageForValidation.full_path || targetStageForValidation.name}) is before the current stage ${currentAllocation.stage_id} (${currentStage.full_path || currentStage.name}).`,
           });
           continue;
         }
 
-        // If same stage, check sub-stage sequence order
-        if (
-          targetStageForValidation.sequence_order ===
-            currentStage.sequence_order &&
-          currentAllocation.sub_stage_id &&
-          target_sub_stage_id
-        ) {
-          const currentSubStage = currentStage.sub_stages?.find(
-            (sub) => sub.id === currentAllocation.sub_stage_id
-          );
-          const targetSubStage = targetStageForValidation.sub_stages?.find(
-            (sub) => sub.id === target_sub_stage_id
-          );
+        console.log(`[Move Forward API] Stage order validation passed - proceeding to determine final target location`);
 
-          if (
-            currentSubStage &&
-            targetSubStage &&
-            targetSubStage.sequence_order <= currentSubStage.sequence_order
-          ) {
-            errors.push({
-              itemId,
-              error: `Target sub-stage ${target_sub_stage_id} (sequence: ${targetSubStage.sequence_order}) is not after the current sub-stage ${currentAllocation.sub_stage_id} (sequence: ${currentSubStage.sequence_order}).`,
-            });
-            continue;
-          }
-        }
+        // For tree structure, we don't need complex sub-stage validation
+        // since target stage is already validated to be a valid next stage in the workflow
+        // The tree structure ensures proper progression
 
         // Determine the final target location
         let finalTargetStageId: string;
@@ -494,35 +569,26 @@ export async function POST(request: Request) {
           },
         });
 
-        // Priority 1: If a specific sub-stage is requested, use it
+        // In tree structure, each stage is independent - no sub_stage_id needed
         if (target_sub_stage_id) {
-          finalTargetStageId = targetStageForValidation.id;
-          finalTargetSubStageId = target_sub_stage_id;
-          console.log("Move Forward API - Using specific sub-stage:", {
+          // The target_sub_stage_id is actually just another stage in the tree
+          finalTargetStageId = target_sub_stage_id;
+          finalTargetSubStageId = null;
+          console.log("Move Forward API - Using target stage (from sub_stage_id):", {
             finalTargetStageId,
             finalTargetSubStageId,
           });
-        }
-        // Priority 2: If only a stage is requested, determine the appropriate sub-stage
-        else if (target_stage_id) {
+        } else if (target_stage_id) {
           finalTargetStageId = target_stage_id;
-          // If target stage has sub-stages, default to the first one
-          const targetSubStages = targetStageForValidation.sub_stages ?? [];
-          finalTargetSubStageId =
-            targetSubStages.length > 0 ? targetSubStages[0].id : null;
-          console.log(
-            "Move Forward API - Using stage with default sub-stage:",
-            {
-              finalTargetStageId,
-              finalTargetSubStageId,
-              targetSubStages: targetSubStages.map((s) => s.id),
-            }
-          );
-        }
-        // Priority 3: Fallback (shouldn't happen)
-        else {
+          finalTargetSubStageId = null;
+          console.log("Move Forward API - Using target stage:", {
+            finalTargetStageId,
+            finalTargetSubStageId,
+          });
+        } else {
           finalTargetStageId = targetStageForValidation.id;
-          console.log("Move Forward API - Using fallback:", {
+          finalTargetSubStageId = null;
+          console.log("Move Forward API - Using fallback stage:", {
             finalTargetStageId,
             finalTargetSubStageId,
           });

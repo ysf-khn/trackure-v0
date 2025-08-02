@@ -71,7 +71,7 @@ const fetchItemsInStage = async (
           order_number
         ),
         instance_details,
-        item_movement_history (
+        item_movement_history!item_movement_history_item_id_fkey (
           id,
           moved_at,
           to_stage_id,

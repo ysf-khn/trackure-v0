@@ -57,10 +57,10 @@ export async function POST(
     );
   }
 
-  // Validate parent stage ownership
+  // Validate parent stage ownership and get its details
   const { data: parentStage, error: parentStageError } = await supabase
     .from("workflow_stages")
-    .select("id")
+    .select("id, depth_level, sku")
     .eq("id", stageId)
     .eq("organization_id", organizationId) // Use organizationId from profile
     .single();
@@ -95,18 +95,29 @@ export async function POST(
 
   const { name, location, sequence_order } = result.data;
 
-  // Insert the new sub-stage
+  // Insert the new sub-stage in workflow_stages table (tree structure)
   const { data: newSubStage, error: insertError } = await supabase
-    .from("workflow_sub_stages")
+    .from("workflow_stages")
     .insert({
       name,
       location,
       sequence_order,
-      stage_id: stageId,
+      parent_stage_id: stageId, // Set parent to create tree hierarchy
       organization_id: organizationId,
+      depth_level: (parentStage.depth_level || 0) + 1,
+      is_leaf_stage: true, // New stages are leaf stages by default
+      sku: parentStage.sku, // Inherit SKU from parent
     })
     .select()
     .single();
+    
+  // Update parent stage to not be a leaf
+  if (!insertError) {
+    await supabase
+      .from("workflow_stages")
+      .update({ is_leaf_stage: false })
+      .eq("id", stageId);
+  }
 
   if (insertError) {
     console.error("Error inserting sub-stage:", insertError);

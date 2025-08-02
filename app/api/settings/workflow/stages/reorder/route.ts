@@ -63,30 +63,137 @@ export async function POST(request: Request) {
   const { itemId, direction } = validation.data;
 
   try {
-    // Pass all required parameters to RPC
-    const { error: rpcError } = await supabase.rpc("reorder_workflow_stage", {
-      p_organization_id: organizationId,
-      p_stage_id: itemId,
-      p_direction: direction,
-    });
+    // Get the current stage to reorder
+    const { data: currentStage, error: currentStageError } = await supabase
+      .from("workflow_stages")
+      .select("id, sequence_order, parent_stage_id, organization_id, sku")
+      .eq("id", itemId)
+      .eq("organization_id", organizationId)
+      .single();
 
-    // Improved RPC error handling (similar to sub-stage route)
-    if (rpcError) {
-      console.error("Error calling reorder_workflow_stage RPC:", rpcError);
-      if (rpcError.message.includes("not found")) {
-        return NextResponse.json(
-          { message: "Stage not found or does not belong to organization" },
-          { status: 404 }
-        );
-      }
-      if (rpcError.message.includes("cannot move")) {
-        return NextResponse.json(
-          { message: rpcError.message },
-          { status: 400 }
-        );
-      }
+    if (currentStageError || !currentStage) {
       return NextResponse.json(
-        { message: "Database error during reorder operation" },
+        { message: "Stage not found or does not belong to organization" },
+        { status: 404 }
+      );
+    }
+
+    // Get all sibling stages (stages with the same parent and SKU)
+    let siblingQuery = supabase
+      .from("workflow_stages")
+      .select("id, sequence_order")
+      .eq("organization_id", organizationId)
+      .order("sequence_order", { ascending: true });
+
+    // Filter by parent (for main stages, parent_stage_id is null)
+    if (currentStage.parent_stage_id) {
+      siblingQuery = siblingQuery.eq("parent_stage_id", currentStage.parent_stage_id);
+    } else {
+      siblingQuery = siblingQuery.is("parent_stage_id", null);
+    }
+
+    // Filter by SKU
+    if (currentStage.sku) {
+      siblingQuery = siblingQuery.eq("sku", currentStage.sku);
+    } else {
+      siblingQuery = siblingQuery.is("sku", null);
+    }
+
+    const { data: siblingStages, error: siblingsError } = await siblingQuery;
+
+    if (siblingsError || !siblingStages) {
+      return NextResponse.json(
+        { message: "Failed to fetch sibling stages" },
+        { status: 500 }
+      );
+    }
+
+    // Find current position and target position
+    const currentIndex = siblingStages.findIndex(s => s.id === itemId);
+    if (currentIndex === -1) {
+      return NextResponse.json(
+        { message: "Stage not found in siblings" },
+        { status: 404 }
+      );
+    }
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+    // Check if move is valid
+    if (targetIndex < 0 || targetIndex >= siblingStages.length) {
+      return NextResponse.json(
+        { message: `Cannot move ${direction}: already at ${direction === "up" ? "top" : "bottom"}` },
+        { status: 400 }
+      );
+    }
+
+    // Swap sequence orders
+    const currentSequence = siblingStages[currentIndex].sequence_order;
+    const targetSequence = siblingStages[targetIndex].sequence_order;
+
+    // To avoid unique constraint conflicts, use a 3-step update process
+    const tempSequence = Math.max(...siblingStages.map(s => s.sequence_order)) + 1000;
+
+    // Step 1: Move current stage to temporary position
+    const { error: tempUpdateError } = await supabase
+      .from("workflow_stages")
+      .update({ sequence_order: tempSequence })
+      .eq("id", itemId)
+      .eq("organization_id", organizationId);
+
+    if (tempUpdateError) {
+      console.error("Error moving current stage to temp position:", tempUpdateError);
+      return NextResponse.json(
+        { message: `Failed to move stage to temp position: ${tempUpdateError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Step 2: Move target stage to current stage's original position
+    const { error: swapError } = await supabase
+      .from("workflow_stages")
+      .update({ sequence_order: currentSequence })
+      .eq("id", siblingStages[targetIndex].id)
+      .eq("organization_id", organizationId);
+
+    if (swapError) {
+      console.error("Error updating target stage order:", swapError);
+      // Rollback: move current stage back to original position
+      await supabase
+        .from("workflow_stages")
+        .update({ sequence_order: currentSequence })
+        .eq("id", itemId)
+        .eq("organization_id", organizationId);
+      
+      return NextResponse.json(
+        { message: `Failed to update target stage order: ${swapError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Step 3: Move current stage to target's original position
+    const { error: finalUpdateError } = await supabase
+      .from("workflow_stages")
+      .update({ sequence_order: targetSequence })
+      .eq("id", itemId)
+      .eq("organization_id", organizationId);
+
+    if (finalUpdateError) {
+      console.error("Error moving current stage to final position:", finalUpdateError);
+      // Rollback both changes
+      await supabase
+        .from("workflow_stages")
+        .update({ sequence_order: targetSequence })
+        .eq("id", siblingStages[targetIndex].id)
+        .eq("organization_id", organizationId);
+      await supabase
+        .from("workflow_stages")
+        .update({ sequence_order: currentSequence })
+        .eq("id", itemId)
+        .eq("organization_id", organizationId);
+      
+      return NextResponse.json(
+        { message: `Failed to move stage to final position: ${finalUpdateError.message}` },
         { status: 500 }
       );
     }

@@ -9,6 +9,7 @@ import {
   RowSelectionState,
   Table as ReactTable, // For getting table instance
 } from "@tanstack/react-table";
+import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner"; // Import toast
 import { DateRange } from "react-day-picker";
@@ -431,14 +432,20 @@ export const columns: ColumnDef<ItemInStage>[] = [
       } = meta || {};
 
       // Determine if there are next steps
-      const hasNextStep =
-        workflowData && currentStageId
-          ? determineNextStage(
-              currentStageId,
-              currentSubStageId ?? null,
-              workflowData
-            ) !== null
-          : false;
+      const nextStage = workflowData && currentStageId
+        ? determineNextStage(
+            currentStageId,
+            currentSubStageId ?? null,
+            workflowData
+          )
+        : null;
+      
+      const hasNextStep = nextStage !== null;
+      
+      // Debug logging
+      if (workflowData && currentStageId) {
+        console.log(`[MoveForward] Stage ${currentStageId}, workflow stages:`, workflowData.length, 'nextStage:', nextStage, 'hasNextStep:', hasNextStep);
+      }
 
       const handleOpenMoveModal = (targetId?: string | null) => {
         let targetStageId: string | null = null;
@@ -681,6 +688,7 @@ export function ItemListTable({
   subStageId,
 }: ItemListTableProps) {
   // --- State and Hook Initializations ---
+  const queryClient = useQueryClient();
   const {
     profile,
     organizationId,
@@ -751,8 +759,45 @@ export function ItemListTable({
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
+  // We need to get the SKU from items in the current stage to fetch the correct workflow
+  // Since all items in a stage have the same SKU, we can use any item's SKU
+  // We'll get this from the ItemTableCore component through a ref
+  const [currentStageSKU, setCurrentStageSKU] = useState<string | null>(null);
+  
+  // Use workflow structure with the detected SKU from current stage items
   const { data: workflowData, isLoading: isWorkflowLoading } =
-    useWorkflowStructure(organizationId);
+    useWorkflowStructure(organizationId, currentStageSKU);
+    
+  // Debug logging for workflow data
+  React.useEffect(() => {
+    if (workflowData && currentStageSKU) {
+      console.log(`[ItemListTable] Loaded workflow for SKU ${currentStageSKU}:`, workflowData.length, 'stages');
+    }
+  }, [workflowData, currentStageSKU]);
+
+  // Effect to detect and update the current stage SKU when items load
+  React.useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    // Check for SKU periodically until we get one
+    if (!currentStageSKU) {
+      intervalId = setInterval(() => {
+        if (itemTableCoreRef.current) {
+          const detectedSKU = itemTableCoreRef.current.getCurrentStageSKU();
+          if (detectedSKU && detectedSKU !== currentStageSKU) {
+            console.log(`[ItemListTable] Detected SKU for stage ${stageId}: ${detectedSKU}`);
+            setCurrentStageSKU(detectedSKU);
+          }
+        }
+      }, 100); // Check every 100ms
+    }
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [currentStageSKU, stageId]); // Re-run when currentStageSKU changes
 
   const { mutate: moveItems, isPending: isMovingItems } = useMoveItemsForward();
   const { mutate: reworkItems, isPending: isReworkingItems } = useReworkItems();
@@ -903,6 +948,8 @@ export function ItemListTable({
     }
   };
 
+  // Note: subsequentStages will now be calculated per-item based on their SKU
+  // This is a fallback for general workflow structure when no specific SKU is available
   const subsequentStages = React.useMemo(() => {
     if (!workflowData || isWorkflowLoading || !stageId) return [];
     return getSubsequentStages(workflowData, stageId, subStageId);
@@ -1064,6 +1111,13 @@ export function ItemListTable({
 
       // Refresh the table data
       itemTableCoreRef.current?.refetch();
+      
+      // Invalidate related queries
+      queryClient.invalidateQueries({ queryKey: ["itemsInStage", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["workflow", "sidebar"] });
+      queryClient.invalidateQueries({ queryKey: ["newItemsCount"] });
+      queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });
+      queryClient.invalidateQueries({ queryKey: ["stage-item-counts", organizationId] });
     } catch (error) {
       console.error("Error deleting item:", error);
       toast.error(
@@ -1311,7 +1365,7 @@ export function ItemListTable({
           }}
           onConfirmRework={handleConfirmSingleRework}
           isProcessing={isReworkingItems}
-          availableStages={workflowData || []}
+          workflowData={workflowData}
           userRole={userRole}
         />
       )}

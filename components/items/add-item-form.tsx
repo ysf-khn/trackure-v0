@@ -347,6 +347,10 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
 
       // Invalidate the completed items count query
       queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });
+
+      // Invalidate stage item counts for sidebar badges
+      // Need to get organizationId from the current context/profile
+      queryClient.invalidateQueries({ queryKey: ["stage-item-counts"] });
       if (onItemAdded) onItemAdded(); // Call optional callback
     },
     onError: (error: Error) => {

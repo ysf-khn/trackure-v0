@@ -27,7 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import {
-  type FetchedSubStage,
+  type FetchedWorkflowStage,
   getWorkflowQueryKey,
 } from "@/hooks/queries/use-workflow-structure";
 import { getSidebarWorkflowKey } from "@/hooks/queries/use-workflow";
@@ -56,13 +56,15 @@ interface EditSubStageModalProps {
   isOpen: boolean;
   onClose: () => void;
   organizationId: string;
-  subStage: FetchedSubStage | null; // Use FetchedSubStage
+  selectedSKU: string | null;
+  subStage: FetchedWorkflowStage | null; // Use FetchedWorkflowStage for consistency
 }
 
 export function EditSubStageModal({
   isOpen,
   onClose,
   organizationId,
+  selectedSKU,
   subStage,
 }: EditSubStageModalProps) {
   const queryClient = useQueryClient();
@@ -89,7 +91,7 @@ export function EditSubStageModal({
   }, [isOpen, subStage, form]);
 
   const mutation = useMutation<
-    FetchedSubStage, // Success type (API returns updated sub-stage)
+    FetchedWorkflowStage, // Success type (API returns updated sub-stage)
     ApiError, // Error type changed from AxiosError
     EditSubStageFormData // Variables type
   >({
@@ -123,7 +125,7 @@ export function EditSubStageModal({
     onSuccess: (data) => {
       toast.success(`Sub-stage "${data.name}" updated successfully.`);
       queryClient.invalidateQueries({
-        queryKey: getWorkflowQueryKey(organizationId),
+        queryKey: getWorkflowQueryKey(organizationId, selectedSKU),
       });
       queryClient.invalidateQueries({
         queryKey: getSidebarWorkflowKey(organizationId),

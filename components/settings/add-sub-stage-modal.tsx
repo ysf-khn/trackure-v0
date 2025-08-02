@@ -57,6 +57,7 @@ interface AddSubStageModalProps {
   isOpen: boolean;
   onClose: () => void;
   organizationId: string;
+  selectedSKU: string | null;
   stageId: string | null; // Stage ID under which to add the sub-stage
   nextSequenceOrder: number; // Pre-calculated next sequence order
 }
@@ -65,6 +66,7 @@ export function AddSubStageModal({
   isOpen,
   onClose,
   organizationId,
+  selectedSKU,
   stageId,
   nextSequenceOrder,
 }: AddSubStageModalProps) {
@@ -96,13 +98,18 @@ export function AddSubStageModal({
     mutationFn: async (newSubStage) => {
       if (!stageId) throw new Error("Stage ID is missing.");
       const response = await fetch(
-        `/api/settings/workflow/stages/${stageId}/sub-stages`,
+        `/api/settings/workflow/stages`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(newSubStage),
+          body: JSON.stringify({
+            name: newSubStage.name,
+            location: newSubStage.location,
+            selectedSKU: selectedSKU,
+            parent_stage_id: stageId, // Set parent for infinite nesting
+          }),
         }
       );
 
@@ -128,7 +135,7 @@ export function AddSubStageModal({
       toast.success("New sub-stage added successfully.");
       // Invalidate structure query
       queryClient.invalidateQueries({
-        queryKey: getWorkflowQueryKey(organizationId),
+        queryKey: getWorkflowQueryKey(organizationId, selectedSKU),
       });
       // Invalidate sidebar query
       queryClient.invalidateQueries({

@@ -158,7 +158,7 @@ export default function WorkflowSetupPage() {
 
         {/* Embed the WorkflowEditor */}
         <div className="bg-card/50 rounded-lg p-6 border">
-          <WorkflowEditor organizationId={organizationId} />
+          <WorkflowEditor organizationId={organizationId} selectedSKU={null} />
         </div>
 
         {/* Navigation Buttons */}

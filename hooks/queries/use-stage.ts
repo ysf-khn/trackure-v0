@@ -1,17 +1,23 @@
 import { createClient } from "@/utils/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
-// Define the structure of the stage data (adjust based on your actual table schema)
-// You might want to centralize this type, perhaps in src/types/workflow.ts or similar
+// Define the structure of the stage data with tree structure
 export interface StageData {
   id: string;
   name: string;
-  description: string | null;
+  description?: string | null;
   sequence_order: number;
   organization_id: string | null; // Can be null for default stages
   is_default: boolean;
   location: string | null; // Optional location field
-  // Add other relevant fields
+  // Tree structure fields
+  parent_stage_id: string | null;
+  depth_level: number;
+  full_path: string | null;
+  is_leaf_stage: boolean;
+  sku: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 const fetchStageById = async (

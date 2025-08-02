@@ -14,6 +14,8 @@ const createStageSchema = z
     location: z.string().optional(), // Optional location field
     hasSubStages: z.boolean().optional(),
     subStages: z.array(subStageSchema).optional(),
+    selectedSKU: z.string().nullable().optional(), // SKU for SKU-specific workflows
+    parent_stage_id: z.string().uuid().nullable().optional(), // For infinite nesting
     // sequence_order will be calculated on the server
   })
   .refine(
@@ -89,15 +91,31 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, location, hasSubStages, subStages } = validation.data;
+    const { name, location, hasSubStages, subStages, selectedSKU, parent_stage_id } = validation.data;
 
     // Calculate next sequence_order using simple max + 1 logic
     // Completed stages now use sequence order 100000, so they won't interfere
-    const { data: maxOrderData, error: maxOrderError } = await supabase
+    let maxOrderQuery = supabase
       .from("workflow_stages")
       .select("sequence_order")
       .eq("organization_id", organization_id)
-      .lt("sequence_order", 50000) // Only consider stages with reasonable sequence orders
+      .lt("sequence_order", 50000); // Only consider stages with reasonable sequence orders
+
+    // Filter by SKU if selected
+    if (selectedSKU) {
+      maxOrderQuery = maxOrderQuery.eq("sku", selectedSKU);
+    } else {
+      maxOrderQuery = maxOrderQuery.is("sku", null);
+    }
+
+    // Filter by parent_stage_id to get sequence within the same level
+    if (parent_stage_id) {
+      maxOrderQuery = maxOrderQuery.eq("parent_stage_id", parent_stage_id);
+    } else {
+      maxOrderQuery = maxOrderQuery.is("parent_stage_id", null);
+    }
+
+    const { data: maxOrderData, error: maxOrderError } = await maxOrderQuery
       .order("sequence_order", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -114,6 +132,17 @@ export async function POST(request: Request) {
       ? maxOrderData.sequence_order + 1
       : 0;
 
+    // Calculate depth level
+    let depth_level = 0;
+    if (parent_stage_id) {
+      const { data: parentStage } = await supabase
+        .from("workflow_stages")
+        .select("depth_level")
+        .eq("id", parent_stage_id)
+        .single();
+      depth_level = (parentStage?.depth_level || 0) + 1;
+    }
+
     // Insert new stage
     const { data: newStage, error: insertError } = await supabase
       .from("workflow_stages")
@@ -122,6 +151,10 @@ export async function POST(request: Request) {
         location: location,
         sequence_order: nextSequenceOrder,
         organization_id: organization_id,
+        sku: selectedSKU, // Add SKU to the insert
+        parent_stage_id: parent_stage_id, // Add parent_stage_id for infinite nesting
+        depth_level: depth_level, // Add depth level
+        is_leaf_stage: true, // New stages are leaf stages by default
       })
       .select()
       .single();
@@ -134,18 +167,35 @@ export async function POST(request: Request) {
       );
     }
 
-    // If sub-stages are provided, create them
+    // If this is a sub-stage (has parent), update parent's is_leaf_stage to false
+    if (parent_stage_id) {
+      await supabase
+        .from("workflow_stages")
+        .update({ is_leaf_stage: false })
+        .eq("id", parent_stage_id);
+    }
+
+    // If sub-stages are provided, create them as child stages in the tree structure
     if (hasSubStages && subStages && subStages.length > 0) {
+      // Update the parent stage to not be a leaf
+      await supabase
+        .from("workflow_stages")
+        .update({ is_leaf_stage: false })
+        .eq("id", newStage.id);
+
       const subStageInserts = subStages.map((subStage, index) => ({
         name: subStage.name,
         location: subStage.location,
-        sequence_order: index + 1,
-        stage_id: newStage.id,
+        sequence_order: index,
+        parent_stage_id: newStage.id, // Set the parent_stage_id to create tree hierarchy
         organization_id: organization_id,
+        sku: selectedSKU,
+        depth_level: depth_level + 1,
+        is_leaf_stage: true,
       }));
 
       const { error: subStageError } = await supabase
-        .from("workflow_sub_stages")
+        .from("workflow_stages")
         .insert(subStageInserts);
 
       if (subStageError) {

@@ -33,7 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, TriangleAlertIcon } from "lucide-react";
-import { useWorkflow } from "@/hooks/queries/use-workflow";
+import { useWorkflowStructure, type FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
 
 // Types based on new_order_items view and workflow structure
 type NewOrderItem = {
@@ -50,18 +50,8 @@ type NewOrderItem = {
   organization_id: string;
 };
 
-// Type for workflow stage, compatible with useWorkflow hook's expected return structure
-type WorkflowStage = {
-  id: string;
-  name: string;
-  // subStages is optional and should match the structure from useWorkflow
-  subStages?: Array<{
-    id: string;
-    name: string;
-    // itemCount?: number; // Not strictly needed for allocation logic
-  }>;
-  // itemCount?: number; // Not strictly needed for allocation logic
-};
+// Type for workflow stage - using the tree structure from useWorkflowStructure
+type WorkflowStage = FetchedWorkflowStage;
 
 // Type for the unified allocatable options in the dropdown
 type AllocatableOption = {
@@ -69,6 +59,8 @@ type AllocatableOption = {
   label: string; // Display label, e.g., "Stage A" or "Stage X - Sub Y"
   stageId: string;
   subStageId: string | null;
+  depth: number; // For visual indentation
+  isLeaf: boolean; // Only leaf stages can receive items
 };
 
 type AllocationPayload = {
@@ -144,66 +136,55 @@ export default function NewOrdersPage() {
     enabled: !!organizationId,
   });
 
-  // Use the useWorkflow hook
+  // Use the useWorkflowStructure hook with SKU filtering
   const {
-    data: workflowStagesData, // Rename to avoid conflict if useWorkflow returns 'data'
+    data: workflowStagesData,
     isLoading: isLoadingWorkflow,
-    isError: isErrorWorkflow, // Add error handling for workflow fetching
-    error: errorWorkflow, // Add error object for workflow fetching
-  } = useWorkflow(); // Pass organizationId or undefined
+    isError: isErrorWorkflow,
+    error: errorWorkflow,
+  } = useWorkflowStructure(organizationId, selectedItem?.sku);
 
-  // Adapt fetched workflowStagesData to the local WorkflowStage[] type if necessary
-  // Assuming useWorkflow returns data compatible with WorkflowStage[] defined above
-  const workflowStages: WorkflowStage[] | undefined = React.useMemo(() => {
-    // The useWorkflow hook's return type is WorkflowStructure from @/lib/queries/workflow
-    // which is Stage[]. The Stage type is defined in app-sidebar.tsx
-    // interface Stage { id: string; name: string; itemCount: number; subStages?: SubStage[]; }
-    // interface SubStage { id: string; name: string; itemCount: number; }
-    // This is compatible with the local WorkflowStage type if we ensure names are strings.
-    if (workflowStagesData) {
-      return workflowStagesData.map((stage) => ({
-        ...stage,
-        name: stage.name || "Unnamed Stage", // Ensure name is a string
-        subStages:
-          stage.subStages?.map((sub) => ({
-            ...sub,
-            name: sub.name || "Unnamed Sub-stage", // Ensure name is a string
-          })) || [],
-      }));
-    }
-    return undefined;
-  }, [workflowStagesData]);
+  // workflowStagesData is already in the correct format from useWorkflowStructure
+  const workflowStages: WorkflowStage[] | undefined = workflowStagesData;
 
-  // Create a flat list of allocatable options for the dropdown
+  // Create a flat list of allocatable options for the dropdown (recursive for tree structure)
   const allocatableOptions: AllocatableOption[] = React.useMemo(() => {
     if (!workflowStages) return [];
-    const options: AllocatableOption[] = [];
-    workflowStages.forEach((stage) => {
-      if (stage.subStages && stage.subStages.length > 0) {
-        stage.subStages.forEach((subStage) => {
-          // Ensure subStage and its properties are defined
-          if (subStage && subStage.id && subStage.name) {
+    
+    const flattenStages = (stages: WorkflowStage[], depth = 0, parentPath: string[] = []): AllocatableOption[] => {
+      const options: AllocatableOption[] = [];
+      
+      stages.forEach((stage) => {
+        if (stage && stage.id && stage.name) {
+          const currentPath = [...parentPath, stage.name];
+          
+          // Only add leaf stages (stages without children) as allocatable options
+          // OR stages that explicitly allow item allocation
+          if (stage.is_leaf_stage || stage.sub_stages.length === 0) {
+            // Create breadcrumb-style label
+            const breadcrumbLabel = currentPath.join(' → ');
+            
             options.push({
-              id: `${stage.id}_${subStage.id}`, // Composite ID: stageId_subStageId
-              label: `${stage.name} - ${subStage.name}`,
+              id: stage.id,
+              label: breadcrumbLabel,
               stageId: stage.id,
-              subStageId: subStage.id,
+              subStageId: null, // In tree structure, we don't use subStageId
+              depth,
+              isLeaf: stage.is_leaf_stage || stage.sub_stages.length === 0,
             });
           }
-        });
-      } else {
-        // Ensure stage and its properties are defined
-        if (stage && stage.id && stage.name) {
-          options.push({
-            id: stage.id, // Just stageId if no sub-stages
-            label: stage.name,
-            stageId: stage.id,
-            subStageId: null,
-          });
+          
+          // Recursively process sub-stages
+          if (stage.sub_stages && stage.sub_stages.length > 0) {
+            options.push(...flattenStages(stage.sub_stages, depth + 1, currentPath));
+          }
         }
-      }
-    });
-    return options;
+      });
+      
+      return options;
+    };
+    
+    return flattenStages(workflowStages);
   }, [workflowStages]);
 
   const allocationMutation = useMutation<
@@ -243,6 +224,9 @@ export default function NewOrdersPage() {
 
       // Invalidate the completed items count query
       queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });
+      
+      // Invalidate stage item counts for sidebar badges
+      queryClient.invalidateQueries({ queryKey: ["stage-item-counts", organizationId] });
       setIsAllocationDialogOpen(false);
       setSelectedItem(null);
     },
@@ -402,20 +386,16 @@ export default function NewOrdersPage() {
                   Target
                 </Label>
                 <Select
-                  value={
-                    allocationSubStageId
-                      ? `${allocationStageId}_${allocationSubStageId}`
-                      : allocationStageId || ""
-                  }
+                  value={allocationStageId || ""}
                   onValueChange={(selectedValue) => {
                     if (!selectedValue) {
                       setAllocationStageId("");
                       setAllocationSubStageId(null);
                       return;
                     }
-                    const parts = selectedValue.split("_");
-                    setAllocationStageId(parts[0]);
-                    setAllocationSubStageId(parts[1] || null);
+                    // In tree structure, the selectedValue is just the stage ID
+                    setAllocationStageId(selectedValue);
+                    setAllocationSubStageId(null); // Not used in tree structure
                   }}
                 >
                   <SelectTrigger className="col-span-3">
@@ -428,8 +408,19 @@ export default function NewOrdersPage() {
                       </SelectItem>
                     )}
                     {allocatableOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.label}
+                      <SelectItem 
+                        key={option.id} 
+                        value={option.id}
+                        className="py-2"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className="text-sm">{option.label}</span>
+                          {option.depth > 0 && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded ml-2 flex-shrink-0">
+                              Level {option.depth + 1}
+                            </span>
+                          )}
+                        </div>
                       </SelectItem>
                     ))}
                     {!isLoadingWorkflow &&

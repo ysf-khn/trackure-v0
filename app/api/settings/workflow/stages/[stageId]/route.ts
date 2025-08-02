@@ -231,6 +231,34 @@ export async function DELETE(
       );
     }
 
+    // Check if this stage has child stages (tree structure)
+    const { error: childCheckError, count: childCount } = await supabase
+      .from("workflow_stages")
+      .select("id", { count: "exact", head: true })
+      .eq("parent_stage_id", stageId)
+      .eq("organization_id", organization_id);
+
+    if (childCheckError) {
+      console.error(
+        `Error checking child stages for ${stageId}:`,
+        childCheckError
+      );
+      return NextResponse.json(
+        { error: "Failed to verify stage dependencies." },
+        { status: 500 }
+      );
+    }
+
+    if (childCount !== null && childCount > 0) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete stage "${existingStage.name}" because it has ${childCount} child stage(s). Please delete child stages first.`,
+          code: "STAGE_HAS_CHILDREN",
+        },
+        { status: 409 }
+      ); // Conflict
+    }
+
     // Check if any items are currently in this stage
     const { error: itemsCheckError, count } = await supabase
       .from("item_stage_allocations")

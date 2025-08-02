@@ -95,6 +95,11 @@ export function useReworkItems() {
         queryKey: ["completedItemsCount"],
       });
 
+      // Invalidate stage item counts for sidebar badges
+      queryClient.invalidateQueries({
+        queryKey: ["stage-item-counts", organizationId],
+      });
+
       // Handle partial success/errors from the API response
       if (data.errors && data.errors.length > 0) {
         toast.warning(

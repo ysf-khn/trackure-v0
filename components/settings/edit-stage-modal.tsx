@@ -37,6 +37,7 @@ type FormData = z.infer<typeof formSchema>;
 
 interface EditStageModalProps {
   organizationId: string;
+  selectedSKU: string | null;
   stage: FetchedWorkflowStage | null; // Use FetchedWorkflowStage
   isOpen: boolean;
   onClose: () => void;
@@ -61,6 +62,7 @@ async function updateStage(
 
 export function EditStageModal({
   organizationId,
+  selectedSKU,
   stage,
   isOpen,
   onClose,
@@ -91,7 +93,7 @@ export function EditStageModal({
     onSuccess: (data) => {
       toast.success(`Stage renamed to "${data.name}" successfully!`);
       queryClient.invalidateQueries({
-        queryKey: getWorkflowQueryKey(organizationId),
+        queryKey: getWorkflowQueryKey(organizationId, selectedSKU),
       });
       queryClient.invalidateQueries({
         queryKey: getSidebarWorkflowKey(organizationId),

@@ -41,6 +41,139 @@ interface ReorderPayload {
   direction: "up" | "down";
 }
 
+// Recursive component for rendering infinite nesting
+interface RecursiveStageRendererProps {
+  stages: FetchedWorkflowStage[];
+  depth: number;
+  parentStage: FetchedWorkflowStage;
+  isPending: boolean;
+  handleAddSubStage: (stage: FetchedWorkflowStage) => void;
+  handleEditSubStage: (subStage: FetchedWorkflowStage) => void;
+  handleDeleteSubStage: (subStage: FetchedWorkflowStage) => void;
+  handleMoveSubStage: (id: string, direction: "up" | "down") => void;
+}
+
+const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
+  stages,
+  depth,
+  parentStage,
+  isPending,
+  handleAddSubStage,
+  handleEditSubStage,
+  handleDeleteSubStage,
+  handleMoveSubStage,
+}) => {
+  return (
+    <>
+      {stages.map((subStage, subStageIndex) => (
+        <div key={subStage.id} className="space-y-2">
+          <Card className="border-border/30 bg-muted/20 hover:bg-muted/40 transition-all duration-150">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center">
+                    <div className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/20">
+                      {(subStage.full_path || `${parentStage.sequence_order}.${subStage.sequence_order}`)
+                        .split('.')
+                        .map((segment, index, array) => (
+                          <React.Fragment key={index}>
+                            <span className="text-sm font-semibold text-primary/80 font-mono">
+                              {segment}
+                            </span>
+                            {index < array.length - 1 && (
+                              <ChevronRightIcon className="h-3 w-3 text-primary/40" />
+                            )}
+                          </React.Fragment>
+                        ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-medium text-foreground">
+                      {subStage.name}
+                    </h5>
+                    <p className="text-xs text-muted-foreground">
+                      Level {depth} - Sub-stage {subStage.sequence_order}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-1">
+                  {/* Add Sub-stage Button for infinite nesting */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-green-50 border-green-200 border text-green-600 hover:bg-green-100 hover:border-green-300 hover:text-green-700 transition-all duration-200 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950/50 dark:hover:border-green-700 dark:hover:text-green-300"
+                    title="Add Sub-stage"
+                    onClick={() => handleAddSubStage(subStage)}
+                    disabled={isPending}
+                  >
+                    <PlusIcon className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-blue-50 border-blue-200 border text-blue-600 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:border-blue-700 dark:hover:text-blue-300"
+                    title="Move Sub-stage Up"
+                    onClick={() => handleMoveSubStage(subStage.id, "up")}
+                    disabled={subStageIndex === 0 || isPending}
+                  >
+                    <ArrowUpIcon className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-blue-50 border-blue-200 border text-blue-600 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:border-blue-700 dark:hover:text-blue-300"
+                    title="Move Sub-stage Down"
+                    onClick={() => handleMoveSubStage(subStage.id, "down")}
+                    disabled={subStageIndex === stages.length - 1 || isPending}
+                  >
+                    <ArrowDownIcon className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-amber-50 border-amber-200 border text-amber-600 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-700 transition-all duration-200 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/50 dark:hover:border-amber-700 dark:hover:text-amber-300"
+                    title="Edit Sub-stage"
+                    onClick={() => handleEditSubStage(subStage)}
+                    disabled={isPending}
+                  >
+                    <PencilIcon className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 bg-red-50 border-red-200 border text-red-600 hover:bg-red-100 hover:border-red-300 hover:text-red-700 transition-all duration-200 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:border-red-700 dark:hover:text-red-300"
+                    title="Delete Sub-stage"
+                    onClick={() => handleDeleteSubStage(subStage)}
+                    disabled={isPending}
+                  >
+                    <TrashIcon className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Recursive rendering for nested sub-stages */}
+          {subStage.sub_stages.length > 0 && (
+            <div className="ml-6 space-y-2">
+              <RecursiveStageRenderer
+                stages={subStage.sub_stages}
+                depth={depth + 1}
+                parentStage={subStage}
+                isPending={isPending}
+                handleAddSubStage={handleAddSubStage}
+                handleEditSubStage={handleEditSubStage}
+                handleDeleteSubStage={handleDeleteSubStage}
+                handleMoveSubStage={handleMoveSubStage}
+              />
+            </div>
+          )}
+        </div>
+      ))}
+    </>
+  );
+};
+
 async function reorderStageApi(payload: ReorderPayload): Promise<void> {
   const response = await fetch("/api/settings/workflow/stages/reorder", {
     method: "POST",
@@ -71,9 +204,10 @@ async function reorderSubStageApi(payload: ReorderPayload): Promise<void> {
 
 interface WorkflowEditorProps {
   organizationId: string;
+  selectedSKU: string | null;
 }
 
-export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
+export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorProps) {
   // Check if user has permission to edit workflow
   const canEditWorkflow = usePermissionCheck("workflow.edit");
 
@@ -89,16 +223,16 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
   const [addingSubStageTo, setAddingSubStageTo] =
     useState<FetchedWorkflowStage | null>(null);
   const [editingSubStage, setEditingSubStage] =
-    useState<FetchedSubStage | null>(null);
+    useState<FetchedWorkflowStage | null>(null);
   const [deletingSubStage, setDeletingSubStage] =
-    useState<FetchedSubStage | null>(null);
+    useState<FetchedWorkflowStage | null>(null);
 
   // --- Fetch Workflow Structure ---
   const {
     data: workflowStructure,
     isLoading,
     error,
-  } = useWorkflowStructure(organizationId);
+  } = useWorkflowStructure(organizationId, selectedSKU);
 
   // --- Query Client for Invalidation ---
   const queryClient = useQueryClient();
@@ -109,7 +243,7 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
     onSuccess: () => {
       toast.success("Stage reordered successfully");
       queryClient.invalidateQueries({
-        queryKey: getWorkflowQueryKey(organizationId),
+        queryKey: getWorkflowQueryKey(organizationId, selectedSKU),
       });
       queryClient.invalidateQueries({
         queryKey: getSidebarWorkflowKey(organizationId),
@@ -125,7 +259,7 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
     onSuccess: () => {
       toast.success("Sub-stage reordered successfully");
       queryClient.invalidateQueries({
-        queryKey: getWorkflowQueryKey(organizationId),
+        queryKey: getWorkflowQueryKey(organizationId, selectedSKU),
       });
       queryClient.invalidateQueries({
         queryKey: getSidebarWorkflowKey(organizationId),
@@ -257,9 +391,9 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
   // Update Sub-stage Handlers
   const handleAddSubStage = (stage: FetchedWorkflowStage) =>
     setAddingSubStageTo(stage);
-  const handleEditSubStage = (subStage: FetchedSubStage) =>
+  const handleEditSubStage = (subStage: FetchedWorkflowStage) =>
     setEditingSubStage(subStage);
-  const handleDeleteSubStage = (subStage: FetchedSubStage) => {
+  const handleDeleteSubStage = (subStage: FetchedWorkflowStage) => {
     // Find the parent stage to check if this is the last sub-stage
     const parentStage = workflowStructure?.find((stage) =>
       stage.sub_stages.some((ss) => ss.id === subStage.id)
@@ -365,8 +499,8 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
                               <WorkflowIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
                             </div>
                           ) : (
-                            <div className="w-12 h-12 rounded-xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center">
-                              <span className="text-lg font-bold text-primary">
+                            <div className="flex items-center gap-1 px-4 py-2 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/20">
+                              <span className="text-lg font-bold text-primary/80 font-mono">
                                 {stage.sequence_order}
                               </span>
                             </div>
@@ -431,19 +565,17 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
                           </Button>
                         )}
 
-                        {/* Add Sub-stage Button */}
-                        {stage.sub_stages.length > 0 && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9 bg-green-50 border-green-200 border text-green-600 hover:bg-green-100 hover:border-green-300 hover:text-green-700 transition-all duration-200 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950/50 dark:hover:border-green-700 dark:hover:text-green-300"
-                            title="Add Sub-stage"
-                            onClick={() => handleAddSubStage(stage)}
-                            disabled={isPending}
-                          >
-                            <PlusIcon className="h-4 w-4" />
-                          </Button>
-                        )}
+                        {/* Add Sub-stage Button - Allow infinite nesting */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 bg-green-50 border-green-200 border text-green-600 hover:bg-green-100 hover:border-green-300 hover:text-green-700 transition-all duration-200 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950/50 dark:hover:border-green-700 dark:hover:text-green-300"
+                          title="Add Sub-stage"
+                          onClick={() => handleAddSubStage(stage)}
+                          disabled={isPending}
+                        >
+                          <PlusIcon className="h-4 w-4" />
+                        </Button>
 
                         {/* Edit Button */}
                         <Button
@@ -475,8 +607,8 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
                       </div>
                     </div>
 
-                    {/* Sub-stages Section */}
-                    {stage.sub_stages.length > 0 ? (
+                    {/* Sub-stages Section - Recursive rendering */}
+                    {stage.sub_stages.length > 0 && (
                       <div className="space-y-3">
                         <Separator className="my-4" />
                         <div className="flex items-center gap-2 mb-3">
@@ -486,114 +618,16 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
                           </h4>
                         </div>
                         <div className="space-y-2 ml-6">
-                          {stage.sub_stages
-                            .sort((a, b) => a.sequence_order - b.sequence_order)
-                            .map(
-                              (
-                                subStage: FetchedSubStage,
-                                subStageIndex: number
-                              ) => (
-                                <Card
-                                  key={subStage.id}
-                                  className="border-border/30 bg-muted/20 hover:bg-muted/40 transition-all duration-150"
-                                >
-                                  <CardContent className="p-4">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center space-x-3">
-                                        <div className="w-10 h-10 rounded-lg bg-primary/5 border-2 border-primary/10 flex items-center justify-center">
-                                          <span className="text-sm font-bold text-primary">
-                                            {stage.sequence_order}.
-                                            {subStage.sequence_order}
-                                          </span>
-                                        </div>
-                                        <div>
-                                          <h5 className="text-sm font-medium text-foreground">
-                                            {subStage.name}
-                                          </h5>
-                                          <p className="text-xs text-muted-foreground">
-                                            Sub-stage {subStage.sequence_order}{" "}
-                                            of {stage.name}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center space-x-1">
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-8 w-8 bg-blue-50 border-blue-200 border text-blue-600 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:border-blue-700 dark:hover:text-blue-300"
-                                          title="Move Sub-stage Up"
-                                          onClick={() =>
-                                            handleMoveSubStage(
-                                              subStage.id,
-                                              "up"
-                                            )
-                                          }
-                                          disabled={
-                                            subStageIndex === 0 || isPending
-                                          }
-                                        >
-                                          <ArrowUpIcon className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-8 w-8 bg-blue-50 border-blue-200 border text-blue-600 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:border-blue-700 dark:hover:text-blue-300"
-                                          title="Move Sub-stage Down"
-                                          onClick={() =>
-                                            handleMoveSubStage(
-                                              subStage.id,
-                                              "down"
-                                            )
-                                          }
-                                          disabled={
-                                            subStageIndex ===
-                                              stage.sub_stages.length - 1 ||
-                                            isPending
-                                          }
-                                        >
-                                          <ArrowDownIcon className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-8 w-8 bg-amber-50 border-amber-200 border text-amber-600 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-700 transition-all duration-200 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/50 dark:hover:border-amber-700 dark:hover:text-amber-300"
-                                          title="Edit Sub-stage"
-                                          onClick={() =>
-                                            handleEditSubStage(subStage)
-                                          }
-                                          disabled={isPending}
-                                        >
-                                          <PencilIcon className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-8 w-8 bg-red-50 border-red-200 border text-red-600 hover:bg-red-100 hover:border-red-300 hover:text-red-700 transition-all duration-200 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:border-red-700 dark:hover:text-red-300"
-                                          title="Delete Sub-stage"
-                                          onClick={() =>
-                                            handleDeleteSubStage(subStage)
-                                          }
-                                          disabled={isPending}
-                                        >
-                                          <TrashIcon className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              )
-                            )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-4">
-                        <Separator className="mb-4" />
-                        <div className="bg-muted/30 rounded-lg p-4 border border-dashed border-border/50">
-                          <p className="text-sm text-muted-foreground text-center">
-                            {isCompleted
-                              ? "🎉 This is the final stage where all completed items are stored."
-                              : "No sub-stages defined. Sub-stages can only be added during stage creation."}
-                          </p>
+                          <RecursiveStageRenderer 
+                            stages={stage.sub_stages}
+                            depth={1}
+                            parentStage={stage}
+                            isPending={isPending}
+                            handleAddSubStage={handleAddSubStage}
+                            handleEditSubStage={handleEditSubStage}
+                            handleDeleteSubStage={handleDeleteSubStage}
+                            handleMoveSubStage={handleMoveSubStage}
+                          />
                         </div>
                       </div>
                     )}
@@ -608,17 +642,20 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
       {/* Modals */}
       <AddStageModal
         organizationId={organizationId}
+        selectedSKU={selectedSKU}
         isOpen={isAddStageModalOpen}
         onClose={() => setIsAddStageModalOpen(false)}
       />
       <EditStageModal
         organizationId={organizationId}
+        selectedSKU={selectedSKU}
         isOpen={!!editingStage}
         onClose={() => setEditingStage(null)}
         stage={editingStage}
       />
       <DeleteStageDialog
         organizationId={organizationId}
+        selectedSKU={selectedSKU}
         isOpen={!!deletingStage}
         onClose={() => setDeletingStage(null)}
         stage={deletingStage}
@@ -626,6 +663,7 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
 
       <AddSubStageModal
         organizationId={organizationId}
+        selectedSKU={selectedSKU}
         isOpen={!!addingSubStageTo}
         onClose={() => setAddingSubStageTo(null)}
         stageId={addingSubStageTo?.id ?? null}
@@ -633,12 +671,14 @@ export function WorkflowEditor({ organizationId }: WorkflowEditorProps) {
       />
       <EditSubStageModal
         organizationId={organizationId}
+        selectedSKU={selectedSKU}
         isOpen={!!editingSubStage}
         onClose={() => setEditingSubStage(null)}
         subStage={editingSubStage}
       />
       <DeleteSubStageDialog
         organizationId={organizationId}
+        selectedSKU={selectedSKU}
         isOpen={!!deletingSubStage}
         onClose={() => setDeletingSubStage(null)}
         subStage={deletingSubStage}

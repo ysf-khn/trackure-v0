@@ -19,6 +19,7 @@ import { getSidebarWorkflowKey } from "@/hooks/queries/use-workflow"; // Import 
 
 interface DeleteStageDialogProps {
   organizationId: string;
+  selectedSKU: string | null;
   stage: FetchedWorkflowStage | null; // Use FetchedWorkflowStage
   isOpen: boolean;
   onClose: () => void;
@@ -40,6 +41,7 @@ async function deleteStageApi(stageId: string): Promise<{ message: string }> {
 
 export function DeleteStageDialog({
   organizationId,
+  selectedSKU,
   stage,
   isOpen,
   onClose,
@@ -65,7 +67,7 @@ export function DeleteStageDialog({
       toast.success(`Stage deleted successfully!`);
       // Invalidate structure query
       queryClient.invalidateQueries({
-        queryKey: getWorkflowQueryKey(organizationId),
+        queryKey: getWorkflowQueryKey(organizationId, selectedSKU),
       });
       // Invalidate sidebar query
       queryClient.invalidateQueries({

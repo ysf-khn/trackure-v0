@@ -136,6 +136,11 @@ export function useMoveItemsForward() {
         queryKey: ["completedItemsCount"],
       });
 
+      // 5. Invalidate stage item counts for sidebar badges
+      queryClient.invalidateQueries({
+        queryKey: ["stage-item-counts", organizationId],
+      });
+
       // Optional: More precise invalidation if needed later
       // You could iterate through data.results and invalidate specific
       // destination stages: ['itemsInStage', organizationId, result.nextStageId, result.nextSubStageId]

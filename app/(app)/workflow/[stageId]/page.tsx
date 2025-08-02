@@ -23,19 +23,17 @@ import { useStage } from "@/hooks/queries/use-stage";
 import { useSubStage } from "@/hooks/queries/use-sub-stage";
 import { Suspense } from "react";
 
-// Define types for stage and substage data
+// Define types for stage data with tree structure
 interface StageData {
   id: string;
   name: string | null;
   sequence_order: number;
   location: string | null;
-}
-
-interface SubStageData {
-  id: string;
-  name: string | null;
-  sequence_order: number;
-  location: string | null;
+  parent_stage_id: string | null;
+  depth_level: number;
+  full_path: string | null;
+  is_leaf_stage: boolean;
+  sku: string | null;
 }
 
 // Separate component that uses useSearchParams
@@ -50,12 +48,11 @@ function StageViewContent() {
     error: authError,
   } = useProfileAndOrg();
 
-  // --- Stage/SubStage IDs ---
+  // --- Stage ID ---
   const stageId = params.stageId as string | undefined;
-  // Correctly handle null from searchParams.get, pass undefined if null
-  const subStageIdParam = searchParams.get("subStage");
-  const subStageId: string | null =
-    subStageIdParam === null ? null : subStageIdParam;
+  // In the tree structure, we no longer have separate sub-stages
+  // Everything is a workflow_stages entry with possible parent_stage_id
+  const subStageId: string | null = null;
 
   // --- Fetch Stage Data ---
   const {
@@ -65,13 +62,8 @@ function StageViewContent() {
     error: stageError,
   } = useStage(stageId, organizationId);
 
-  // --- Fetch Sub-Stage Data (Conditional) ---
-  const {
-    data: subStageData,
-    isLoading: isSubStageLoading,
-    isError: isSubStageError,
-    error: subStageError,
-  } = useSubStage(subStageId ? subStageId : null, organizationId!);
+  // Note: With tree structure, we no longer need separate sub-stage queries
+  // All stages (including what were sub-stages) are in workflow_stages table
 
   // --- Loading and Error States ---
   if (isAuthLoading || isStageLoading) {
@@ -208,33 +200,6 @@ function StageViewContent() {
     );
   }
 
-  // Sub-Stage Data Fetching Error (only if a sub-stage was requested)
-  if (subStageId && isSubStageError) {
-    return (
-      <Alert variant="destructive" className="m-4">
-        <Terminal className="h-4 w-4" />
-        <AlertTitle>Error Loading Sub-Stage</AlertTitle>
-        <AlertDescription>
-          Could not load details for this sub-stage. Please try refreshing. (
-          {subStageError?.message || "Unknown error"})
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  // Sub-Stage not found (only if a sub-stage was requested)
-  if (subStageId && !subStageData) {
-    return (
-      <Alert variant="destructive" className="m-4">
-        <Terminal className="h-4 w-4" />
-        <AlertTitle>Sub-Stage Not Found</AlertTitle>
-        <AlertDescription>
-          The requested sub-stage could not be found or you do not have access
-          to it.
-        </AlertDescription>
-      </Alert>
-    );
-  }
 
   // --- Main Content ---
   return (
@@ -260,9 +225,10 @@ function StageViewContent() {
               <h2 className="text-2xl font-bold">
                 {stageData.name || "Unnamed Stage"}
               </h2>
-              {subStageData && (
+              {/* Display parent stage info if this is a child stage */}
+              {stageData.parent_stage_id && stageData.full_path && (
                 <span className="text-muted-foreground text-sm">
-                  / {subStageData.name || "Unnamed Sub-Stage"}
+                  ({stageData.full_path})
                 </span>
               )}
             </div>

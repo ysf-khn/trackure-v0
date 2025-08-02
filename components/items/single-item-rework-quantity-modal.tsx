@@ -28,6 +28,7 @@ import {
 import { RotateCcw, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
 import { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
 import { useWorkerPermissions } from "@/components/providers/permissions-provider";
+import { getPreviousStages } from "@/lib/workflow-utils";
 
 interface SingleItemReworkQuantityModalProps {
   isOpen: boolean;
@@ -39,16 +40,7 @@ interface SingleItemReworkQuantityModalProps {
     currentStageId: string;
     currentSubStageId: string | null;
   };
-  availableStages: {
-    id: string;
-    name: string | null;
-    sequence_order: number;
-    sub_stages?: {
-      id: string;
-      name: string | null;
-      sequence_order: number;
-    }[];
-  }[];
+  workflowData?: FetchedWorkflowStage[];
   onConfirmRework: (
     itemId: string,
     quantity: number,
@@ -66,7 +58,7 @@ export function SingleItemReworkQuantityModal({
   isOpen,
   onOpenChange,
   item,
-  availableStages,
+  workflowData,
   onConfirmRework,
   isProcessing,
   userRole,
@@ -78,70 +70,38 @@ export function SingleItemReworkQuantityModal({
   const [selectedStageId, setSelectedStageId] = useState<string>("");
   const [downloadVoucher, setDownloadVoucher] = useState<boolean>(false);
 
-  // Get the current stage's sequence order
-  const currentStageSequence = React.useMemo(() => {
-    const currentStage = availableStages.find(
-      (s) => s.id === item.currentStageId
-    );
-    return currentStage?.sequence_order ?? Infinity;
-  }, [availableStages, item.currentStageId]);
-
-  // Filter available stages to only show valid rework targets
+  // Get rework target options using tree structure
   const reworkTargetOptions = React.useMemo(() => {
-    const options: { id: string; name: string | null }[] = [];
+    console.log(`[ReworkModal] Debug info:`, {
+      workflowDataLength: workflowData?.length || 0,
+      currentStageId: item.currentStageId,
+      currentSubStageId: item.currentSubStageId,
+      workflowData: workflowData?.map(s => ({ id: s.id, name: s.name, full_path: s.full_path }))
+    });
 
-    // Find the current stage to get its substages
-    const currentStage = availableStages.find(
-      (s) => s.id === item.currentStageId
-    );
-
-    // Add all stages before the current stage (and their substages)
-    availableStages
-      .filter((stage) => stage.sequence_order < currentStageSequence)
-      .forEach((stage) => {
-        if (stage.sub_stages && stage.sub_stages.length > 0) {
-          // If stage has substages, add all substages
-          stage.sub_stages.forEach((subStage) => {
-            options.push({
-              id: subStage.id,
-              name: `${stage.name} > ${subStage.name || "Unnamed Substage"}`,
-            });
-          });
-        } else {
-          // If no substages, add the stage itself
-          options.push({
-            id: stage.id,
-            name: stage.name,
-          });
-        }
-      });
-
-    // If the current item is in a substage, also add earlier substages within the same parent stage
-    if (item.currentSubStageId && currentStage?.sub_stages) {
-      const currentSubStage = currentStage.sub_stages.find(
-        (sub) => sub.id === item.currentSubStageId
-      );
-      const currentSubStageSequence =
-        currentSubStage?.sequence_order ?? Infinity;
-
-      // Add substages that come before the current substage within the same parent stage
-      currentStage.sub_stages
-        .filter((sub) => sub.sequence_order < currentSubStageSequence)
-        .forEach((subStage) => {
-          options.push({
-            id: subStage.id,
-            name: `${currentStage.name} > ${subStage.name || "Unnamed Substage"}`,
-          });
-        });
+    if (!workflowData || workflowData.length === 0) {
+      console.log(`[ReworkModal] No workflow data available`);
+      return [];
     }
 
+    // Use getPreviousStages to get all valid rework targets
+    const previousStages = getPreviousStages(
+      workflowData,
+      item.currentStageId,
+      item.currentSubStageId
+    );
+
+    console.log(`[ReworkModal] Previous stages found:`, previousStages);
+
+    // Convert to the format expected by the select component
+    const options = previousStages.map(stage => ({
+      id: stage.id,
+      name: stage.name || `Stage ${stage.id}`,
+    }));
+
+    console.log(`[ReworkModal] Final options:`, options);
     return options;
-  }, [
-    availableStages,
-    currentStageSequence,
-    item.currentStageId,
-    item.currentSubStageId,
-  ]);
+  }, [workflowData, item.currentStageId, item.currentSubStageId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -201,43 +161,19 @@ export function SingleItemReworkQuantityModal({
       return;
     }
 
-    // Find the selected stage/substage in the available stages
-    let targetStageId = selectedStageId;
-    let targetStageIdForVoucher = selectedStageId;
-    let isSubStage = false;
-
-    // Look through all stages and their substages to find the selected ID
-    for (const stage of availableStages) {
-      if (stage.id === selectedStageId) {
-        // It's a main stage
-        targetStageId = selectedStageId;
-        targetStageIdForVoucher = selectedStageId;
-        break;
-      }
-      // Check substages
-      if (stage.sub_stages) {
-        const foundSubStage = stage.sub_stages.find(
-          (sub) => sub.id === selectedStageId
-        );
-        if (foundSubStage) {
-          // It's a substage, use the parent stage's ID for rework operation
-          targetStageId = stage.id;
-          // But use the actual sub-stage ID for voucher
-          targetStageIdForVoucher = selectedStageId;
-          isSubStage = true;
-          break;
-        }
-      }
-    }
+    // In tree structure, the selected stage ID is always the target stage ID
+    // No sub-stage complexity needed
+    const targetStageId = selectedStageId;
+    const targetStageIdForVoucher = selectedStageId;
 
     onConfirmRework(
       item.id,
       quantityToRework,
       reworkReason.trim(),
       targetStageId,
-      isSubStage ? selectedStageId : null,
+      null, // sub_stage_id is always null in tree structure
       item.currentStageId,
-      item.currentSubStageId
+      null // current sub_stage_id is always null in tree structure
     );
 
     // Download voucher if user is Owner AND they chose to download

@@ -217,6 +217,9 @@ export function ReworkModal({
 
       // Invalidate the completed items count query
       queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });
+      
+      // Invalidate stage item counts for sidebar badges
+      queryClient.invalidateQueries({ queryKey: ["stage-item-counts"] });
       form.reset();
       onOpenChange(false);
       onSuccess?.(); // Call optional success callback provided by parent

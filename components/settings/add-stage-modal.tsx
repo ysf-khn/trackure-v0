@@ -61,6 +61,7 @@ type FormData = z.infer<typeof formSchema>;
 
 interface AddStageModalProps {
   organizationId: string;
+  selectedSKU: string | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -71,12 +72,13 @@ interface CreatedStageResponse {
 }
 
 async function createStageWithSubStages(
-  values: FormData
+  values: FormData,
+  selectedSKU: string | null
 ): Promise<CreatedStageResponse> {
   const response = await fetch(`/api/settings/workflow/stages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(values),
+    body: JSON.stringify({ ...values, selectedSKU }),
   });
   if (!response.ok) {
     const errorData = await response
@@ -89,6 +91,7 @@ async function createStageWithSubStages(
 
 export function AddStageModal({
   organizationId,
+  selectedSKU,
   isOpen,
   onClose,
 }: AddStageModalProps) {
@@ -111,11 +114,11 @@ export function AddStageModal({
   const hasSubStages = form.watch("hasSubStages");
 
   const mutation = useMutation<CreatedStageResponse, Error, FormData>({
-    mutationFn: createStageWithSubStages,
+    mutationFn: (values) => createStageWithSubStages(values, selectedSKU),
     onSuccess: (data) => {
       toast.success(`Stage "${data.name}" created successfully!`);
       queryClient.invalidateQueries({
-        queryKey: getWorkflowQueryKey(organizationId),
+        queryKey: getWorkflowQueryKey(organizationId, selectedSKU),
       });
       queryClient.invalidateQueries({
         queryKey: getSidebarWorkflowKey(organizationId),

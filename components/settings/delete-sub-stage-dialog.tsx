@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2 } from "lucide-react";
 import {
-  type FetchedSubStage,
+  type FetchedWorkflowStage,
   getWorkflowQueryKey,
 } from "@/hooks/queries/use-workflow-structure";
 import { getSidebarWorkflowKey } from "@/hooks/queries/use-workflow";
@@ -37,13 +37,15 @@ interface DeleteSubStageDialogProps {
   isOpen: boolean;
   onClose: () => void;
   organizationId: string;
-  subStage: FetchedSubStage | null; // Use FetchedSubStage
+  selectedSKU: string | null;
+  subStage: FetchedWorkflowStage | null; // Use FetchedWorkflowStage for consistency
 }
 
 export function DeleteSubStageDialog({
   isOpen,
   onClose,
   organizationId,
+  selectedSKU,
   subStage,
 }: DeleteSubStageDialogProps) {
   const queryClient = useQueryClient();
@@ -78,7 +80,7 @@ export function DeleteSubStageDialog({
         `Sub-stage "${subStage?.name ?? "Sub-stage"}" deleted successfully.`
       );
       queryClient.invalidateQueries({
-        queryKey: getWorkflowQueryKey(organizationId),
+        queryKey: getWorkflowQueryKey(organizationId, selectedSKU),
       });
       queryClient.invalidateQueries({
         queryKey: getSidebarWorkflowKey(organizationId),

@@ -72,16 +72,17 @@ export async function PUT(
 
   const { name, location } = result.data;
 
-  // Update the sub-stage
+  // Update the stage (with tree structure, sub-stages are now in workflow_stages table)
   // RLS policy should enforce organization_id check, but we can add it explicitly for safety
   const { data: updatedSubStage, error: updateError } = await supabase
-    .from("workflow_sub_stages")
+    .from("workflow_stages")
     .update({
       name,
       location, // Add location field
     })
     .eq("id", subStageId)
-    .eq("organization_id", organizationId) // Ensure user owns this sub-stage
+    .eq("organization_id", organizationId) // Ensure user owns this stage
+    .not("parent_stage_id", "is", null) // Ensure it's a sub-stage (has a parent)
     .select()
     .single();
 
@@ -161,10 +162,11 @@ export async function DELETE(
 
   // 1. Verify ownership of the sub-stage (check if it exists for the org)
   const { data: subStageCheck, error: checkError } = await supabase
-    .from("workflow_sub_stages")
-    .select("id")
+    .from("workflow_stages")
+    .select("id, name")
     .eq("id", subStageId)
     .eq("organization_id", organizationId)
+    .not("parent_stage_id", "is", null) // Ensure it's a sub-stage (has a parent)
     .maybeSingle(); // Use maybeSingle to check existence without erroring if not found initially
 
   if (checkError) {
@@ -209,9 +211,33 @@ export async function DELETE(
     );
   }
 
+  // 2.5. Check if this stage has children (tree structure)
+  const { error: childCheckError, count: childCount } = await supabase
+    .from("workflow_stages")
+    .select("id", { count: "exact", head: true })
+    .eq("parent_stage_id", subStageId)
+    .eq("organization_id", organizationId);
+
+  if (childCheckError) {
+    console.error("Error checking child stages:", childCheckError);
+    return NextResponse.json(
+      { error: "Failed to verify stage dependencies." },
+      { status: 500 }
+    );
+  }
+
+  if (childCount !== null && childCount > 0) {
+    return NextResponse.json(
+      {
+        error: `Cannot delete stage "${subStageCheck.name}": it has ${childCount} child stage(s). Please delete child stages first.`,
+      },
+      { status: 409 }
+    );
+  }
+
   // 3. Delete the sub-stage if checks pass
   const { error: deleteError } = await supabase
-    .from("workflow_sub_stages")
+    .from("workflow_stages")
     .delete()
     .eq("id", subStageId)
     .eq("organization_id", organizationId); // Redundant due to check above, but safe
