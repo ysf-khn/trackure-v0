@@ -7,6 +7,8 @@ import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/utils/supabase/client";
 import { useDebounce } from "@/hooks/queries/use-debounce";
+import { invalidateAllItemRelatedQueries } from "@/lib/cache-invalidation";
+import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -124,6 +126,8 @@ type FormData = z.infer<typeof formSchema>;
 
 export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
   const queryClient = useQueryClient();
+  const { profile } = useProfileAndOrg();
+  const organizationId = profile?.organization_id || null;
 
   // 1. Form Setup
   const form = useForm<FormData>({
@@ -336,21 +340,8 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
       queryClient.invalidateQueries({ queryKey: ["orderItems", orderId] }); // If you have a query for items specific to this order
       queryClient.invalidateQueries({ queryKey: ["itemsInStage"] }); // To update stage view lists
 
-      // Invalidate the workflow sidebar query (which includes counts for the sidebar)
-      queryClient.invalidateQueries({ queryKey: ["workflow", "sidebar"] });
-
-      // Invalidate the new items count query
-      queryClient.invalidateQueries({ queryKey: ["newItemsCount"] });
-
-      // Invalidate the new order items query (for the new-orders page)
-      queryClient.invalidateQueries({ queryKey: ["newOrderItems"] });
-
-      // Invalidate the completed items count query
-      queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });
-
-      // Invalidate stage item counts for sidebar badges
-      // Need to get organizationId from the current context/profile
-      queryClient.invalidateQueries({ queryKey: ["stage-item-counts"] });
+      // Use centralized cache invalidation for consistency
+      invalidateAllItemRelatedQueries(queryClient, organizationId);
       if (onItemAdded) onItemAdded(); // Call optional callback
     },
     onError: (error: Error) => {

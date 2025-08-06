@@ -45,34 +45,49 @@ npm run type-check   # TypeScript type checking
 - `/(onboarding)/` - User onboarding flow
 - `/api/` - REST API endpoints
 
-### Core Database Schema
+### Core Database Schema (Detailed)
 
 #### Multi-tenant Architecture
-- **organizations** - Company/tenant isolation
-- **profiles** - Links auth.users to organizations with roles
-- **worker_permissions** - Granular permissions for Worker role
+- **organizations**: `id` (uuid), `name` (text),`owner_id`, `created_at`, `weight_unit`, `size_unit`
+- **profiles**: `id` (uuid), `organization_id`, `role` (Owner/Worker), `full_name`, `created_at`, `updated_at`
+- **worker_permissions**: `id`, `organization_id`, `permission_key` (dot notation), `enabled` (boolean)
 
-#### Workflow System
-- **workflow_stages** - Main production stages (customizable per org)
-- **workflow_sub_stages** - Detailed steps within stages
-- **item_stage_allocations** - Tracks item quantities in each stage
-- **item_movement_history** - Complete audit trail of movements
+#### Workflow System (Tree Structure)
+- **workflow_stages**: `id`, `name`, `sequence_order`, `organization_id`, `parent_stage_id` (self-ref), `depth_level`, `full_path`, `is_leaf_stage`, `sku`, `location`
+  - Supports infinite nesting with tree structure
+  - SKU-specific workflows
+- **workflow_sub_stages**: Migrated into workflow_stages as child nodes
+- **item_stage_allocations**: `id`, `item_id`, `stage_id`, `quantity`, `status`, `stage_path`, `is_leaf_allocation`
+- **item_movement_history**: `id`, `item_id`, `from_stage_id`, `to_stage_id`, `quantity`, `moved_at`, `rework_reason`, `rework_type`, `replacement_item_id`
 
 #### Item Management
-- **item_master** - SKU catalog with specs
-- **items** - Actual item instances with quantities
-- **orders** - Customer orders with payment status
-- **item_remarks** - Stage-specific comments/instructions
+- **item_master**: `sku` (text), `organization_id`, `master_details` (jsonb), `is_composite`, `created_at`
+  - **NO item_name column - only sku**
+  - Composite key: (sku, organization_id)
+- **items**: `id`, `order_id`, `sku`, `total_quantity`, `remaining_quantity`, `status` (New/In Workflow/Completed), `is_scrapped`, `net_weight_kg`, `gross_weight_kg`
+- **orders**: `id`, `order_number`, `customer_name`, `payment_status`, `status`, `total_quantity`
+- **remarks**: `id`, `item_id`, `text`, `user_id`, `timestamp`
 
-#### Composite Items (Multi-component products)
-- **composite_item_definitions** - Defines composite SKUs
-- **composite_item_components** - Components and quantities
-- Items table extended with `composite_group_id` and `parent_composite_sku`
+#### Cost Calculation
+- **sku_cost_calculations**: `id`, `organization_id`, `sku`, `base_material_cost`, `total_workflow_cost`, `markup_percentage`, `final_calculated_cost`, `calculation_details` (jsonb)
+  - **NO vendor_stage_costs or raw_material_cost columns**
+
+#### Vendor Management
+- **vendors**: `id`, `name`, `firm_name`, `gst`, `address`, `phone`, `email`, `is_active`
+- **vendor_stage_pricing**: `id`, `vendor_id`, `stage_id`, `sku`, `price`, `currency`, `lead_time_days`
+
+#### Sample Management
+- **samples**: `id`, `sku`, `sample_code`, `name`, `status`, `location`
+- **sample_attributes**: Flexible key-value attributes
+- **sample_images**: Image attachments for samples
+
+#### Composite Items
+- **composite_item_definitions**: `id`, `composite_sku`, `organization_id`,`name`, `description`, `is_active`, `created_at`,`updated_at`
+- **composite_item_components**: `id`, `composite_definition_id`, `component_sku`, `organization_id`, `quantity_per_composite`, `created_at`
 
 #### Advanced Features
-- **packaging_reminders** - Lead-time based reminders
-- **item_images** - Image attachments for items/remarks
-- **feature_requests** - User feedback system
+- **item_images**: `id`, `item_id`, `storage_path`, `remark_id`
+- **feature_requests**: User feedback system with voting
 
 ### Key Business Logic
 
@@ -150,3 +165,7 @@ Check README or search for test scripts - no standard testing framework detected
   * Highlight missed key details
   * Assess scalability of recommended solutions
   * Practice ultrathinking: Be brutally honest in self-evaluation
+
+## Additional Notes
+
+- Use all_tables.json to check the table schemas

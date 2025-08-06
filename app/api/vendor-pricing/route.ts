@@ -23,7 +23,6 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const stageId = searchParams.get("stage_id");
-    const subStageId = searchParams.get("sub_stage_id");
     const organizationId = searchParams.get("organization_id");
 
     if (!stageId || !organizationId) {
@@ -43,32 +42,20 @@ export async function GET(request: NextRequest) {
       .select(`
         vendor_id,
         sku,
-        pricing_per_unit,
+        price,
         currency,
         notes,
         updated_at,
         vendors!inner(
-          name,
-          location
+          name
         ),
         workflow_stages!inner(
           name,
           full_path
-        ),
-        workflow_sub_stages(
-          name
         )
       `)
       .eq("organization_id", organizationId)
       .eq("stage_id", stageId);
-
-    // Add sub-stage filter if provided
-    if (subStageId) {
-      query = query.eq("sub_stage_id", subStageId);
-    } else {
-      // If no sub-stage specified, get pricing for the main stage (sub_stage_id is null)
-      query = query.is("sub_stage_id", null);
-    }
 
     const { data: vendorPricing, error: pricingError } = await query;
 
@@ -81,11 +68,9 @@ export async function GET(request: NextRequest) {
     const transformedData = vendorPricing?.map(pricing => ({
       vendor_id: pricing.vendor_id,
       vendor_name: pricing.vendors.name,
-      vendor_location: pricing.vendors.location,
-      pricing_per_unit: pricing.pricing_per_unit,
+      pricing_per_unit: pricing.price,
       currency: pricing.currency || "₹",
       stage_name: pricing.workflow_stages.name,
-      sub_stage_name: pricing.workflow_sub_stages?.name,
       full_path: pricing.workflow_stages.full_path,
       sku: pricing.sku,
       last_updated: pricing.updated_at,

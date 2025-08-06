@@ -1,10 +1,12 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deleteFromS3, generatePresignedDownloadUrl } from "@/lib/aws/s3-client";
 
 // Schema for the request body when associating an image
 const createImageAssociationSchema = z.object({
-  storagePath: z.string().min(1, "Storage path is required"),
+  s3Key: z.string().min(1, "S3 key is required"),
+  s3Url: z.string().url("Invalid S3 URL").optional(), // Made optional since presigned URL is generated server-side
   fileName: z.string().optional(),
   fileSizeBytes: z.number().int().positive().optional(),
   contentType: z.string().optional(),
@@ -137,7 +139,8 @@ export async function POST(
     .insert({
       item_id: itemId,
       organization_id: organizationId, // Store org ID for RLS
-      storage_path: requestData.storagePath,
+      s3_key: requestData.s3Key,
+      s3_url: requestData.s3Url,
       file_name: requestData.fileName,
       file_size_bytes: requestData.fileSizeBytes,
       content_type: requestData.contentType,
@@ -149,7 +152,12 @@ export async function POST(
 
   if (insertError) {
     console.error("Error inserting image metadata:", insertError);
-    // TODO: Consider deleting the uploaded file from storage if DB insert fails
+    // Try to delete the uploaded file from S3 if DB insert fails
+    try {
+      await deleteFromS3(requestData.s3Key);
+    } catch (deleteError) {
+      console.error("Failed to delete S3 file after DB error:", deleteError);
+    }
     return NextResponse.json(
       { error: "Failed to save image association" },
       { status: 500 }
@@ -213,7 +221,7 @@ export async function GET(
   const { data: images, error } = await supabase
     .from("item_images")
     .select(
-      "id, storage_path, file_name, uploaded_at, uploaded_by, remark_id, content_type"
+      "id, s3_key, s3_url, file_name, uploaded_at, uploaded_by, remark_id, content_type"
     ) // Select needed fields
     .eq("item_id", itemId)
     .order("uploaded_at", { ascending: false }); // Order by newest first
@@ -226,5 +234,21 @@ export async function GET(
     );
   }
 
-  return NextResponse.json(images ?? [], { status: 200 });
+  // Generate presigned URLs for the images
+  const imagesWithPresignedUrls = await Promise.all(
+    (images ?? []).map(async (image) => {
+      if (image.s3_key) {
+        try {
+          const presignedUrl = await generatePresignedDownloadUrl(image.s3_key, 3600);
+          return { ...image, s3_url: presignedUrl };
+        } catch (error) {
+          console.error(`Error generating presigned URL for image ${image.id}:`, error);
+          return image;
+        }
+      }
+      return image;
+    })
+  );
+
+  return NextResponse.json(imagesWithPresignedUrls, { status: 200 });
 }

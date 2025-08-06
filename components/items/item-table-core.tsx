@@ -38,7 +38,6 @@ import { useReworkItems } from "@/hooks/mutations/use-rework-items";
 interface ReworkableItem {
   id: string;
   current_stage_id: string;
-  current_sub_stage_id?: string | null;
   display_name?: string;
   available_quantity: number;
 }
@@ -58,7 +57,6 @@ interface ItemListTableMeta {
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
     targetStageId?: string | null,
-    targetSubStageId?: string | null,
     sourceStageId?: string | null
   ) => void;
   isMovingItems: boolean;
@@ -67,11 +65,9 @@ interface ItemListTableMeta {
   workflowData?: FetchedWorkflowStage[];
   isWorkflowLoading: boolean;
   currentStageId: string;
-  currentSubStageId: string | null;
   subsequentStages?: {
     id: string;
     name: string | null;
-    isSubStage?: boolean;
     parentStageId?: string;
     parentStageName?: string | null;
   }[];
@@ -80,7 +76,6 @@ interface ItemListTableMeta {
     sku: string | null;
     currentQuantity: number;
     targetStageId?: string | null;
-    targetSubStageId?: string | null;
     targetStageName: string;
   }) => void;
   handleOpenSingleReworkQuantityModal?: (details: {
@@ -96,7 +91,6 @@ interface ItemListTableMeta {
 interface ItemTableCoreProps {
   organizationId: string | undefined | null;
   stageId: string;
-  subStageId: string | null;
   orderIdFilter: string | null;
   columns: ColumnDef<ItemInStage>[]; // Pass columns definition
   // Pass state and handlers needed by the table meta/rendering
@@ -117,7 +111,6 @@ interface ItemTableCoreProps {
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
     targetStageId?: string | null,
-    targetSubStageId?: string | null,
     sourceStageId?: string | null
   ) => void;
   // Ensure handleOpenMoveQuantityModal is defined only once
@@ -126,7 +119,6 @@ interface ItemTableCoreProps {
     sku: string | null;
     currentQuantity: number;
     targetStageId?: string | null;
-    targetSubStageId?: string | null;
     targetStageName: string;
   }) => void;
   // Ensure handleOpenSingleReworkQuantityModal is defined only once
@@ -135,7 +127,6 @@ interface ItemTableCoreProps {
     sku: string | null;
     currentQuantity: number;
     currentStageId: string;
-    currentSubStageId: string | null;
   }) => void;
   // Add state setters for sorting/filtering/selection if managed outside
   sorting: SortingState;
@@ -150,12 +141,10 @@ interface ItemTableCoreProps {
   workflowData?: FetchedWorkflowStage[];
   isWorkflowLoading: boolean;
   currentStageId: string;
-  currentSubStageId: string | null;
   // Accept calculated subsequent stages
   subsequentStages?: {
     id: string;
     name: string | null;
-    isSubStage?: boolean;
     parentStageId?: string;
     parentStageName?: string | null;
   }[];
@@ -177,7 +166,6 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
     {
       organizationId,
       stageId,
-      subStageId,
       orderIdFilter,
       columns,
       userRole,
@@ -197,7 +185,6 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       workflowData,
       isWorkflowLoading,
       currentStageId,
-      currentSubStageId,
       subsequentStages,
       hasPermission,
       handleDeleteItem,
@@ -211,7 +198,7 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       isError: isItemsError,
       error: itemsError,
       refetch: refetchItems,
-    } = useItemsInStage(organizationId, stageId, subStageId, orderIdFilter);
+    } = useItemsInStage(organizationId, stageId, orderIdFilter);
 
     // Single Item Rework Quantity Modal state
     const [isSingleReworkModalOpen, setIsSingleReworkModalOpen] =
@@ -221,7 +208,6 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       sku: string | null;
       currentQuantity: number;
       currentStageId: string;
-      currentSubStageId: string | null;
     } | null>(null);
 
     // Bulk Rework Quantity Modal state
@@ -232,7 +218,6 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
         sku: string | null;
         currentQuantity: number;
         currentStageId: string;
-        currentSubStageId: string | null;
       }[]
     >([]);
 
@@ -271,7 +256,6 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
         workflowData: workflowData,
         isWorkflowLoading: isWorkflowLoading,
         currentStageId: currentStageId,
-        currentSubStageId: currentSubStageId,
         subsequentStages: subsequentStages,
         handleOpenMoveQuantityModal: handleOpenMoveQuantityModal,
         hasPermission,
@@ -299,7 +283,6 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       quantity: number,
       reason: string,
       targetStageId: string,
-      targetSubStageId: string | null
     ) => {
       if (!organizationId) return;
       reworkItems(
@@ -309,12 +292,10 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
               id: itemId,
               quantity,
               source_stage_id: currentStageId,
-              source_sub_stage_id: currentSubStageId,
             },
           ],
           rework_reason: reason,
           target_rework_stage_id: targetStageId,
-          target_rework_sub_stage_id: targetSubStageId,
           organizationId,
         },
         {
@@ -334,7 +315,6 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
       reworkedItems: { id: string; quantity: number }[],
       reason: string,
       targetStageId: string,
-      targetSubStageId: string | null
     ) => {
       if (!organizationId) return;
       reworkItems(
@@ -342,11 +322,9 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
           items: reworkedItems.map((item) => ({
             ...item,
             source_stage_id: currentStageId,
-            source_sub_stage_id: currentSubStageId,
           })),
           rework_reason: reason,
           target_rework_stage_id: targetStageId,
-          target_rework_sub_stage_id: targetSubStageId,
           organizationId,
         },
         {

@@ -1,0 +1,629 @@
+[
+  {
+    "table_name": "composite_item_components",
+    "columns": [
+      "id",
+      "composite_definition_id",
+      "component_sku",
+      "organization_id",
+      "quantity_per_composite",
+      "created_at"
+    ]
+  },
+  {
+    "table_name": "composite_item_definitions",
+    "columns": [
+      "id",
+      "composite_sku",
+      "organization_id",
+      "name",
+      "description",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  {
+    "table_name": "composite_item_definitions_with_components",
+    "columns": [
+      "id",
+      "composite_sku",
+      "organization_id",
+      "name",
+      "description",
+      "is_active",
+      "created_at",
+      "updated_at",
+      "component_count",
+      "total_component_quantity",
+      "components"
+    ]
+  },
+  {
+    "table_name": "composite_item_status",
+    "columns": [
+      "composite_group_id",
+      "parent_composite_sku",
+      "order_id",
+      "order_number",
+      "customer_name",
+      "total_components",
+      "completed_components",
+      "unique_component_types",
+      "total_component_quantity",
+      "completed_component_quantity",
+      "completion_percentage",
+      "composite_status",
+      "created_at",
+      "last_updated",
+      "organization_id"
+    ]
+  },
+  {
+    "table_name": "item_images",
+    "columns": [
+      "id",
+      "item_id",
+      "organization_id",
+      "storage_path",
+      "file_name",
+      "file_size_bytes",
+      "content_type",
+      "uploaded_by",
+      "uploaded_at",
+      "remark_id",
+      "s3_key",
+      "s3_url"
+    ]
+  },
+  {
+    "table_name": "item_master",
+    "columns": [
+      "sku",
+      "organization_id",
+      "master_details",
+      "created_at",
+      "is_composite"
+    ]
+  },
+  {
+    "table_name": "item_movement_history",
+    "columns": [
+      "id",
+      "item_id",
+      "from_stage_id",
+      "to_stage_id",
+      "quantity",
+      "moved_at",
+      "moved_by",
+      "organization_id",
+      "rework_reason",
+      "rework_type",
+      "replacement_item_id",
+      "scrap_reason"
+    ]
+  },
+  {
+    "table_name": "item_stage_allocations",
+    "columns": [
+      "id",
+      "item_id",
+      "stage_id",
+      "quantity",
+      "status",
+      "moved_by",
+      "organization_id",
+      "created_at",
+      "updated_at",
+      "stage_path",
+      "is_leaf_allocation",
+      "allocation_type"
+    ]
+  },
+  {
+    "table_name": "item_vendor_assignments",
+    "columns": [
+      "id",
+      "item_id",
+      "allocation_id",
+      "vendor_id",
+      "quantity",
+      "price_per_unit",
+      "total_price",
+      "currency",
+      "assigned_at",
+      "expected_completion",
+      "completed_at",
+      "assigned_by",
+      "organization_id"
+    ]
+  },
+  {
+    "table_name": "items",
+    "columns": [
+      "id",
+      "order_id",
+      "sku",
+      "buyer_id",
+      "instance_details",
+      "total_quantity",
+      "remaining_quantity",
+      "organization_id",
+      "created_at",
+      "updated_at",
+      "status",
+      "composite_group_id",
+      "parent_composite_sku",
+      "workflow_type",
+      "is_scrapped",
+      "scrapped_at",
+      "scrapped_by",
+      "scrapped_from_stage_id",
+      "is_replacement",
+      "replaced_item_id",
+      "net_weight_kg",
+      "gross_weight_kg",
+      "size_inches",
+      "weight_unit",
+      "size_unit"
+    ]
+  },
+  {
+    "table_name": "new_order_items",
+    "columns": [
+      "item_id",
+      "sku",
+      "buyer_id",
+      "original_item_total_quantity",
+      "quantity_in_new_pool",
+      "remaining_quantity",
+      "order_id",
+      "order_number",
+      "customer_name",
+      "created_at",
+      "organization_id",
+      "status"
+    ]
+  },
+  {
+    "table_name": "new_order_items_consolidated",
+    "columns": [
+      "item_id",
+      "sku",
+      "buyer_id",
+      "original_item_total_quantity",
+      "quantity_in_new_pool",
+      "remaining_quantity",
+      "order_id",
+      "order_number",
+      "customer_name",
+      "created_at",
+      "organization_id",
+      "status",
+      "replacement_count",
+      "total_replacement_quantity",
+      "original_total_before_scraps"
+    ]
+  },
+  {
+    "table_name": "orders",
+    "columns": [
+      "id",
+      "organization_id",
+      "order_number",
+      "customer_name",
+      "payment_status",
+      "status",
+      "total_quantity",
+      "created_at",
+      "updated_at",
+      "required_packaging_materials",
+      "packaging_reminder_trigger_stage_id",
+      "packaging_reminder_sent"
+    ]
+  },
+  {
+    "table_name": "organizations",
+    "columns": [
+      "id",
+      "name",
+      "created_at",
+      "owner_id",
+      "weight_unit",
+      "size_unit"
+    ]
+  },
+  {
+    "table_name": "profiles",
+    "columns": [
+      "id",
+      "organization_id",
+      "role",
+      "full_name",
+      "updated_at",
+      "onboarding_status",
+      "created_at"
+    ]
+  },
+  {
+    "table_name": "remarks",
+    "columns": [
+      "id",
+      "item_id",
+      "allocation_id",
+      "movement_id",
+      "user_id",
+      "text",
+      "timestamp",
+      "organization_id"
+    ]
+  },
+  {
+    "table_name": "sample_attribute_templates",
+    "columns": [
+      "id",
+      "organization_id",
+      "attribute_category",
+      "attribute_name",
+      "default_unit",
+      "input_type",
+      "possible_values",
+      "is_required",
+      "display_order",
+      "created_at"
+    ]
+  },
+  {
+    "table_name": "sample_attributes",
+    "columns": [
+      "id",
+      "sample_id",
+      "attribute_category",
+      "attribute_name",
+      "attribute_value",
+      "attribute_unit",
+      "display_order",
+      "created_at",
+      "updated_at",
+      "vendor_id"
+    ]
+  },
+  {
+    "table_name": "sample_change_history",
+    "columns": [
+      "id",
+      "sample_id",
+      "change_type",
+      "field_name",
+      "old_value",
+      "new_value",
+      "changed_at",
+      "changed_by"
+    ]
+  },
+  {
+    "table_name": "sample_images",
+    "columns": [
+      "id",
+      "sample_id",
+      "image_url",
+      "image_type",
+      "caption",
+      "display_order",
+      "uploaded_at",
+      "uploaded_by",
+      "s3_key",
+      "s3_url",
+      "file_name",
+      "file_size_bytes",
+      "content_type",
+      "organization_id"
+    ]
+  },
+  {
+    "table_name": "sample_movement_history",
+    "columns": [
+      "id",
+      "sample_id",
+      "from_status",
+      "to_status",
+      "from_location",
+      "to_location",
+      "given_to",
+      "expected_return_date",
+      "actual_return_date",
+      "notes",
+      "moved_at",
+      "moved_by"
+    ]
+  },
+  {
+    "table_name": "sample_search_view",
+    "columns": [
+      "id",
+      "organization_id",
+      "name",
+      "sku",
+      "sku_name",
+      "location",
+      "quantity",
+      "size",
+      "created_at",
+      "updated_at",
+      "attributes",
+      "image_count"
+    ]
+  },
+  {
+    "table_name": "samples",
+    "columns": [
+      "id",
+      "organization_id",
+      "sku",
+      "name",
+      "location",
+      "created_at",
+      "updated_at",
+      "created_by",
+      "quantity",
+      "size"
+    ]
+  },
+  {
+    "table_name": "scrapped_items_summary",
+    "columns": [
+      "id",
+      "sku",
+      "scrapped_quantity",
+      "scrapped_at",
+      "scrapped_by_email",
+      "scrapped_from_stage",
+      "scrapped_from_path",
+      "replaced_item_id",
+      "replacement_item_id",
+      "order_number",
+      "customer_name",
+      "scrap_reason"
+    ]
+  },
+  {
+    "table_name": "sku_cost_calculations",
+    "columns": [
+      "id",
+      "organization_id",
+      "sku",
+      "workflow_type",
+      "base_material_cost",
+      "total_workflow_cost",
+      "markup_percentage",
+      "final_calculated_cost",
+      "currency",
+      "cost_per_unit",
+      "last_calculated_at",
+      "is_active",
+      "calculation_details",
+      "created_at",
+      "updated_at",
+      "created_by"
+    ]
+  },
+  {
+    "table_name": "sku_management_view",
+    "columns": [
+      "sku",
+      "organization_id",
+      "sku_name",
+      "sku_description",
+      "specifications",
+      "final_calculated_cost",
+      "base_material_cost",
+      "total_workflow_cost",
+      "markup_percentage",
+      "currency",
+      "cost_per_unit",
+      "last_calculated_at",
+      "active_items_count",
+      "total_active_quantity",
+      "completed_items_count",
+      "total_completed_quantity",
+      "workflow_stages_count",
+      "leaf_stages_count",
+      "vendors_count",
+      "min_vendor_price",
+      "avg_vendor_price",
+      "samples_count",
+      "last_item_created",
+      "last_movement",
+      "created_at"
+    ]
+  },
+  {
+    "table_name": "vendor_orders",
+    "columns": [
+      "id",
+      "vendor_id",
+      "organization_id",
+      "order_number",
+      "sku",
+      "quantity",
+      "unit_price",
+      "total_amount",
+      "currency",
+      "stage_id",
+      "item_id",
+      "allocation_id",
+      "status",
+      "expected_completion",
+      "actual_completion",
+      "created_at",
+      "created_by"
+    ]
+  },
+  {
+    "table_name": "vendor_payment_summary",
+    "columns": [
+      "vendor_id",
+      "vendor_name",
+      "organization_id",
+      "total_orders",
+      "total_order_value",
+      "total_paid",
+      "total_outstanding",
+      "completed_orders",
+      "fully_paid_orders",
+      "partially_paid_orders"
+    ]
+  },
+  {
+    "table_name": "vendor_payments",
+    "columns": [
+      "id",
+      "vendor_id",
+      "organization_id",
+      "vendor_order_id",
+      "payment_type",
+      "amount_paid",
+      "total_order_amount",
+      "remaining_amount",
+      "remarks",
+      "payment_date",
+      "created_by",
+      "is_carried_forward",
+      "carried_from_payment_id",
+      "carried_to_order_id"
+    ]
+  },
+  {
+    "table_name": "vendor_performance_summary",
+    "columns": [
+      "vendor_id",
+      "vendor_name",
+      "organization_id",
+      "total_items_processed",
+      "total_assignments",
+      "total_quantity_processed",
+      "total_revenue",
+      "avg_completion_days",
+      "total_skus_supported",
+      "total_stages_supported"
+    ]
+  },
+  {
+    "table_name": "vendor_price_history",
+    "columns": [
+      "id",
+      "vendor_id",
+      "stage_id",
+      "sku",
+      "organization_id",
+      "price",
+      "currency",
+      "price_unit",
+      "effective_from",
+      "effective_to",
+      "notes",
+      "created_at",
+      "created_by"
+    ]
+  },
+  {
+    "table_name": "vendor_stage_pricing",
+    "columns": [
+      "id",
+      "vendor_id",
+      "stage_id",
+      "sku",
+      "organization_id",
+      "price",
+      "currency",
+      "price_unit",
+      "minimum_quantity",
+      "lead_time_days",
+      "is_active",
+      "notes",
+      "created_at",
+      "updated_at",
+      "created_by"
+    ]
+  },
+  {
+    "table_name": "vendors",
+    "columns": [
+      "id",
+      "organization_id",
+      "name",
+      "firm_name",
+      "gst",
+      "address",
+      "phone",
+      "email",
+      "remarks",
+      "is_active",
+      "created_at",
+      "updated_at",
+      "created_by"
+    ]
+  },
+  {
+    "table_name": "worker_permissions",
+    "columns": [
+      "id",
+      "organization_id",
+      "permission_key",
+      "enabled",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  {
+    "table_name": "workflow_stages",
+    "columns": [
+      "id",
+      "name",
+      "sequence_order",
+      "organization_id",
+      "is_default",
+      "created_at",
+      "location",
+      "parent_stage_id",
+      "depth_level",
+      "full_path",
+      "is_leaf_stage",
+      "sku",
+      "updated_at"
+    ]
+  },
+  {
+    "table_name": "workflow_template_stages",
+    "columns": [
+      "id",
+      "template_id",
+      "original_stage_id",
+      "parent_stage_id",
+      "name",
+      "sequence_order",
+      "depth_level",
+      "full_path",
+      "is_leaf_stage",
+      "location",
+      "avg_time_hours",
+      "created_at"
+    ]
+  },
+  {
+    "table_name": "workflow_templates",
+    "columns": [
+      "id",
+      "organization_id",
+      "sku",
+      "name",
+      "description",
+      "is_active",
+      "completed_count",
+      "avg_completion_days",
+      "created_at",
+      "updated_at",
+      "created_by"
+    ]
+  }
+]

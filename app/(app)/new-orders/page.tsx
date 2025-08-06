@@ -4,6 +4,7 @@ import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
+import { invalidateAllItemRelatedQueries } from "@/lib/cache-invalidation";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -32,15 +33,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, TriangleAlertIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, TriangleAlertIcon, RefreshCw } from "lucide-react";
 import { useWorkflowStructure, type FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
 
-// Types based on new_order_items view and workflow structure
+// Types based on new_order_items_consolidated view and workflow structure
 type NewOrderItem = {
   item_id: string;
   sku: string;
   buyer_id: string | null;
-  original_item_total_quantity: number; // Original total for the item line
+  original_item_total_quantity: number; // Original total for the item line (adjusted for complete scraps)
   quantity_in_new_pool: number; // Quantity available to allocate from 'New' status
   remaining_quantity: number | null; // For overall workflow completion
   order_id: string;
@@ -48,6 +50,10 @@ type NewOrderItem = {
   customer_name: string | null;
   created_at: string;
   organization_id: string;
+  // Additional fields from consolidated view
+  replacement_count: number; // Number of replacement items consolidated
+  total_replacement_quantity: number; // Total quantity from all replacements
+  original_total_before_scraps: number; // Original total before any scrapping
 };
 
 // Type for workflow stage - using the tree structure from useWorkflowStructure
@@ -69,20 +75,20 @@ type AllocationPayload = {
   quantity: number;
 };
 
-// Fetch new order items
+// Fetch new order items (using consolidated view)
 const fetchNewOrderItems = async (
   organizationId: string | null
 ): Promise<NewOrderItem[]> => {
   if (!organizationId) return [];
   const supabase = createClient();
   const { data, error } = await supabase
-    .from("new_order_items")
+    .from("new_order_items_consolidated")
     .select("*")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching new order items:", error);
+    console.error("Error fetching consolidated new order items:", error);
     throw new Error("Failed to fetch new order items.");
   }
   return data || [];
@@ -94,6 +100,7 @@ export default function NewOrdersPage() {
   const [organizationId, setOrganizationId] = React.useState<string | null>(
     null
   );
+  const [isLoadingOrg, setIsLoadingOrg] = React.useState(true);
 
   const [selectedItem, setSelectedItem] = React.useState<NewOrderItem | null>(
     null
@@ -108,18 +115,24 @@ export default function NewOrdersPage() {
 
   React.useEffect(() => {
     const getOrgId = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("organization_id")
-          .eq("id", user.id)
-          .single();
-        if (profile?.organization_id) {
-          setOrganizationId(profile.organization_id);
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("organization_id")
+            .eq("id", user.id)
+            .single();
+          if (profile?.organization_id) {
+            setOrganizationId(profile.organization_id);
+          }
         }
+      } catch (error) {
+        console.error("Error fetching organization ID:", error);
+      } finally {
+        setIsLoadingOrg(false);
       }
     };
     getOrgId();
@@ -160,7 +173,7 @@ export default function NewOrdersPage() {
           
           // Only add leaf stages (stages without children) as allocatable options
           // OR stages that explicitly allow item allocation
-          if (stage.is_leaf_stage || stage.sub_stages.length === 0) {
+          if (stage.is_leaf_stage || !stage.children || stage.children.length === 0) {
             // Create breadcrumb-style label
             const breadcrumbLabel = currentPath.join(' → ');
             
@@ -170,13 +183,13 @@ export default function NewOrdersPage() {
               stageId: stage.id,
               subStageId: null, // In tree structure, we don't use subStageId
               depth,
-              isLeaf: stage.is_leaf_stage || stage.sub_stages.length === 0,
+              isLeaf: stage.is_leaf_stage || !stage.children || stage.children.length === 0,
             });
           }
           
-          // Recursively process sub-stages
-          if (stage.sub_stages && stage.sub_stages.length > 0) {
-            options.push(...flattenStages(stage.sub_stages, depth + 1, currentPath));
+          // Recursively process child stages
+          if (stage.children && stage.children.length > 0) {
+            options.push(...flattenStages(stage.children, depth + 1, currentPath));
           }
         }
       });
@@ -216,17 +229,8 @@ export default function NewOrdersPage() {
       queryClient.invalidateQueries({
         queryKey: ["newOrderItems", organizationId],
       });
-      queryClient.invalidateQueries({ queryKey: ["newItemsCount"] }); // To update sidebar
-      queryClient.invalidateQueries({ queryKey: ["itemsInStage"] }); // To update stage views
-
-      // Invalidate the workflow sidebar query (which includes counts for the sidebar)
-      queryClient.invalidateQueries({ queryKey: ["workflow", "sidebar"] });
-
-      // Invalidate the completed items count query
-      queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });
-      
-      // Invalidate stage item counts for sidebar badges
-      queryClient.invalidateQueries({ queryKey: ["stage-item-counts", organizationId] });
+      // Use centralized cache invalidation for consistency
+      invalidateAllItemRelatedQueries(queryClient, organizationId);
       setIsAllocationDialogOpen(false);
       setSelectedItem(null);
     },
@@ -265,9 +269,20 @@ export default function NewOrdersPage() {
     });
   };
 
-  // Don't render anything while loading - let loading.tsx handle it
-  if (!organizationId || isLoadingItems || isLoadingWorkflow) {
-    return null;
+  // Show consistent loading state for hydration
+  if (isLoadingOrg || (!organizationId && !isLoadingOrg) || isLoadingItems || isLoadingWorkflow) {
+    return (
+      <div className="container mx-auto p-4 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>New Order Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   // Add error display for workflow loading
@@ -324,10 +339,38 @@ export default function NewOrdersPage() {
                   {newOrderItems.map((item) => (
                     <TableRow key={item.item_id}>
                       <TableCell>{item.order_number}</TableCell>
-                      <TableCell>{item.sku}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {item.sku}
+                          {item.replacement_count > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                              {item.replacement_count}x Replaced
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{item.customer_name || "-"}</TableCell>
-                      <TableCell>{item.quantity_in_new_pool}</TableCell>
-                      <TableCell>{item.original_item_total_quantity}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.quantity_in_new_pool}</span>
+                          {item.replacement_count > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              (from {item.total_replacement_quantity} replaced)
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.original_item_total_quantity}</span>
+                          {item.original_total_before_scraps !== item.original_item_total_quantity && (
+                            <span className="text-xs text-muted-foreground line-through">
+                              (was {item.original_total_before_scraps})
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {new Date(item.created_at).toLocaleDateString()}
                       </TableCell>

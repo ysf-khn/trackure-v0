@@ -30,7 +30,6 @@ export interface MoveItemQuantityModalProps {
   };
   targetStageName: string;
   targetStageId?: string | null;
-  targetSubStageId?: string | null;
   onConfirmMove: (itemId: string, quantity: number) => void;
   userRole?: string | null;
 }
@@ -41,7 +40,6 @@ export function MoveItemQuantityModal({
   item,
   targetStageName,
   targetStageId,
-  targetSubStageId,
   onConfirmMove,
   userRole,
 }: MoveItemQuantityModalProps) {

@@ -28,10 +28,10 @@ const fetchNewItemsCount = async () => {
     return 0; // Or throw an error, depending on desired behavior
   }
 
-  // Query the new_order_items view for items belonging to the user's organization
-  // and count them. The view already filters by status = 'New'.
+  // Query the consolidated new_order_items view for items belonging to the user's organization
+  // and count them. This gives accurate count of unique order+SKU combinations needing allocation.
   const { count, error } = await supabase
-    .from("new_order_items")
+    .from("new_order_items_consolidated")
     .select("*", { count: "exact", head: true })
     .eq("organization_id", profile.organization_id);
 

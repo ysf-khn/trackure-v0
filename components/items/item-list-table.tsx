@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { DatePickerWithRange } from "@/components/ui/date-picker-with-range";
+import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -97,7 +98,7 @@ interface ItemForSingleRework {
   sku: string | null;
   currentQuantity: number;
   currentStageId: string;
-  currentSubStageId: string | null;
+  entryType?: 'normal' | 'reworked';
 }
 
 interface ItemToMoveDetails {
@@ -105,8 +106,8 @@ interface ItemToMoveDetails {
   sku: string | null;
   currentQuantity: number;
   targetStageId?: string | null;
-  targetSubStageId?: string | null;
   targetStageName: string;
+  entryType?: 'normal' | 'reworked';
 }
 
 interface ItemListTableMeta {
@@ -124,7 +125,6 @@ interface ItemListTableMeta {
   handleMoveForward: (
     itemsToMove: { id: string; quantity: number }[],
     targetStageId?: string | null,
-    targetSubStageId?: string | null,
     sourceStageId?: string | null
   ) => void;
   handleOpenSingleReworkQuantityModal?: (item: ItemForSingleRework) => void;
@@ -134,11 +134,9 @@ interface ItemListTableMeta {
   workflowData?: FetchedWorkflowStage[];
   isWorkflowLoading: boolean;
   currentStageId: string;
-  currentSubStageId: string | null;
   subsequentStages?: {
     id: string;
     name: string | null;
-    isSubStage?: boolean;
     parentStageId?: string;
     parentStageName?: string | null;
   }[];
@@ -150,7 +148,6 @@ interface ItemListTableMeta {
 interface ItemListTableProps {
   organizationId: string | undefined | null;
   stageId: string;
-  subStageId: string | null;
 }
 
 // --- Columns Definition (kept here for clarity) --- //
@@ -214,7 +211,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
         <div className="flex items-center gap-2">
           <span className="font-medium">{row.getValue("sku")}</span>
           <Button variant="ghost" size="sm" asChild className="h-6 w-6 p-0">
-            <Link href={`/items/${item.id}`}>
+            <Link href={`/items/${item.source_item_id}`}>
               <ExternalLink className="h-3 w-3" />
               <span className="sr-only">View item details</span>
             </Link>
@@ -224,10 +221,45 @@ export const columns: ColumnDef<ItemInStage>[] = [
     },
   },
   {
-    id: "composite",
+    id: "entry_type",
     header: "Type",
     cell: ({ row }) => {
       const item = row.original;
+      
+      // Show entry type (normal/reworked) with appropriate styling
+      if (item.entry_type === 'reworked') {
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 cursor-help">
+                  <RotateCcw className="h-3 w-3 text-amber-600" />
+                  <span className="text-xs text-amber-800 bg-amber-100 px-2 py-1 rounded border border-amber-200">
+                    Reworked
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="text-sm max-w-xs">
+                  <p><strong>Entry Type:</strong> Reworked quantities</p>
+                  {item.rework_reasons && item.rework_reasons.length > 0 && (
+                    <>
+                      <p className="mt-2"><strong>Rework Reasons:</strong></p>
+                      <ul className="list-disc list-inside">
+                        {item.rework_reasons.map((reason, index) => (
+                          <li key={index}>{reason}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+      
+      // Show composite info for normal entries if applicable
       if (item.parent_composite_sku) {
         return (
           <TooltipProvider>
@@ -255,7 +287,12 @@ export const columns: ColumnDef<ItemInStage>[] = [
           </TooltipProvider>
         );
       }
-      return <span className="text-xs text-muted-foreground">Single</span>;
+      
+      return (
+        <span className="text-xs text-muted-foreground bg-gray-50 px-2 py-1 rounded">
+          Normal
+        </span>
+      );
     },
     enableSorting: false,
   },
@@ -267,7 +304,10 @@ export const columns: ColumnDef<ItemInStage>[] = [
   {
     accessorKey: "quantity",
     header: "Quantity",
-    cell: ({ row }) => <div>{row.getValue("quantity")}</div>,
+    cell: ({ row }) => {
+      const quantity = row.getValue("quantity") as number;
+      return <div className="font-medium">{quantity}</div>;
+    },
   },
   {
     accessorKey: "instance_details",
@@ -291,7 +331,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
           onClick={() =>
             meta.onViewDetails?.(
               {
-                id: row.original.id,
+                id: row.original.source_item_id,
                 sku: row.original.sku,
                 instance_details: details,
                 composite_group_id: row.original.composite_group_id,
@@ -347,7 +387,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
           variant="outline"
           size="icon"
           className="h-8 w-8"
-          onClick={() => meta.onViewHistory?.(item.id, item.sku)}
+          onClick={() => meta.onViewHistory?.(item.source_item_id, item.sku)}
           disabled={meta.isMovingItems || meta.isReworkingItems}
           aria-label="View Item History"
         >
@@ -428,28 +468,30 @@ export const columns: ColumnDef<ItemInStage>[] = [
         isWorkflowLoading,
         workflowData,
         currentStageId,
-        currentSubStageId,
       } = meta || {};
 
       // Determine if there are next steps
-      const nextStage = workflowData && currentStageId
-        ? determineNextStage(
-            currentStageId,
-            currentSubStageId ?? null,
-            workflowData
-          )
-        : null;
-      
+      const nextStage =
+        workflowData && currentStageId
+          ? determineNextStage(currentStageId, null, workflowData)
+          : null;
+
       const hasNextStep = nextStage !== null;
-      
+
       // Debug logging
       if (workflowData && currentStageId) {
-        console.log(`[MoveForward] Stage ${currentStageId}, workflow stages:`, workflowData.length, 'nextStage:', nextStage, 'hasNextStep:', hasNextStep);
+        console.log(
+          `[MoveForward] Stage ${currentStageId}, workflow stages:`,
+          workflowData.length,
+          "nextStage:",
+          nextStage,
+          "hasNextStep:",
+          hasNextStep
+        );
       }
 
       const handleOpenMoveModal = (targetId?: string | null) => {
         let targetStageId: string | null = null;
-        let targetSubStageId: string | null = null;
         let targetStageName: string;
 
         if (!targetId) {
@@ -460,18 +502,9 @@ export const columns: ColumnDef<ItemInStage>[] = [
           const targetStage = subsequentStages?.find((s) => s.id === targetId);
 
           if (targetStage) {
-            // Check if this is a sub-stage (has isSubStage property)
-            if ("isSubStage" in targetStage && targetStage.isSubStage) {
-              targetSubStageId = targetId;
-              targetStageId = targetStage.parentStageId || null;
-              targetStageName =
-                targetStage.name || `Sub-stage ${targetId.substring(0, 6)}`;
-            } else {
-              // It's a main stage
-              targetStageId = targetId;
-              targetStageName =
-                targetStage.name || `Stage ${targetId.substring(0, 6)}`;
-            }
+            targetStageId = targetId;
+            targetStageName =
+              targetStage.name || `Stage ${targetId.substring(0, 6)}`;
           } else {
             // Fallback
             targetStageId = targetId;
@@ -481,12 +514,12 @@ export const columns: ColumnDef<ItemInStage>[] = [
 
         if (meta?.handleOpenMoveQuantityModal) {
           meta.handleOpenMoveQuantityModal({
-            id: item.id,
+            id: item.source_item_id,
             sku: item.sku,
             currentQuantity: item.quantity,
             targetStageId: targetStageId,
-            targetSubStageId: targetSubStageId,
             targetStageName: targetStageName,
+            entryType: item.entry_type, // Pass the entry type (normal/reworked)
           });
         }
       };
@@ -570,26 +603,22 @@ export const columns: ColumnDef<ItemInStage>[] = [
       const meta = table.options.meta as ItemListTableMeta | undefined;
 
       // Extract necessary info from meta
-      const { workflowData, currentStageId, currentSubStageId } = meta || {};
+      const { workflowData, currentStageId } = meta || {};
 
       // Determine if there are previous steps
       const hasPreviousStep =
         workflowData && currentStageId
-          ? determinePreviousStage(
-              currentStageId,
-              currentSubStageId ?? null,
-              workflowData
-            ) !== null
+          ? determinePreviousStage(currentStageId, null, workflowData) !== null
           : false;
 
       const handleOpenSingleItemRework = () => {
         if (meta?.handleOpenSingleReworkQuantityModal && meta.currentStageId) {
           meta.handleOpenSingleReworkQuantityModal({
-            id: item.id,
+            id: item.source_item_id, // Use source_item_id for actions
             sku: item.sku,
             currentQuantity: item.quantity,
             currentStageId: meta.currentStageId,
-            currentSubStageId: meta.currentSubStageId,
+            entryType: item.entry_type, // Pass entry type for rework too
           });
         }
       };
@@ -641,7 +670,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
               </DropdownMenuItem>
             )}
             {canAddRemark && (
-              <AddRemarkModal itemId={item.id}>
+              <AddRemarkModal itemId={item.source_item_id}>
                 <DropdownMenuItem
                   onSelect={(e) => e.preventDefault()}
                   disabled={meta?.isMovingItems || meta?.isReworkingItems}
@@ -660,7 +689,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
                         `Are you sure you want to delete item ${item.sku}? This action cannot be undone.`
                       )
                     ) {
-                      meta?.handleDeleteItem?.(item.id);
+                      meta?.handleDeleteItem?.(item.source_item_id);
                     }
                   }}
                   disabled={meta?.isMovingItems || meta?.isReworkingItems}
@@ -685,7 +714,6 @@ export const columns: ColumnDef<ItemInStage>[] = [
 export function ItemListTable({
   organizationId: propOrganizationId,
   stageId,
-  subStageId,
 }: ItemListTableProps) {
   // --- State and Hook Initializations ---
   const queryClient = useQueryClient();
@@ -763,35 +791,41 @@ export function ItemListTable({
   // Since all items in a stage have the same SKU, we can use any item's SKU
   // We'll get this from the ItemTableCore component through a ref
   const [currentStageSKU, setCurrentStageSKU] = useState<string | null>(null);
-  
+
   // Use workflow structure with the detected SKU from current stage items
   const { data: workflowData, isLoading: isWorkflowLoading } =
     useWorkflowStructure(organizationId, currentStageSKU);
-    
+
   // Debug logging for workflow data
   React.useEffect(() => {
     if (workflowData && currentStageSKU) {
-      console.log(`[ItemListTable] Loaded workflow for SKU ${currentStageSKU}:`, workflowData.length, 'stages');
+      console.log(
+        `[ItemListTable] Loaded workflow for SKU ${currentStageSKU}:`,
+        workflowData.length,
+        "stages"
+      );
     }
   }, [workflowData, currentStageSKU]);
 
   // Effect to detect and update the current stage SKU when items load
   React.useEffect(() => {
     let intervalId: NodeJS.Timeout;
-    
+
     // Check for SKU periodically until we get one
     if (!currentStageSKU) {
       intervalId = setInterval(() => {
         if (itemTableCoreRef.current) {
           const detectedSKU = itemTableCoreRef.current.getCurrentStageSKU();
           if (detectedSKU && detectedSKU !== currentStageSKU) {
-            console.log(`[ItemListTable] Detected SKU for stage ${stageId}: ${detectedSKU}`);
+            console.log(
+              `[ItemListTable] Detected SKU for stage ${stageId}: ${detectedSKU}`
+            );
             setCurrentStageSKU(detectedSKU);
           }
         }
       }, 100); // Check every 100ms
     }
-    
+
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
@@ -844,7 +878,6 @@ export function ItemListTable({
   const handleMoveForward = (
     itemsToMove: { id: string; quantity: number }[], // Updated signature
     targetStageId?: string | null, // Add optional targetStageId
-    targetSubStageId?: string | null, // Add optional targetSubStageId
     sourceStageId?: string | null // Add optional sourceStageId
   ) => {
     if (!organizationId) {
@@ -857,7 +890,6 @@ export function ItemListTable({
       items: itemsToMove, // Updated payload
       organizationId: organizationId, // organizationId from useProfileAndOrg
       targetStageId: targetStageId, // Pass it here
-      targetSubStageId: targetSubStageId, // Pass target sub-stage ID
       sourceStageId: sourceStageId || stageId, // Use provided sourceStageId or current stageId
     };
 
@@ -897,10 +929,6 @@ export function ItemListTable({
         organizationId: organizationId,
         stageId: stageId,
       });
-
-      if (subStageId) {
-        params.append("subStageId", subStageId);
-      }
 
       if (debouncedOrderIdFilter) {
         params.append("orderId", debouncedOrderIdFilter);
@@ -952,8 +980,8 @@ export function ItemListTable({
   // This is a fallback for general workflow structure when no specific SKU is available
   const subsequentStages = React.useMemo(() => {
     if (!workflowData || isWorkflowLoading || !stageId) return [];
-    return getSubsequentStages(workflowData, stageId, subStageId);
-  }, [workflowData, isWorkflowLoading, stageId, subStageId]);
+    return getSubsequentStages(workflowData, stageId, null);
+  }, [workflowData, isWorkflowLoading, stageId]);
 
   const selectedItemsData = React.useMemo(() => {
     return [];
@@ -970,7 +998,6 @@ export function ItemListTable({
     handleMoveForward(
       [{ id: itemId, quantity: quantity }],
       itemToMoveDetails.targetStageId,
-      itemToMoveDetails.targetSubStageId,
       stageId
     );
     setIsMoveQuantityModalOpen(false); // Close modal after initiating move
@@ -1000,7 +1027,7 @@ export function ItemListTable({
     movedItems: { id: string; quantity: number }[],
     targetStageId: string | null
   ) => {
-    handleMoveForward(movedItems, targetStageId, null, stageId);
+    handleMoveForward(movedItems, targetStageId, stageId);
     setIsBulkMoveModalOpen(false);
   };
 
@@ -1015,9 +1042,7 @@ export function ItemListTable({
     quantity: number,
     reason: string,
     targetStageId: string,
-    targetSubStageId: string | null,
-    sourceStageId: string,
-    sourceSubStageId: string | null
+    sourceStageId: string
   ) => {
     if (!organizationId) return;
     reworkItems(
@@ -1027,12 +1052,10 @@ export function ItemListTable({
             id: itemId,
             quantity,
             source_stage_id: sourceStageId,
-            source_sub_stage_id: sourceSubStageId,
           },
         ],
         rework_reason: reason,
         target_rework_stage_id: targetStageId,
-        target_rework_sub_stage_id: targetSubStageId,
         organizationId,
       },
       {
@@ -1053,7 +1076,6 @@ export function ItemListTable({
         sku: item.sku || null,
         currentQuantity: item.quantity,
         currentStageId: stageId,
-        currentSubStageId: subStageId,
       }));
       setItemsForBulkRework(itemsToProcess);
       setIsBulkReworkModalOpen(true);
@@ -1065,15 +1087,13 @@ export function ItemListTable({
   const handleConfirmBulkRework = (
     reworkedItemsToSubmit: { id: string; quantity: number }[],
     reason: string,
-    targetStageId: string,
-    targetSubStageId: string | null
+    targetStageId: string
   ) => {
     // Prepare the items for the rework API
     const itemsToRework = reworkedItemsToSubmit.map((item) => ({
       id: item.id,
       quantity: item.quantity,
       source_stage_id: stageId,
-      source_sub_stage_id: subStageId,
     }));
 
     // Call the rework mutation
@@ -1082,7 +1102,6 @@ export function ItemListTable({
         items: itemsToRework,
         rework_reason: reason,
         target_rework_stage_id: targetStageId,
-        target_rework_sub_stage_id: targetSubStageId,
         organizationId: organizationId!,
       },
       {
@@ -1111,13 +1130,17 @@ export function ItemListTable({
 
       // Refresh the table data
       itemTableCoreRef.current?.refetch();
-      
+
       // Invalidate related queries
-      queryClient.invalidateQueries({ queryKey: ["itemsInStage", organizationId] });
+      queryClient.invalidateQueries({
+        queryKey: ["itemsInStage", organizationId],
+      });
       queryClient.invalidateQueries({ queryKey: ["workflow", "sidebar"] });
       queryClient.invalidateQueries({ queryKey: ["newItemsCount"] });
       queryClient.invalidateQueries({ queryKey: ["completedItemsCount"] });
-      queryClient.invalidateQueries({ queryKey: ["stage-item-counts", organizationId] });
+      queryClient.invalidateQueries({
+        queryKey: ["stage-item-counts", organizationId],
+      });
     } catch (error) {
       console.error("Error deleting item:", error);
       toast.error(
@@ -1274,7 +1297,6 @@ export function ItemListTable({
         ref={itemTableCoreRef} // Assign the ref
         organizationId={organizationId} // From useProfileAndOrg hook
         stageId={stageId} // From props
-        subStageId={subStageId} // From props
         orderIdFilter={debouncedOrderIdFilter}
         columns={columns}
         userRole={userRole} // From useProfileAndOrg hook
@@ -1295,7 +1317,6 @@ export function ItemListTable({
         workflowData={workflowData} // From useWorkflowStructure hook
         isWorkflowLoading={isWorkflowLoading} // From useWorkflowStructure hook
         currentStageId={stageId} // From props
-        currentSubStageId={subStageId} // From props
         subsequentStages={subsequentStages}
         handleOpenMoveQuantityModal={handleOpenMoveQuantityModal} // Pass down the handler
         hasPermission={hasPermission} // Pass permission check function
@@ -1334,7 +1355,6 @@ export function ItemListTable({
           }}
           targetStageName={itemToMoveDetails.targetStageName}
           targetStageId={itemToMoveDetails.targetStageId}
-          targetSubStageId={itemToMoveDetails.targetSubStageId}
           onConfirmMove={handleConfirmMoveItem}
           userRole={userRole}
         />
@@ -1361,7 +1381,6 @@ export function ItemListTable({
           item={{
             ...itemForSingleRework,
             currentStageId: stageId,
-            currentSubStageId: subStageId,
           }}
           onConfirmRework={handleConfirmSingleRework}
           isProcessing={isReworkingItems}
@@ -1378,7 +1397,6 @@ export function ItemListTable({
           itemsToRework={itemsForBulkRework.map((item) => ({
             ...item,
             currentStageId: stageId,
-            currentSubStageId: subStageId,
           }))}
           onConfirmBulkRework={handleConfirmBulkRework}
           isProcessing={isReworkingItems}

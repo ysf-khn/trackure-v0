@@ -33,7 +33,6 @@ export interface ItemForBulkRework {
   sku?: string | null;
   currentQuantity: number;
   currentStageId: string;
-  currentSubStageId: string | null;
 }
 
 interface BulkReworkQuantityModalProps {
@@ -44,8 +43,7 @@ interface BulkReworkQuantityModalProps {
   onConfirmBulkRework: (
     reworkedItems: { id: string; quantity: number }[],
     reason: string,
-    targetStageId: string,
-    targetSubStageId: string | null
+    targetStageId: string
   ) => void;
   isProcessing: boolean;
   userRole?: string | null;
@@ -81,7 +79,7 @@ export function BulkReworkQuantityModal({
     const previousStages = getPreviousStages(
       workflowData,
       referenceItem.currentStageId,
-      referenceItem.currentSubStageId
+      null
     );
 
     // Convert to the format expected by the select component
@@ -145,8 +143,7 @@ export function BulkReworkQuantityModal({
     onConfirmBulkRework(
       itemsToSubmit,
       reworkReason.trim(),
-      targetStageId,
-      null // sub_stage_id is always null in tree structure
+      targetStageId
     );
 
     if (userRole === "Owner" && downloadVouchers) {

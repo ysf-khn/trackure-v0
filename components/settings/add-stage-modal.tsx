@@ -30,10 +30,21 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlusIcon, TrashIcon, InfoIcon } from "lucide-react";
 import { getWorkflowQueryKey } from "@/hooks/queries/use-workflow-structure";
 import { getSidebarWorkflowKey } from "@/hooks/queries/use-workflow";
+import { VendorPricingSection, type VendorPricingData } from "./vendor-pricing-section";
 
 const subStageSchema = z.object({
   name: z.string().min(1, "Sub-stage name is required"),
   location: z.string().optional(),
+});
+
+const vendorPricingSchema = z.object({
+  vendor_id: z.string().min(1, "Vendor is required"),
+  price: z.number().min(0, "Price must be non-negative"),
+  currency: z.string().min(1, "Currency is required"),
+  price_unit: z.string().min(1, "Price unit is required"),
+  minimum_quantity: z.number().int().min(1, "Minimum quantity must be at least 1"),
+  lead_time_days: z.number().int().min(0, "Lead time cannot be negative"),
+  notes: z.string().optional(),
 });
 
 const formSchema = z
@@ -42,6 +53,7 @@ const formSchema = z
     location: z.string().optional(),
     hasSubStages: z.boolean(),
     subStages: z.array(subStageSchema).optional(),
+    vendorPricing: z.array(vendorPricingSchema).optional(),
   })
   .refine(
     (data) => {
@@ -103,6 +115,7 @@ export function AddStageModal({
       location: "",
       hasSubStages: false,
       subStages: [],
+      vendorPricing: [],
     },
   });
 
@@ -136,6 +149,7 @@ export function AddStageModal({
     const submitData = {
       ...values,
       subStages: values.hasSubStages ? values.subStages : undefined,
+      vendorPricing: values.vendorPricing && values.vendorPricing.length > 0 ? values.vendorPricing : undefined,
     };
     mutation.mutate(submitData);
   };
@@ -321,6 +335,15 @@ export function AddStageModal({
                   )}
                 </CardContent>
               </Card>
+            )}
+
+            {/* Vendor Pricing Section - Only show for leaf stages (no sub-stages) */}
+            {!hasSubStages && selectedSKU && (
+              <VendorPricingSection
+                control={form.control}
+                selectedSKU={selectedSKU}
+                isLeafStage={!hasSubStages}
+              />
             )}
 
             <DialogFooter>

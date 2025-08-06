@@ -26,17 +26,17 @@ export async function GET() {
       .from("item_master")
       .select(`
         sku,
-        item_name,
         items!inner(
           id,
-          quantity,
+          total_quantity,
+          remaining_quantity,
           status,
           created_at,
-          item_movement_history(
-            created_at
+          item_movement_history!item_movement_history_item_id_fkey(
+            moved_at
           )
         ),
-        cost_calculations(
+        sku_cost_calculations(
           final_calculated_cost,
           last_calculated_at
         )
@@ -86,14 +86,14 @@ export async function GET() {
       if (!skuMap.has(sku.sku)) {
         skuMap.set(sku.sku, {
           sku: sku.sku,
-          sku_name: sku.item_name,
+          sku_name: sku.sku,
           active_items_count: 0,
           completed_items_count: 0,
           workflow_stages_count: 0,
           vendors_count: 0,
           samples_count: 0,
-          final_calculated_cost: sku.cost_calculations?.[0]?.final_calculated_cost,
-          last_calculated_at: sku.cost_calculations?.[0]?.last_calculated_at,
+          final_calculated_cost: sku.sku_cost_calculations?.[0]?.final_calculated_cost,
+          last_calculated_at: sku.sku_cost_calculations?.[0]?.last_calculated_at,
           last_movement: null,
         });
       }
@@ -102,14 +102,14 @@ export async function GET() {
       
       // Count items by status
       sku.items?.forEach(item => {
-        if (item.status === 'completed') {
-          skuData.completed_items_count += item.quantity || 1;
+        if (item.status === 'Completed') {
+          skuData.completed_items_count += item.total_quantity || 1;
         } else {
-          skuData.active_items_count += item.quantity || 1;
+          skuData.active_items_count += item.total_quantity || 1;
         }
         
         // Get latest movement
-        const latestMovement = item.item_movement_history?.[0]?.created_at;
+        const latestMovement = item.item_movement_history?.[0]?.moved_at;
         if (latestMovement && (!skuData.last_movement || latestMovement > skuData.last_movement)) {
           skuData.last_movement = latestMovement;
         }

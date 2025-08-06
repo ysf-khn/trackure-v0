@@ -5,8 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 interface HistoryMovementEntry {
   id: number;
   moved_at: string;
+  from_stage_id: string | null;
   to_stage_id: string;
-  to_sub_stage_id: string | null;
+  quantity: number | null; // Make quantity optional to handle older records
+  rework_type: string | null;
+  rework_reason: string | null;
 }
 
 interface ItemDetails {
@@ -24,7 +27,6 @@ interface ItemDetails {
 
 interface ItemAllocation {
   stage_id: string;
-  sub_stage_id: string | null;
   quantity: number;
   items: ItemDetails | ItemDetails[];
 }
@@ -36,10 +38,14 @@ export interface ItemInStage {
   order_number: string | null;
   instance_details: Record<string, unknown>; // Use unknown for flexible JSON
   current_stage_id: string;
-  current_sub_stage_id: string | null;
   current_stage_entered_at: string | null; // ISO timestamp for when the item entered the current stage
   current_stage_history_id: number | null; // ID of the item_history entry for entering the current stage
   quantity: number; // Add quantity field
+  // Entry type information
+  entry_type: 'normal' | 'reworked'; // Whether this is a normal or reworked entry
+  rework_reasons?: string[]; // Rework reasons for reworked entries
+  // Source item information (for creating separate entries)
+  source_item_id: string; // The actual item ID from the items table
   // Composite item fields
   composite_group_id?: string | null;
   parent_composite_sku?: string | null;
@@ -49,7 +55,6 @@ export interface ItemInStage {
 const fetchItemsInStage = async (
   organizationId: string,
   stageId: string,
-  subStageId: string | null,
   orderIdFilter: string | null
 ): Promise<ItemInStage[]> => {
   const supabase = await createClient();
@@ -59,7 +64,6 @@ const fetchItemsInStage = async (
     .select(
       `
       stage_id,
-      sub_stage_id,
       quantity, 
       items:items!inner (
         id,
@@ -74,20 +78,17 @@ const fetchItemsInStage = async (
         item_movement_history!item_movement_history_item_id_fkey (
           id,
           moved_at,
+          from_stage_id,
           to_stage_id,
-          to_sub_stage_id
+          quantity,
+          rework_type,
+          rework_reason
         )
       )
     `
     )
     .eq("organization_id", organizationId) // Filter on item_stage_allocations
     .eq("stage_id", stageId); // Filter on item_stage_allocations
-
-  if (subStageId) {
-    query = query.eq("sub_stage_id", subStageId);
-  } else {
-    query = query.is("sub_stage_id", null);
-  }
 
   // Filter by order_id from the joined items table
   if (orderIdFilter) {
@@ -132,8 +133,7 @@ const fetchItemsInStage = async (
         const currentStageMovement = movementEntries
           .filter(
             (h: HistoryMovementEntry) =>
-              h.to_stage_id === typedAlloc.stage_id && // Compare with alloc's stage_id
-              h.to_sub_stage_id === typedAlloc.sub_stage_id // Compare with alloc's sub_stage_id
+              h.to_stage_id === typedAlloc.stage_id // Compare with alloc's stage_id
           )
           .sort(
             (a: HistoryMovementEntry, b: HistoryMovementEntry) =>
@@ -142,32 +142,157 @@ const fetchItemsInStage = async (
 
         const latestEntryForCurrentStage = currentStageMovement[0] ?? null;
 
-        return {
-          id: itemDetails.id, // Item's actual ID from the items table
-          sku: itemDetails.sku,
-          order_id: itemDetails.order_id,
-          order_number: itemDetails.orders?.order_number ?? null,
-          instance_details: itemDetails.instance_details,
-          current_stage_id: typedAlloc.stage_id, // Stage from item_stage_allocations
-          current_sub_stage_id: typedAlloc.sub_stage_id, // Sub-stage from item_stage_allocations
-          current_stage_entered_at:
-            latestEntryForCurrentStage?.moved_at ?? null,
-          current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
-          quantity: typedAlloc.quantity, // Assign the fetched quantity
-          composite_group_id: itemDetails.composite_group_id,
-          parent_composite_sku: itemDetails.parent_composite_sku,
-        };
+        // Simplified approach: Create separate entries for normal and reworked items
+        const entries: ItemInStage[] = [];
+        
+        // Get all rework movements TO this stage for this item
+        const reworkMovementsToStage = movementEntries.filter(
+          (h: HistoryMovementEntry) => 
+            h.to_stage_id === typedAlloc.stage_id && 
+            (h.rework_type === 'backward' || 
+             h.rework_type === 'rework' || 
+             (h.rework_reason !== null && h.rework_reason !== undefined))
+        );
+
+        // Get ALL movements FROM this stage for this item (any items leaving)
+        const allMovementsFromStage = movementEntries.filter(
+          (h: HistoryMovementEntry) => h.from_stage_id === typedAlloc.stage_id
+        );
+
+        // Get rework movements FROM this stage for this item (rework items leaving)
+        const reworkMovementsFromStage = allMovementsFromStage.filter(
+          (h: HistoryMovementEntry) => 
+            (h.rework_type === 'backward' || 
+             h.rework_type === 'rework' || 
+             (h.rework_reason !== null && h.rework_reason !== undefined))
+        );
+
+        // Get normal movements FROM this stage (forward movements of any items)
+        const normalMovementsFromStage = allMovementsFromStage.filter(
+          (h: HistoryMovementEntry) => 
+            !h.rework_type && 
+            (h.rework_reason === null || h.rework_reason === undefined)
+        );
+
+        // Calculate quantities
+        const totalReworkQuantityIn = reworkMovementsToStage.reduce(
+          (sum, movement) => sum + (movement.quantity || 0), 0
+        );
+        
+        const totalReworkQuantityOut = reworkMovementsFromStage.reduce(
+          (sum, movement) => sum + (movement.quantity || 0), 0
+        );
+
+        const totalNormalQuantityOut = normalMovementsFromStage.reduce(
+          (sum, movement) => sum + (movement.quantity || 0), 0
+        );
+
+        // Calculate the theoretical composition before any movements out
+        const grossReworkQuantity = totalReworkQuantityIn;
+        const currentAllocation = typedAlloc.quantity;
+        
+        // Smart allocation logic: when items move forward, prioritize reducing reworked items first
+        let currentReworkQuantity = grossReworkQuantity;
+        let currentNormalQuantity = 0;
+
+        // First, subtract rework movements (reworked items going back)
+        currentReworkQuantity = Math.max(0, currentReworkQuantity - totalReworkQuantityOut);
+
+        // Then, subtract normal movements from whichever type has available quantity
+        let remainingNormalMovements = totalNormalQuantityOut;
+        if (remainingNormalMovements > 0 && currentReworkQuantity > 0) {
+          // If we have reworked items, forward movements should reduce reworked items first
+          const reworkedItemsMovedForward = Math.min(remainingNormalMovements, currentReworkQuantity);
+          currentReworkQuantity -= reworkedItemsMovedForward;
+          remainingNormalMovements -= reworkedItemsMovedForward;
+        }
+
+        // Calculate normal quantity as the remainder
+        const totalAccountedForRework = Math.max(0, grossReworkQuantity - totalReworkQuantityOut - Math.min(totalNormalQuantityOut, grossReworkQuantity));
+        currentNormalQuantity = currentAllocation - totalAccountedForRework;
+
+        // Ensure quantities are non-negative and don't exceed allocation
+        currentReworkQuantity = Math.max(0, Math.min(currentReworkQuantity, currentAllocation));
+        currentNormalQuantity = Math.max(0, currentAllocation - currentReworkQuantity);
+
+        // Get unique rework reasons for display
+        const reworkReasons = reworkMovementsToStage
+          .map(m => m.rework_reason)
+          .filter((reason): reason is string => reason !== null && reason !== undefined)
+          .filter((reason, index, arr) => arr.indexOf(reason) === index);
+
+        // Create normal entry if there's normal quantity
+        if (currentNormalQuantity > 0) {
+          entries.push({
+            id: `${itemDetails.id}_normal`,
+            source_item_id: itemDetails.id,
+            sku: itemDetails.sku,
+            order_id: itemDetails.order_id,
+            order_number: itemDetails.orders?.order_number ?? null,
+            instance_details: itemDetails.instance_details,
+            current_stage_id: typedAlloc.stage_id,
+            current_stage_entered_at: latestEntryForCurrentStage?.moved_at ?? null,
+            current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
+            quantity: currentNormalQuantity,
+            entry_type: 'normal',
+            composite_group_id: itemDetails.composite_group_id,
+            parent_composite_sku: itemDetails.parent_composite_sku,
+          });
+        }
+
+        // Create reworked entry if there's reworked quantity
+        if (currentReworkQuantity > 0) {
+          entries.push({
+            id: `${itemDetails.id}_reworked`,
+            source_item_id: itemDetails.id,
+            sku: itemDetails.sku,
+            order_id: itemDetails.order_id,
+            order_number: itemDetails.orders?.order_number ?? null,
+            instance_details: itemDetails.instance_details,
+            current_stage_id: typedAlloc.stage_id,
+            current_stage_entered_at: latestEntryForCurrentStage?.moved_at ?? null,
+            current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
+            quantity: currentReworkQuantity,
+            entry_type: 'reworked',
+            rework_reasons: reworkReasons,
+            composite_group_id: itemDetails.composite_group_id,
+            parent_composite_sku: itemDetails.parent_composite_sku,
+          });
+        }
+
+        // If no entries were created (edge case), create a single normal entry
+        if (entries.length === 0) {
+          entries.push({
+            id: `${itemDetails.id}_normal`,
+            source_item_id: itemDetails.id,
+            sku: itemDetails.sku,
+            order_id: itemDetails.order_id,
+            order_number: itemDetails.orders?.order_number ?? null,
+            instance_details: itemDetails.instance_details,
+            current_stage_id: typedAlloc.stage_id,
+            current_stage_entered_at: latestEntryForCurrentStage?.moved_at ?? null,
+            current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
+            quantity: currentAllocation,
+            entry_type: 'normal',
+            composite_group_id: itemDetails.composite_group_id,
+            parent_composite_sku: itemDetails.parent_composite_sku,
+          });
+        }
+
+        return entries;
       })
       // Filter out any nulls that might have occurred
       .filter(Boolean) || [];
 
-  return processedData as ItemInStage[]; // Add type assertion back for safety
+  // Flatten the array of entry arrays into a single array
+  const flattenedData = processedData.flat();
+
+  return flattenedData as ItemInStage[]; // Add type assertion back for safety
 };
 
 export const useItemsInStage = (
   organizationId: string | undefined | null,
   stageId: string,
-  subStageId: string | null,
   orderIdFilter: string | null
 ) => {
   // const { organizationId } = useAuth(); // Removed direct call
@@ -177,7 +302,6 @@ export const useItemsInStage = (
       "itemsInStage",
       organizationId,
       stageId,
-      subStageId,
       orderIdFilter,
     ],
     queryFn: () => {
@@ -188,7 +312,6 @@ export const useItemsInStage = (
       return fetchItemsInStage(
         organizationId,
         stageId,
-        subStageId,
         orderIdFilter
       );
     },

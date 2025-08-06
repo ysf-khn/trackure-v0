@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import { MapPin, Terminal, Users } from "lucide-react";
+import { useParams } from "next/navigation";
+import { MapPin, Terminal } from "lucide-react";
 
 import { ItemListTable } from "@/components/items/item-list-table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,6 +10,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { VendorPricingCard } from "@/components/workflow/vendor-pricing-card";
+import { useSingleStageItemCounts } from "@/hooks/queries/use-single-stage-item-counts";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,7 +22,6 @@ import {
 } from "@/components/ui/breadcrumb";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { useStage } from "@/hooks/queries/use-stage";
-import { useSubStage } from "@/hooks/queries/use-sub-stage";
 import { Suspense } from "react";
 
 // Define types for stage data with tree structure
@@ -36,10 +37,9 @@ interface StageData {
   sku: string | null;
 }
 
-// Separate component that uses useSearchParams
+// Component for stage view content
 function StageViewContent() {
   const params = useParams();
-  const searchParams = useSearchParams();
 
   // --- Authentication ---
   const {
@@ -61,6 +61,12 @@ function StageViewContent() {
     isError: isStageError,
     error: stageError,
   } = useStage(stageId, organizationId);
+
+  // --- Fetch Stage Item Counts ---
+  const {
+    data: stageItemCounts,
+    isLoading: isLoadingItemCounts,
+  } = useSingleStageItemCounts(organizationId, stageId, stageData?.sku);
 
   // Note: With tree structure, we no longer need separate sub-stage queries
   // All stages (including what were sub-stages) are in workflow_stages table
@@ -189,17 +195,18 @@ function StageViewContent() {
   // Stage not found (or RLS prevented access - handle appropriately)
   if (!stageData) {
     return (
-      <Alert variant="destructive" className="m-4">
-        <Terminal className="h-4 w-4" />
-        <AlertTitle>Stage Not Found</AlertTitle>
-        <AlertDescription>
-          The requested stage could not be found or you do not have access to
-          it.
-        </AlertDescription>
-      </Alert>
+      <div className="container mx-auto py-4 px-4 md:px-6 space-y-4">
+        <Alert variant="destructive" className="m-4">
+          <Terminal className="h-4 w-4" />
+          <AlertTitle>Stage Not Found</AlertTitle>
+          <AlertDescription>
+            The requested stage could not be found or you do not have access to
+            it.
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
-
 
   // --- Main Content ---
   return (
@@ -212,7 +219,7 @@ function StageViewContent() {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>{stageData.name || "Unnamed Stage"}</BreadcrumbPage>
+            <BreadcrumbPage>{stageData?.name || "Unnamed Stage"}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -223,22 +230,22 @@ function StageViewContent() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold">
-                {stageData.name || "Unnamed Stage"}
+                {stageData?.name || "Unnamed Stage"}
               </h2>
               {/* Display parent stage info if this is a child stage */}
-              {stageData.parent_stage_id && stageData.full_path && (
+              {stageData?.parent_stage_id && stageData?.full_path && (
                 <span className="text-muted-foreground text-sm">
                   ({stageData.full_path})
                 </span>
               )}
             </div>
             <Badge variant="outline">
-              Sequence Order: {stageData.sequence_order + 1}
+              Sequence Order: {(stageData?.sequence_order ?? 0) + 1}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="pt-2">
-          {stageData.location && (
+          {stageData?.location && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4" />
               <span>{stageData.location}</span>
@@ -247,14 +254,25 @@ function StageViewContent() {
         </CardContent>
       </Card>
 
+      {/* Vendor Pricing Card - Only show for leaf stages with SKU */}
+      {stageData?.is_leaf_stage && stageData?.sku && stageId && (
+        <VendorPricingCard 
+          stageId={stageId}
+          stageName={stageData?.name || "Unnamed Stage"}
+          itemCount={stageItemCounts?.itemCount || 0}
+          totalQuantity={stageItemCounts?.totalQuantity || 0}
+        />
+      )}
+
       {/* Items Table */}
       <Card>
         <CardContent className="p-4">
-          <ItemListTable
-            stageId={stageId}
-            subStageId={subStageId}
-            organizationId={organizationId}
-          />
+          {stageId && organizationId && (
+            <ItemListTable
+              stageId={stageId}
+              organizationId={organizationId}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

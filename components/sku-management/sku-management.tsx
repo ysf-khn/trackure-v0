@@ -1,22 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { 
-  Search, 
-  Filter, 
-  Plus, 
-  TrendingUp, 
-  Package, 
+import {
+  Search,
+  Filter,
+  Plus,
+  TrendingUp,
+  Package,
   DollarSign,
   Users,
   Workflow,
   Eye,
   Settings,
-  Calculator
+  Calculator,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -52,14 +58,17 @@ export function SKUManagement() {
 
   // Filter and sort SKUs
   const filteredSKUs = skus
-    .filter(sku => 
-      sku.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sku.sku_name.toLowerCase().includes(searchQuery.toLowerCase())
+    .filter(
+      (sku) =>
+        sku.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sku.sku_name.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a, b) => {
       switch (sortBy) {
         case "cost":
-          return (b.final_calculated_cost || 0) - (a.final_calculated_cost || 0);
+          return (
+            (b.final_calculated_cost || 0) - (a.final_calculated_cost || 0)
+          );
         case "items":
           return b.active_items_count - a.active_items_count;
         case "vendors":
@@ -131,9 +140,7 @@ export function SKUManagement() {
             <div className="text-2xl font-bold">
               ₹{stats?.avg_cost ? Math.round(stats.avg_cost) : 0}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Per unit average
-            </p>
+            <p className="text-xs text-muted-foreground">Per unit average</p>
           </CardContent>
         </Card>
         <Card>
@@ -142,10 +149,10 @@ export function SKUManagement() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_active_items || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              In workflow
-            </p>
+            <div className="text-2xl font-bold">
+              {stats?.total_active_items || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">In workflow</p>
           </CardContent>
         </Card>
         <Card>
@@ -154,10 +161,10 @@ export function SKUManagement() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_vendors || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Available
-            </p>
+            <div className="text-2xl font-bold">
+              {stats?.total_vendors || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Available</p>
           </CardContent>
         </Card>
       </div>
@@ -194,11 +201,13 @@ export function SKUManagement() {
           <CardContent>
             <Package className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">
-              {skus.length === 0 ? "No SKUs found" : "No SKUs match your search"}
+              {skus.length === 0
+                ? "No SKUs found"
+                : "No SKUs match your search"}
             </h3>
             <p className="text-muted-foreground">
-              {skus.length === 0 
-                ? "SKUs will appear here as they are added to your system." 
+              {skus.length === 0
+                ? "SKUs will appear here as they are added to your system."
                 : "Try adjusting your search criteria."}
             </p>
           </CardContent>
@@ -222,8 +231,11 @@ export function SKUManagement() {
               </TableHeader>
               <TableBody>
                 {filteredSKUs.map((sku) => (
-                  <TableRow key={sku.sku} className="cursor-pointer hover:bg-muted/50">
-                    <TableCell 
+                  <TableRow
+                    key={sku.sku}
+                    className="cursor-pointer hover:bg-muted/50"
+                  >
+                    <TableCell
                       className="font-mono text-sm font-medium"
                       onClick={() => setSelectedSKU(sku.sku)}
                     >
@@ -237,7 +249,9 @@ export function SKUManagement() {
                           </span>
                           {sku.last_calculated_at && (
                             <p className="text-xs text-muted-foreground">
-                              {new Date(sku.last_calculated_at).toLocaleDateString()}
+                              {new Date(
+                                sku.last_calculated_at
+                              ).toLocaleDateString()}
                             </p>
                           )}
                         </div>
@@ -256,12 +270,24 @@ export function SKUManagement() {
                       )}
                     </TableCell>
                     <TableCell onClick={() => setSelectedSKU(sku.sku)}>
-                      <Badge variant={sku.active_items_count > 0 ? "default" : "secondary"}>
+                      <Badge
+                        variant={
+                          sku.active_items_count > 0 ? "default" : "secondary"
+                        }
+                        className="bg-primary text-white"
+                      >
                         {sku.active_items_count}
                       </Badge>
                     </TableCell>
                     <TableCell onClick={() => setSelectedSKU(sku.sku)}>
-                      <Badge variant={sku.completed_items_count > 0 ? "default" : "secondary"}>
+                      <Badge
+                        variant={
+                          sku.completed_items_count > 0
+                            ? "default"
+                            : "secondary"
+                        }
+                        className="bg-primary text-white"
+                      >
                         {sku.completed_items_count}
                       </Badge>
                     </TableCell>
@@ -282,7 +308,12 @@ export function SKUManagement() {
                       </div>
                     </TableCell>
                     <TableCell onClick={() => setSelectedSKU(sku.sku)}>
-                      <Badge variant={sku.samples_count > 0 ? "default" : "secondary"}>
+                      <Badge
+                        variant={
+                          sku.samples_count > 0 ? "default" : "secondary"
+                        }
+                        className="bg-primary text-white"
+                      >
                         {sku.samples_count}
                       </Badge>
                     </TableCell>
@@ -329,7 +360,7 @@ export function SKUManagement() {
           onOpenChange={(open) => !open && setSelectedSKU(null)}
         />
       )}
-      
+
       {costModalSKU && (
         <CostCalculationModal
           sku={costModalSKU}

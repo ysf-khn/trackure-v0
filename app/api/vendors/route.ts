@@ -10,7 +10,6 @@ const vendorSchema = z.object({
   address: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
-  contact_person: z.string().optional(),
   remarks: z.string().optional(),
   is_active: z.boolean().default(true),
 });
@@ -42,7 +41,6 @@ export async function GET(request: Request) {
         address,
         phone,
         email,
-        contact_person,
         remarks,
         is_active,
         created_at,

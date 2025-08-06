@@ -44,12 +44,6 @@ export interface StageAllocation {
     sequence_order: number;
     location: string | null;
   };
-  sub_stage: {
-    id: string;
-    name: string;
-    sequence_order: number;
-    location: string | null;
-  } | null;
 }
 
 export interface AllocationsByStage {
@@ -69,9 +63,7 @@ export interface MovementHistoryEntry {
   quantity: number;
   rework_reason: string | null;
   from_stage_name: string | null;
-  from_sub_stage_name: string | null;
   to_stage_name: string | null;
-  to_sub_stage_name: string | null;
   moved_by_name: string | null;
 }
 

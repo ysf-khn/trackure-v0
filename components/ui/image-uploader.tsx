@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { UploadCloud, X, Image as ImageIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { createClient } from "@/utils/supabase/client";
 import { compressImage } from "@/lib/image-utils";
 
 interface ImageUploaderProps {
@@ -16,24 +15,22 @@ interface ImageUploaderProps {
   organizationId: string;
   remarkId?: string; // Optional: to link image to a specific remark
   onUploadComplete?: (imageData: {
-    storagePath: string;
+    s3Key: string;
+    s3Url: string;
     fileName?: string;
   }) => void;
-  bucketName?: string;
+  type?: "item" | "sample" | "profile";
   disabled?: boolean;
 }
-
-const BUCKET_NAME = "item-images";
 
 export function ImageUploader({
   itemId,
   organizationId,
   remarkId,
   onUploadComplete,
-  bucketName = BUCKET_NAME,
+  type = "item",
   disabled = false,
 }: ImageUploaderProps) {
-  const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -79,9 +76,9 @@ export function ImageUploader({
   );
 
   const handleUpload = useCallback(async () => {
-    if (!selectedFile || !itemId || !organizationId) {
+    if (!selectedFile || !itemId) {
       setError(
-        "Missing required information (file, item ID, or organization ID)."
+        "Missing required information (file or item ID)."
       );
       return;
     }
@@ -102,57 +99,75 @@ export function ImageUploader({
     setIsCompressing(false);
     setIsUploading(true);
 
-    const fileExt = fileToUpload.name.split(".").pop();
-    const timestamp = Date.now();
-    const filePath = `${organizationId}/${itemId}/${timestamp}_${fileToUpload.name.replace(/\.[^/.]+$/, "").slice(0, 50)}.${fileExt}`;
-
     try {
-      const { error: uploadError } = await supabase.storage
-        .from(bucketName)
-        .upload(filePath, fileToUpload, {
-          cacheControl: "3600",
-          upsert: false,
-          // Track progress - may need adjustments based on Supabase client version
-          // This part is often handled differently or might not be directly available
-          // progress: (event) => {
-          //   if (event.lengthComputable) {
-          //     setUploadProgress(Math.round((event.loaded / event.total) * 100));
-          //   }
-          // },
-        });
-
-      if (uploadError) {
-        console.log("Storage upload failed:", uploadError);
-        throw uploadError;
-      }
-
-      // Associate image with item via API
-      const response = await fetch(`/api/items/${itemId}/images`, {
+      // Step 1: Get presigned URL from our API
+      const presignedResponse = await fetch("/api/upload/presigned-url", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          storagePath: filePath,
+          fileName: fileToUpload.name,
+          contentType: fileToUpload.type,
+          type: type,
+          entityId: itemId,
+        }),
+      });
+
+      if (!presignedResponse.ok) {
+        const error = await presignedResponse.json();
+        throw new Error(error.error || "Failed to get upload URL");
+      }
+
+      const { presignedUrl, s3Key } = await presignedResponse.json();
+
+      // Step 2: Upload directly to S3 using presigned URL
+      const uploadResponse = await fetch(presignedUrl, {
+        method: "PUT",
+        body: fileToUpload,
+        headers: {
+          "Content-Type": fileToUpload.type,
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to upload file to S3");
+      }
+
+      // Step 3: Associate image with item/sample via API
+      const endpoint = `/api/${type}s/${itemId}/images`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          s3Key: s3Key,
           fileName: fileToUpload.name,
           fileSizeBytes: fileToUpload.size,
           contentType: fileToUpload.type,
-          remarkId: remarkId, // Include remarkId if provided
+          remarkId: remarkId,
         }),
       });
 
       if (!response.ok) {
-        const apiError = await response.json();
-        throw new Error(
-          apiError.error || "Failed to associate image with item."
-        );
+        let errorMessage = "Failed to associate image with item.";
+        try {
+          const apiError = await response.json();
+          errorMessage = apiError.error || errorMessage;
+        } catch (parseError) {
+          // Response is not JSON (likely HTML 404 page)
+          errorMessage = `${type === 'sample' ? 'Sample' : 'Item'} not found or access denied`;
+        }
+        throw new Error(errorMessage);
       }
 
       toast.success("Upload Successful", {
         description: `Image "${fileToUpload.name}" uploaded and linked.`,
       });
       onUploadComplete?.({
-        storagePath: filePath,
+        s3Key: s3Key,
+        s3Url: "", // Will be generated server-side
         fileName: fileToUpload.name,
       });
       resetState(); // Clear state after successful upload
@@ -191,10 +206,8 @@ export function ImageUploader({
   }, [
     selectedFile,
     itemId,
-    organizationId,
     remarkId,
-    supabase.storage,
-    bucketName,
+    type,
     onUploadComplete,
     resetState,
   ]);

@@ -10,7 +10,6 @@ const vendorUpdateSchema = z.object({
   address: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
-  contact_person: z.string().optional(),
   remarks: z.string().optional(),
   is_active: z.boolean().optional(),
 });
@@ -18,10 +17,10 @@ const vendorUpdateSchema = z.object({
 // GET - Get a specific vendor by ID
 export async function GET(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
   const supabase = await createClient();
-  const { vendorId } = params;
+  const { vendorId } = await params;
 
   // Get the authenticated user
   const {
@@ -36,7 +35,8 @@ export async function GET(
   try {
     const { data: vendor, error } = await supabase
       .from("vendors")
-      .select(`
+      .select(
+        `
         id,
         name,
         firm_name,
@@ -44,7 +44,6 @@ export async function GET(
         address,
         phone,
         email,
-        contact_person,
         remarks,
         is_active,
         created_at,
@@ -62,7 +61,7 @@ export async function GET(
           notes,
           created_at,
           stage:workflow_stages(id, name, full_path),
-          sku_details:item_master(name, description)
+          sku_details:item_master(master_details)
         ),
         assignments:item_vendor_assignments(
           id,
@@ -74,12 +73,13 @@ export async function GET(
           completed_at,
           item:items(sku, total_quantity)
         )
-      `)
+      `
+      )
       .eq("id", vendorId)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
+      if (error.code === "PGRST116") {
         return NextResponse.json(
           { error: "Vendor not found" },
           { status: 404 }
@@ -93,37 +93,50 @@ export async function GET(
     }
 
     // Calculate vendor performance metrics
-    const activePricing = vendor.pricing.filter(p => p.is_active);
-    const completedAssignments = vendor.assignments.filter(a => a.completed_at);
-    const activeAssignments = vendor.assignments.filter(a => !a.completed_at);
+    const activePricing = vendor.pricing.filter((p) => p.is_active);
+    const completedAssignments = vendor.assignments.filter(
+      (a) => a.completed_at
+    );
+    const activeAssignments = vendor.assignments.filter((a) => !a.completed_at);
 
     const vendorWithMetrics = {
       ...vendor,
       metrics: {
         total_pricing_entries: vendor.pricing.length,
         active_pricing_entries: activePricing.length,
-        supported_skus: new Set(activePricing.map(p => p.sku)).size,
-        supported_stages: new Set(activePricing.map(p => p.stage_id)).size,
+        supported_skus: new Set(activePricing.map((p) => p.sku)).size,
+        supported_stages: new Set(activePricing.map((p) => p.stage_id)).size,
         total_assignments: vendor.assignments.length,
         completed_assignments: completedAssignments.length,
         active_assignments: activeAssignments.length,
-        total_revenue: completedAssignments.reduce((sum, a) => sum + Number(a.total_price || 0), 0),
-        avg_completion_time: completedAssignments.length > 0
-          ? completedAssignments.reduce((sum, a) => {
-              const days = (new Date(a.completed_at).getTime() - new Date(a.assigned_at).getTime()) / (1000 * 60 * 60 * 24);
-              return sum + days;
-            }, 0) / completedAssignments.length
-          : 0,
-        price_range: activePricing.length > 0 ? {
-          min: Math.min(...activePricing.map(p => Number(p.price))),
-          max: Math.max(...activePricing.map(p => Number(p.price))),
-          avg: activePricing.reduce((sum, p) => sum + Number(p.price), 0) / activePricing.length,
-        } : null,
-      }
+        total_revenue: completedAssignments.reduce(
+          (sum, a) => sum + Number(a.total_price || 0),
+          0
+        ),
+        avg_completion_time:
+          completedAssignments.length > 0
+            ? completedAssignments.reduce((sum, a) => {
+                const days =
+                  (new Date(a.completed_at).getTime() -
+                    new Date(a.assigned_at).getTime()) /
+                  (1000 * 60 * 60 * 24);
+                return sum + days;
+              }, 0) / completedAssignments.length
+            : 0,
+        price_range:
+          activePricing.length > 0
+            ? {
+                min: Math.min(...activePricing.map((p) => Number(p.price))),
+                max: Math.max(...activePricing.map((p) => Number(p.price))),
+                avg:
+                  activePricing.reduce((sum, p) => sum + Number(p.price), 0) /
+                  activePricing.length,
+              }
+            : null,
+      },
     };
 
     return NextResponse.json({ vendor: vendorWithMetrics });
-
   } catch (error) {
     console.error("Vendor GET error:", error);
     return NextResponse.json(
@@ -210,7 +223,7 @@ export async function PUT(
       .single();
 
     if (updateError) {
-      if (updateError.code === 'PGRST116') {
+      if (updateError.code === "PGRST116") {
         return NextResponse.json(
           { error: "Vendor not found or access denied" },
           { status: 404 }
@@ -227,7 +240,6 @@ export async function PUT(
       message: "Vendor updated successfully",
       vendor: updatedVendor,
     });
-
   } catch (error) {
     console.error("Vendor update error:", error);
     return NextResponse.json(
@@ -295,9 +307,9 @@ export async function DELETE(
 
     if (activeAssignments && activeAssignments.length > 0) {
       return NextResponse.json(
-        { 
+        {
           error: "Cannot delete vendor with active assignments",
-          details: `Vendor has ${activeAssignments.length} active assignment(s)`
+          details: `Vendor has ${activeAssignments.length} active assignment(s)`,
         },
         { status: 400 }
       );
@@ -306,9 +318,9 @@ export async function DELETE(
     // Soft delete by setting is_active to false instead of hard delete
     const { data: deletedVendor, error: deleteError } = await supabase
       .from("vendors")
-      .update({ 
+      .update({
         is_active: false,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq("id", vendorId)
       .eq("organization_id", profile.organization_id)
@@ -316,7 +328,7 @@ export async function DELETE(
       .single();
 
     if (deleteError) {
-      if (deleteError.code === 'PGRST116') {
+      if (deleteError.code === "PGRST116") {
         return NextResponse.json(
           { error: "Vendor not found or access denied" },
           { status: 404 }
@@ -333,7 +345,6 @@ export async function DELETE(
       message: "Vendor deactivated successfully",
       vendor: deletedVendor,
     });
-
   } catch (error) {
     console.error("Vendor deletion error:", error);
     return NextResponse.json(

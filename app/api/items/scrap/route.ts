@@ -9,6 +9,7 @@ const scrapItemsSchema = z.object({
       z.object({
         id: z.string().uuid(),
         quantity: z.number().positive("Quantity must be a positive number."),
+        stage_id: z.string().uuid("Stage ID is required to identify which stage to scrap from."),
       })
     )
     .min(1, "At least one item is required."),
@@ -107,33 +108,86 @@ export async function POST(request: Request) {
   const organizationId = profile.organization_id;
 
   try {
+    console.log("[SCRAP DEBUG] Starting scrap process for organization:", organizationId);
+    console.log("[SCRAP DEBUG] Request payload:", {
+      items: items.map(i => ({ id: i.id, quantity: i.quantity })),
+      scrap_reason: scrap_reason,
+      create_replacement: create_replacement,
+      preserve_total_quantity: preserve_total_quantity
+    });
+
     const results = [];
     const errors = [];
 
     for (const item of items) {
+      console.log(`[SCRAP DEBUG] Processing item ${item.id} with quantity ${item.quantity} from stage ${item.stage_id}`);
+      
       try {
         // Call the scrap_item_with_replacement database function
+        console.log(`[SCRAP DEBUG] Calling scrap_item_with_replacement RPC for item ${item.id}`);
         const { data: scrapResult, error: scrapError } = await supabase.rpc(
           "scrap_item_with_replacement",
           {
             p_item_id: item.id,
             p_quantity: item.quantity,
             p_scrap_reason: scrap_reason,
+            p_stage_id: item.stage_id,
             p_create_replacement: create_replacement,
             p_preserve_total_quantity: preserve_total_quantity,
           }
         );
 
+        console.log(`[SCRAP DEBUG] RPC result for item ${item.id}:`, { scrapResult, scrapError });
+
         if (scrapError) {
+          console.error(`[SCRAP DEBUG] Database error for item ${item.id}:`, {
+            message: scrapError.message,
+            details: scrapError.details,
+            hint: scrapError.hint,
+            code: scrapError.code,
+            fullError: scrapError
+          });
           errors.push({
             itemId: item.id,
             error: scrapError.message,
+            details: scrapError.details,
+            code: scrapError.code,
+          });
+          continue;
+        }
+
+        // Verify the transaction was committed by checking the allocation
+        console.log(`[SCRAP DEBUG] Verifying transaction completion for item ${item.id}`);
+        const { data: verificationData, error: verificationError } = await supabase
+          .from("item_stage_allocations")
+          .select("quantity")
+          .eq("item_id", item.id)
+          .eq("stage_id", item.stage_id)
+          .maybeSingle();
+          
+        if (verificationError) {
+          console.warn(`[SCRAP DEBUG] Verification query failed for item ${item.id}:`, verificationError);
+          // Continue anyway as the main operation succeeded
+        } else {
+          console.log(`[SCRAP DEBUG] Post-scrap verification for item ${item.id}:`, {
+            remainingQuantity: verificationData?.quantity || "allocation removed",
+            scrapQuantity: item.quantity
+          });
+        }
+
+        if (!scrapResult) {
+          console.error(`[SCRAP DEBUG] No result returned for item ${item.id}`);
+          errors.push({
+            itemId: item.id,
+            error: "No result returned from scrap function",
           });
           continue;
         }
 
         // scrapResult should contain scrapped_item_id, replacement_item_id, message
-        const result = scrapResult[0]; // Function returns table
+        const result = Array.isArray(scrapResult) ? scrapResult[0] : scrapResult;
+        console.log(`[SCRAP DEBUG] Processed result for item ${item.id}:`, result);
+        
         results.push({
           itemId: item.id,
           scrappedItemId: result.scrapped_item_id,
@@ -141,14 +195,28 @@ export async function POST(request: Request) {
           message: result.message,
         });
 
-      } catch (itemError) {
-        console.error(`Error scrapping item ${item.id}:`, itemError);
+      } catch (itemError: any) {
+        console.error(`[SCRAP DEBUG] Exception during item processing ${item.id}:`, {
+          message: itemError?.message,
+          stack: itemError?.stack,
+          name: itemError?.name,
+          fullError: itemError
+        });
         errors.push({
           itemId: item.id,
-          error: `Failed to scrap item: ${itemError.message}`,
+          error: `Failed to scrap item: ${itemError?.message || 'Unknown error'}`,
+          exception: itemError?.name || 'Unknown exception'
         });
       }
     }
+
+    console.log("[SCRAP DEBUG] Final processing results:", {
+      totalItems: items.length,
+      successCount: results.length,
+      errorCount: errors.length,
+      results: results.map(r => ({ itemId: r.itemId, message: r.message })),
+      errors: errors
+    });
 
     // Determine response status
     const status = errors.length === 0 ? 200 : 
@@ -161,12 +229,22 @@ export async function POST(request: Request) {
       ...(errors.length > 0 && { errors }),
     };
 
+    console.log(`[SCRAP DEBUG] Returning response with status ${status}:`, response);
     return NextResponse.json(response, { status });
 
-  } catch (error) {
-    console.error("Scrap Items Unhandled Error:", error);
+  } catch (error: any) {
+    console.error("[SCRAP DEBUG] Unhandled exception in scrap route:", {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+      fullError: error
+    });
     return NextResponse.json(
-      { error: "An unexpected server error occurred." },
+      { 
+        error: "An unexpected server error occurred.",
+        details: error?.message || 'Unknown error',
+        type: error?.name || 'Unknown exception'
+      },
       { status: 500 }
     );
   }

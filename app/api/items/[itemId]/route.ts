@@ -107,7 +107,7 @@ export async function GET(
       }
     }
 
-    // Fetch stage allocations with stage and sub-stage details
+    // Fetch stage allocations with stage details
     const { data: allocations, error: allocationsError } = await supabase
       .from("item_stage_allocations")
       .select(
@@ -118,14 +118,7 @@ export async function GET(
         created_at,
         updated_at,
         stage_id,
-        sub_stage_id,
         workflow_stages!inner (
-          id,
-          name,
-          sequence_order,
-          location
-        ),
-        workflow_sub_stages (
           id,
           name,
           sequence_order,
@@ -155,20 +148,12 @@ export async function GET(
         quantity,
         rework_reason,
         from_stage_id,
-        from_sub_stage_id,
         to_stage_id,
-        to_sub_stage_id,
         moved_by,
         from_stage:workflow_stages!from_stage_id (
           name
         ),
-        from_sub_stage:workflow_sub_stages!from_sub_stage_id (
-          name
-        ),
         to_stage:workflow_stages!to_stage_id (
-          name
-        ),
-        to_sub_stage:workflow_sub_stages!to_sub_stage_id (
           name
         )
       `
@@ -220,18 +205,6 @@ export async function GET(
             (allocation.workflow_stages as any)?.sequence_order || 0,
           location: (allocation.workflow_stages as any)?.location || null,
         },
-        sub_stage: allocation.workflow_sub_stages
-          ? {
-              id: allocation.sub_stage_id,
-              name:
-                (allocation.workflow_sub_stages as any)?.name ||
-                "Unknown Sub-Stage",
-              sequence_order:
-                (allocation.workflow_sub_stages as any)?.sequence_order || 0,
-              location:
-                (allocation.workflow_sub_stages as any)?.location || null,
-            }
-          : null,
       })) || [];
 
     // Fetch user names separately for the movement history
@@ -267,9 +240,7 @@ export async function GET(
         quantity: entry.quantity,
         rework_reason: entry.rework_reason,
         from_stage_name: (entry.from_stage as any)?.name || null,
-        from_sub_stage_name: (entry.from_sub_stage as any)?.name || null,
         to_stage_name: (entry.to_stage as any)?.name || null,
-        to_sub_stage_name: (entry.to_sub_stage as any)?.name || null,
         moved_by_name: entry.moved_by
           ? userNames[entry.moved_by] || null
           : null,

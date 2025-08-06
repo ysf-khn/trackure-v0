@@ -1,27 +1,15 @@
-// Base type for a sub-stage
-export interface WorkflowSubStage {
-  id: string;
-  name: string;
-  sequence_order: number;
-  stage_id: string;
-  organization_id: string;
-  created_at: string;
-  location: string | null; // Optional location field
-}
-
-// Base type for a stage
+// Base type for a workflow stage in the tree structure
 export interface WorkflowStage {
   id: string;
   name: string;
   sequence_order: number;
   organization_id: string;
   created_at: string;
-  location: string | null; // Optional location field
-  // Add the nested sub-stages array
-  workflow_sub_stages: WorkflowSubStage[];
+  location: string | null;
+  parent_stage_id: string | null;
+  depth_level: number;
+  full_path: string;
+  is_leaf_stage: boolean;
+  sku: string | null;
+  children?: WorkflowStage[]; // For tree structure
 }
-
-// Type representing a stage with its nested sub-stages
-export type WorkflowStageWithSubStages = WorkflowStage & {
-  workflow_sub_stages: WorkflowSubStage[];
-};

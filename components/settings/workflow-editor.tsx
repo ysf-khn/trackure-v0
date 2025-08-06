@@ -13,11 +13,11 @@ import {
   ChevronRightIcon,
   Settings2Icon,
   LayersIcon,
+  DollarSignIcon,
 } from "lucide-react";
 import {
   useWorkflowStructure,
   type FetchedWorkflowStage,
-  type FetchedSubStage,
 } from "@/hooks/queries/use-workflow-structure";
 import { usePermissionCheck } from "@/hooks/queries/use-permission-check";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -26,9 +26,8 @@ import { Terminal, InfoIcon } from "lucide-react";
 import { AddStageModal } from "./add-stage-modal";
 import { EditStageModal } from "./edit-stage-modal";
 import { DeleteStageDialog } from "./delete-stage-dialog";
-import { AddSubStageModal } from "./add-sub-stage-modal";
-import { EditSubStageModal } from "./edit-sub-stage-modal";
-import { DeleteSubStageDialog } from "./delete-sub-stage-dialog";
+import { VendorPricingModal } from "./vendor-pricing-modal";
+import { VendorPricingBadge } from "./vendor-pricing-badge";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getWorkflowQueryKey } from "@/hooks/queries/use-workflow-structure";
@@ -47,10 +46,12 @@ interface RecursiveStageRendererProps {
   depth: number;
   parentStage: FetchedWorkflowStage;
   isPending: boolean;
-  handleAddSubStage: (stage: FetchedWorkflowStage) => void;
-  handleEditSubStage: (subStage: FetchedWorkflowStage) => void;
-  handleDeleteSubStage: (subStage: FetchedWorkflowStage) => void;
-  handleMoveSubStage: (id: string, direction: "up" | "down") => void;
+  handleAddChildStage: (stage: FetchedWorkflowStage) => void;
+  handleEditStage: (stage: FetchedWorkflowStage) => void;
+  handleDeleteStage: (stage: FetchedWorkflowStage) => void;
+  handleMoveStage: (id: string, direction: "up" | "down") => void;
+  handleVendorPricing: (stage: FetchedWorkflowStage) => void;
+  selectedSKU: string | null;
 }
 
 const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
@@ -58,22 +59,24 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
   depth,
   parentStage,
   isPending,
-  handleAddSubStage,
-  handleEditSubStage,
-  handleDeleteSubStage,
-  handleMoveSubStage,
+  handleAddChildStage,
+  handleEditStage,
+  handleDeleteStage,
+  handleMoveStage,
+  handleVendorPricing,
+  selectedSKU,
 }) => {
   return (
     <>
-      {stages.map((subStage, subStageIndex) => (
-        <div key={subStage.id} className="space-y-2">
+      {stages.map((childStage, childStageIndex) => (
+        <div key={childStage.id} className="space-y-2">
           <Card className="border-border/30 bg-muted/20 hover:bg-muted/40 transition-all duration-150">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center">
                     <div className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/20">
-                      {(subStage.full_path || `${parentStage.sequence_order}.${subStage.sequence_order}`)
+                      {(childStage.full_path || `${parentStage.sequence_order}.${childStage.sequence_order}`)
                         .split('.')
                         .map((segment, index, array) => (
                           <React.Fragment key={index}>
@@ -87,12 +90,17 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                         ))}
                     </div>
                   </div>
-                  <div>
-                    <h5 className="text-sm font-medium text-foreground">
-                      {subStage.name}
-                    </h5>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h5 className="text-sm font-medium text-foreground">
+                        {childStage.name}
+                      </h5>
+                      {childStage.is_leaf_stage && selectedSKU && (
+                        <VendorPricingBadge count={childStage.vendor_pricing_count || 0} />
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      Level {depth} - Sub-stage {subStage.sequence_order}
+                      Level {depth} - Stage {childStage.sequence_order}
                     </p>
                   </div>
                 </div>
@@ -102,8 +110,8 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 bg-green-50 border-green-200 border text-green-600 hover:bg-green-100 hover:border-green-300 hover:text-green-700 transition-all duration-200 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950/50 dark:hover:border-green-700 dark:hover:text-green-300"
-                    title="Add Sub-stage"
-                    onClick={() => handleAddSubStage(subStage)}
+                    title="Add Child Stage"
+                    onClick={() => handleAddChildStage(childStage)}
                     disabled={isPending}
                   >
                     <PlusIcon className="h-3 w-3" />
@@ -112,9 +120,9 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 bg-blue-50 border-blue-200 border text-blue-600 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:border-blue-700 dark:hover:text-blue-300"
-                    title="Move Sub-stage Up"
-                    onClick={() => handleMoveSubStage(subStage.id, "up")}
-                    disabled={subStageIndex === 0 || isPending}
+                    title="Move Stage Up"
+                    onClick={() => handleMoveStage(childStage.id, "up")}
+                    disabled={childStageIndex === 0 || isPending}
                   >
                     <ArrowUpIcon className="h-3 w-3" />
                   </Button>
@@ -122,9 +130,9 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 bg-blue-50 border-blue-200 border text-blue-600 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:border-blue-700 dark:hover:text-blue-300"
-                    title="Move Sub-stage Down"
-                    onClick={() => handleMoveSubStage(subStage.id, "down")}
-                    disabled={subStageIndex === stages.length - 1 || isPending}
+                    title="Move Stage Down"
+                    onClick={() => handleMoveStage(childStage.id, "down")}
+                    disabled={childStageIndex === stages.length - 1 || isPending}
                   >
                     <ArrowDownIcon className="h-3 w-3" />
                   </Button>
@@ -132,18 +140,31 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 bg-amber-50 border-amber-200 border text-amber-600 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-700 transition-all duration-200 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/50 dark:hover:border-amber-700 dark:hover:text-amber-300"
-                    title="Edit Sub-stage"
-                    onClick={() => handleEditSubStage(subStage)}
+                    title="Edit Stage"
+                    onClick={() => handleEditStage(childStage)}
                     disabled={isPending}
                   >
                     <PencilIcon className="h-3 w-3" />
                   </Button>
+                  {/* Only show vendor pricing button for leaf stages with SKU */}
+                  {childStage.is_leaf_stage && selectedSKU && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 bg-purple-50 border-purple-200 border text-purple-600 hover:bg-purple-100 hover:border-purple-300 hover:text-purple-700 transition-all duration-200 dark:bg-purple-950/30 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-950/50 dark:hover:border-purple-700 dark:hover:text-purple-300"
+                      title="Manage Vendor Pricing"
+                      onClick={() => handleVendorPricing(childStage)}
+                      disabled={isPending}
+                    >
+                      <DollarSignIcon className="h-3 w-3" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 bg-red-50 border-red-200 border text-red-600 hover:bg-red-100 hover:border-red-300 hover:text-red-700 transition-all duration-200 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:border-red-700 dark:hover:text-red-300"
-                    title="Delete Sub-stage"
-                    onClick={() => handleDeleteSubStage(subStage)}
+                    title="Delete Stage"
+                    onClick={() => handleDeleteStage(childStage)}
                     disabled={isPending}
                   >
                     <TrashIcon className="h-3 w-3" />
@@ -153,18 +174,20 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
             </CardContent>
           </Card>
           
-          {/* Recursive rendering for nested sub-stages */}
-          {subStage.sub_stages.length > 0 && (
+          {/* Recursive rendering for nested stages */}
+          {childStage.children && childStage.children.length > 0 && (
             <div className="ml-6 space-y-2">
               <RecursiveStageRenderer
-                stages={subStage.sub_stages}
+                stages={childStage.children}
                 depth={depth + 1}
-                parentStage={subStage}
+                parentStage={childStage}
                 isPending={isPending}
-                handleAddSubStage={handleAddSubStage}
-                handleEditSubStage={handleEditSubStage}
-                handleDeleteSubStage={handleDeleteSubStage}
-                handleMoveSubStage={handleMoveSubStage}
+                handleAddChildStage={handleAddChildStage}
+                handleEditStage={handleEditStage}
+                handleDeleteStage={handleDeleteStage}
+                handleMoveStage={handleMoveStage}
+                handleVendorPricing={handleVendorPricing}
+                selectedSKU={selectedSKU}
               />
             </div>
           )}
@@ -188,19 +211,6 @@ async function reorderStageApi(payload: ReorderPayload): Promise<void> {
   }
 }
 
-async function reorderSubStageApi(payload: ReorderPayload): Promise<void> {
-  const response = await fetch("/api/settings/workflow/sub-stages/reorder", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData.message || response.statusText || "Failed to reorder sub-stage"
-    );
-  }
-}
 
 interface WorkflowEditorProps {
   organizationId: string;
@@ -225,6 +235,10 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
   const [editingSubStage, setEditingSubStage] =
     useState<FetchedWorkflowStage | null>(null);
   const [deletingSubStage, setDeletingSubStage] =
+    useState<FetchedWorkflowStage | null>(null);
+
+  // --- State for Vendor Pricing Modal ---
+  const [vendorPricingStage, setVendorPricingStage] =
     useState<FetchedWorkflowStage | null>(null);
 
   // --- Fetch Workflow Structure ---
@@ -254,21 +268,6 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
     },
   });
 
-  const reorderSubStageMutation = useMutation({
-    mutationFn: reorderSubStageApi,
-    onSuccess: () => {
-      toast.success("Sub-stage reordered successfully");
-      queryClient.invalidateQueries({
-        queryKey: getWorkflowQueryKey(organizationId, selectedSKU),
-      });
-      queryClient.invalidateQueries({
-        queryKey: getSidebarWorkflowKey(organizationId),
-      });
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to reorder sub-stage: ${error.message}`);
-    },
-  });
 
   // --- Loading State ---
   if (isLoading) {
@@ -388,42 +387,28 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
     reorderStageMutation.mutate({ itemId: id, direction });
   };
 
-  // Update Sub-stage Handlers
-  const handleAddSubStage = (stage: FetchedWorkflowStage) =>
+  // Update Child Stage Handlers
+  const handleAddChildStage = (stage: FetchedWorkflowStage) =>
     setAddingSubStageTo(stage);
-  const handleEditSubStage = (subStage: FetchedWorkflowStage) =>
-    setEditingSubStage(subStage);
-  const handleDeleteSubStage = (subStage: FetchedWorkflowStage) => {
-    // Find the parent stage to check if this is the last sub-stage
-    const parentStage = workflowStructure?.find((stage) =>
-      stage.sub_stages.some((ss) => ss.id === subStage.id)
-    );
-
-    if (parentStage && parentStage.sub_stages.length === 1) {
-      toast.error(
-        "Cannot delete the last sub-stage. A stage with sub-stages must have at least one sub-stage."
-      );
-      return;
-    }
-
-    setDeletingSubStage(subStage);
+  const handleEditChildStage = (stage: FetchedWorkflowStage) =>
+    setEditingStage(stage);
+  const handleDeleteChildStage = (stage: FetchedWorkflowStage) => {
+    setDeletingStage(stage);
   };
 
-  const handleMoveSubStage = (id: string, direction: "up" | "down") => {
-    if (reorderSubStageMutation.isPending) return;
-    reorderSubStageMutation.mutate({ itemId: id, direction });
-  };
+  const handleVendorPricing = (stage: FetchedWorkflowStage) =>
+    setVendorPricingStage(stage);
+
 
   // --- Calculations ---
-  const calculateNextSubStageSequence = (
+  const calculateNextChildStageSequence = (
     stage: FetchedWorkflowStage | null
   ): number => {
     if (!stage) return 1;
-    return stage.sub_stages.length + 1;
+    return (stage.children?.length || 0) + 1;
   };
 
-  const isPending =
-    reorderStageMutation.isPending || reorderSubStageMutation.isPending;
+  const isPending = reorderStageMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -431,10 +416,9 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
       <Alert className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/30">
         <InfoIcon className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-800 dark:text-blue-200">
-          <strong>Workflow Rules:</strong> Sub-stages can only be added during
-          stage creation. Once created, stages with sub-stages must always have
-          at least one sub-stage. Items can only be moved to sub-stages, not to
-          the parent stage when sub-stages exist.
+          <strong>Workflow Rules:</strong> Stages can be nested infinitely to create
+          a tree structure. Items can only be allocated to leaf stages (stages without children).
+          You can add child stages to any existing stage to create deeper workflow levels.
         </AlertDescription>
       </Alert>
 
@@ -520,11 +504,14 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                                 System Required
                               </Badge>
                             )}
-                            {stage.sub_stages.length > 0 && (
+                            {stage.children && stage.children.length > 0 && (
                               <Badge variant="outline" className="text-xs">
                                 <LayersIcon className="h-3 w-3 mr-1" />
-                                {stage.sub_stages.length} sub-stages
+                                {stage.children.length} child stages
                               </Badge>
+                            )}
+                            {stage.is_leaf_stage && selectedSKU && (
+                              <VendorPricingBadge count={stage.vendor_pricing_count || 0} />
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground">
@@ -570,8 +557,8 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                           variant="ghost"
                           size="icon"
                           className="h-9 w-9 bg-green-50 border-green-200 border text-green-600 hover:bg-green-100 hover:border-green-300 hover:text-green-700 transition-all duration-200 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950/50 dark:hover:border-green-700 dark:hover:text-green-300"
-                          title="Add Sub-stage"
-                          onClick={() => handleAddSubStage(stage)}
+                          title="Add Child Stage"
+                          onClick={() => handleAddChildStage(stage)}
                           disabled={isPending}
                         >
                           <PlusIcon className="h-4 w-4" />
@@ -591,6 +578,20 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                           <PencilIcon className="h-4 w-4" />
                         </Button>
 
+                        {/* Vendor Pricing Button - Only for leaf stages with SKU */}
+                        {stage.is_leaf_stage && selectedSKU && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 bg-purple-50 border-purple-200 border text-purple-600 hover:bg-purple-100 hover:border-purple-300 hover:text-purple-700 transition-all duration-200 dark:bg-purple-950/30 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-950/50 dark:hover:border-purple-700 dark:hover:text-purple-300"
+                            title="Manage Vendor Pricing"
+                            onClick={() => handleVendorPricing(stage)}
+                            disabled={isPending}
+                          >
+                            <DollarSignIcon className="h-4 w-4" />
+                          </Button>
+                        )}
+
                         {/* Delete Button */}
                         {!isCompleted && (
                           <Button
@@ -607,8 +608,8 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                       </div>
                     </div>
 
-                    {/* Sub-stages Section - Recursive rendering */}
-                    {stage.sub_stages.length > 0 && (
+                    {/* Child stages Section - Recursive rendering */}
+                    {stage.children && stage.children.length > 0 && (
                       <div className="space-y-3">
                         <Separator className="my-4" />
                         <div className="flex items-center gap-2 mb-3">
@@ -619,14 +620,16 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                         </div>
                         <div className="space-y-2 ml-6">
                           <RecursiveStageRenderer 
-                            stages={stage.sub_stages}
+                            stages={stage.children}
                             depth={1}
                             parentStage={stage}
                             isPending={isPending}
-                            handleAddSubStage={handleAddSubStage}
-                            handleEditSubStage={handleEditSubStage}
-                            handleDeleteSubStage={handleDeleteSubStage}
-                            handleMoveSubStage={handleMoveSubStage}
+                            handleAddChildStage={handleAddChildStage}
+                            handleEditStage={handleEditStage}
+                            handleDeleteStage={handleDeleteStage}
+                            handleMoveStage={handleMoveStage}
+                            handleVendorPricing={handleVendorPricing}
+                            selectedSKU={selectedSKU}
                           />
                         </div>
                       </div>
@@ -660,29 +663,15 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
         onClose={() => setDeletingStage(null)}
         stage={deletingStage}
       />
+      <VendorPricingModal
+        organizationId={organizationId}
+        selectedSKU={selectedSKU}
+        isOpen={!!vendorPricingStage}
+        onClose={() => setVendorPricingStage(null)}
+        stage={vendorPricingStage}
+      />
 
-      <AddSubStageModal
-        organizationId={organizationId}
-        selectedSKU={selectedSKU}
-        isOpen={!!addingSubStageTo}
-        onClose={() => setAddingSubStageTo(null)}
-        stageId={addingSubStageTo?.id ?? null}
-        nextSequenceOrder={calculateNextSubStageSequence(addingSubStageTo)}
-      />
-      <EditSubStageModal
-        organizationId={organizationId}
-        selectedSKU={selectedSKU}
-        isOpen={!!editingSubStage}
-        onClose={() => setEditingSubStage(null)}
-        subStage={editingSubStage}
-      />
-      <DeleteSubStageDialog
-        organizationId={organizationId}
-        selectedSKU={selectedSKU}
-        isOpen={!!deletingSubStage}
-        onClose={() => setDeletingSubStage(null)}
-        subStage={deletingSubStage}
-      />
+      {/* Child stage modals would go here - using AddStageModal with parent_stage_id */}
     </div>
   );
 }

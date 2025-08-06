@@ -56,7 +56,7 @@ const fetchCompletedItems = async (): Promise<CompletedItem[]> => {
     throw new Error("User organization not found");
   }
 
-  // Fetch completed items with order information
+  // Fetch completed items with order information (excluding scrapped items)
   const { data, error } = await supabase
     .from("items")
     .select(
@@ -79,6 +79,7 @@ const fetchCompletedItems = async (): Promise<CompletedItem[]> => {
     )
     .eq("organization_id", profile.organization_id)
     .eq("status", "Completed")
+    .eq("is_scrapped", false)
     .order("updated_at", { ascending: false });
 
   if (error) {

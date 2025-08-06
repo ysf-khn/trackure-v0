@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Building, Phone, Mail, MapPin, FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useVendors } from "@/hooks/queries/use-vendors";
 import { AddVendorModal } from "./add-vendor-modal";
-import { VendorDetailsModal } from "./vendor-details-modal";
 
 export function VendorManagement() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
+  const router = useRouter();
 
   const { data: vendorsData, isLoading, error } = useVendors();
   const vendors = vendorsData?.vendors || [];
@@ -117,7 +117,7 @@ export function VendorManagement() {
             <Card 
               key={vendor.id} 
               className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => setSelectedVendor(vendor.id)}
+              onClick={() => router.push(`/vendors/${vendor.id}`)}
             >
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -136,12 +136,6 @@ export function VendorManagement() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {vendor.contact_person && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Phone className="h-4 w-4" />
-                      <span>{vendor.contact_person}</span>
-                    </div>
-                  )}
                   {vendor.email && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Mail className="h-4 w-4" />
@@ -190,14 +184,6 @@ export function VendorManagement() {
         open={isAddModalOpen}
         onOpenChange={setIsAddModalOpen}
       />
-      
-      {selectedVendor && (
-        <VendorDetailsModal
-          vendorId={selectedVendor}
-          open={!!selectedVendor}
-          onOpenChange={(open) => !open && setSelectedVendor(null)}
-        />
-      )}
     </div>
   );
 }

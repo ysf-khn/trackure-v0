@@ -23,12 +23,13 @@ const fetchCompletedItemsCount = async (): Promise<number> => {
     throw new Error("User organization not found");
   }
 
-  // Count items with status = 'Completed' in the user's organization
+  // Count items with status = 'Completed' (excluding scrapped items) in the user's organization
   const { count, error } = await supabase
     .from("items")
     .select("*", { count: "exact", head: true })
     .eq("organization_id", profile.organization_id)
-    .eq("status", "Completed");
+    .eq("status", "Completed")
+    .eq("is_scrapped", false);
 
   if (error) {
     throw new Error(`Failed to fetch completed items count: ${error.message}`);

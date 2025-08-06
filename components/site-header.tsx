@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { GalleryVerticalEnd, Home, PlusCircle } from "lucide-react";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 
 export function SiteHeader() {
   const { organizationName, isLoading } = useProfileAndOrg();
@@ -12,6 +13,7 @@ export function SiteHeader() {
     <header className="group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 flex h-12 shrink-0 items-center justify-between border-b transition-[width,height] ease-linear">
       <div className="flex items-center gap-1 px-2 sm:px-4 lg:gap-2 lg:px-6 min-w-0 flex-1">
         <SidebarTrigger className="-ml-1" />
+        <ThemeSwitcher />
         <Separator
           orientation="vertical"
           className="mx-1 sm:mx-2 data-[orientation=vertical]:h-4"

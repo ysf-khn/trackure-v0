@@ -1,38 +1,34 @@
 import { useQuery } from "@tanstack/react-query";
 
 interface SampleAttribute {
-  category: string;
-  name: string;
-  value: string;
-  unit?: string;
+  attribute_name: string;
+  attribute_value: string;
+  attribute_unit?: string | null;
 }
 
 interface Sample {
   id: string;
   organization_id: string;
+  sku: string;
   sample_code: string;
   name: string;
-  description: string | null;
-  sku: string | null;
-  status: 'available' | 'with_customer' | 'in_production' | 'damaged' | 'lost';
-  location: string | null;
-  received_date: string | null;
-  received_from: string | null;
+  description?: string | null;
+  location?: string | null;
+  status: string;
+  received_date?: string | null;
+  received_from?: string | null;
+  attributes?: SampleAttribute[];
   created_at: string;
   updated_at: string;
-  attributes: SampleAttribute[];
-  image_count: number;
+  created_by: string;
+  thumbnailUrl?: string | null;
+  imageCount?: number;
 }
 
 interface SamplesResponse {
   samples: Sample[];
   meta: {
     total_count: number;
-    available_count: number;
-    with_customer_count: number;
-    in_production_count: number;
-    damaged_count: number;
-    lost_count: number;
   };
 }
 

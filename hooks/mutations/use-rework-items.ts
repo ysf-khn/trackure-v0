@@ -8,7 +8,6 @@ type ReworkSuccessResponse = {
     itemId: string;
     status: "success";
     reworkedToStageId: string;
-    reworkedToSubStageId: string | null;
     quantity: number;
   }[];
   errors?: { itemId: string; error: string }[];
@@ -26,11 +25,9 @@ interface ReworkItemsVariables {
     id: string;
     quantity: number;
     source_stage_id: string;
-    source_sub_stage_id: string | null;
   }[];
   rework_reason: string;
   target_rework_stage_id: string;
-  target_rework_sub_stage_id?: string | null; // Add optional target sub-stage ID
   organizationId: string; // Needed for query invalidation
 }
 

@@ -32,7 +32,6 @@ interface Vendor {
   address: string | null;
   phone: string | null;
   email: string | null;
-  contact_person: string | null;
   remarks: string | null;
   is_active: boolean;
   created_at: string;

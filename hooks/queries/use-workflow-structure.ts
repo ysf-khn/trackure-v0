@@ -7,19 +7,6 @@ import { useQuery } from "@tanstack/react-query";
 
 // Define the specific type for the data fetched by this hook
 // Export these types so they can be used by utility functions
-export interface FetchedSubStage {
-  id: string;
-  name: string | null; // Allow null for name based on schema possibility
-  sequence_order: number;
-  location: string | null; // Optional location field
-  parent_stage_id: string | null;
-  depth_level: number;
-  full_path: string | null;
-  is_leaf_stage: boolean;
-  sku: string | null;
-  sub_stages: FetchedSubStage[]; // Recursive for infinite nesting
-}
-
 export interface FetchedWorkflowStage {
   id: string;
   name: string | null; // Allow null for name
@@ -30,7 +17,8 @@ export interface FetchedWorkflowStage {
   full_path: string | null;
   is_leaf_stage: boolean;
   sku: string | null;
-  sub_stages: FetchedWorkflowStage[]; // Recursive for infinite nesting
+  vendor_pricing_count?: number; // Count of active vendor pricing for this stage
+  children?: FetchedWorkflowStage[]; // Recursive for infinite nesting
 }
 
 // --- Query Key Generator --- //
@@ -48,7 +36,10 @@ const buildTree = (stages: any[], parentId: string | null = null): FetchedWorkfl
     .filter(stage => stage.parent_stage_id === parentId)
     .map(stage => ({
       ...stage,
-      sub_stages: buildTree(stages, stage.id)
+      vendor_pricing_count: Array.isArray(stage.vendor_stage_pricing) 
+        ? stage.vendor_stage_pricing.length 
+        : 0,
+      children: buildTree(stages, stage.id)
     }))
     .sort((a, b) => a.sequence_order - b.sequence_order);
 };
@@ -72,10 +63,14 @@ const fetchWorkflowStructure = async (
       depth_level,
       full_path,
       is_leaf_stage,
-      sku
+      sku,
+      vendor_stage_pricing!left(
+        id
+      )
     `
     )
-    .eq("organization_id", organizationId);
+    .eq("organization_id", organizationId)
+    .eq("vendor_stage_pricing.is_active", true);
 
   // Filter by SKU if selected
   if (selectedSKU) {

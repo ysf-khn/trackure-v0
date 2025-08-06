@@ -2,31 +2,14 @@
 
 import React from "react";
 import { useItemImages } from "@/hooks/queries/use-item-images";
-import { createClient } from "@/utils/supabase/client";
+import { S3Image } from "@/components/ui/s3-image";
 
 interface DebugImagesProps {
   itemId: string;
 }
 
-const BUCKET_NAME = "item-images";
-
 export function DebugImages({ itemId }: DebugImagesProps) {
-  const supabase = createClient();
   const { data: images, isLoading, error } = useItemImages(itemId);
-
-  const getImageUrl = (storagePath: string): string | null => {
-    if (!storagePath) return null;
-
-    try {
-      const { data } = supabase.storage
-        .from(BUCKET_NAME)
-        .getPublicUrl(storagePath);
-      return data?.publicUrl ?? null;
-    } catch (error) {
-      console.error("Error generating public URL:", error);
-      return null;
-    }
-  };
 
   if (isLoading) return <div>Loading images...</div>;
   if (error) return <div>Error: {error.message}</div>;
@@ -39,14 +22,17 @@ export function DebugImages({ itemId }: DebugImagesProps) {
       {images && images.length > 0 ? (
         <div className="space-y-2 mt-4">
           {images.map((img) => {
-            const imageUrl = getImageUrl(img.storage_path);
+            const imageUrl = img.s3_url || img.storage_path; // Support both S3 and legacy Supabase images
             return (
               <div key={img.id} className="border p-2 rounded">
                 <p>
                   <strong>ID:</strong> {img.id}
                 </p>
                 <p>
-                  <strong>Storage Path:</strong> {img.storage_path}
+                  <strong>S3 Key:</strong> {img.s3_key || "N/A"}
+                </p>
+                <p>
+                  <strong>S3 URL:</strong> {img.s3_url || "N/A"}
                 </p>
                 <p>
                   <strong>File Name:</strong> {img.file_name || "N/A"}
@@ -55,30 +41,27 @@ export function DebugImages({ itemId }: DebugImagesProps) {
                   <strong>Remark ID:</strong>{" "}
                   {img.remark_id?.toString() || "N/A"}
                 </p>
-                <p>
-                  <strong>Generated URL:</strong>{" "}
-                  {imageUrl || "Failed to generate"}
-                </p>
 
                 {imageUrl && (
                   <div className="mt-2">
-                    <img
+                    <S3Image
                       src={imageUrl}
                       alt={img.file_name || "Test image"}
+                      width={128}
+                      height={128}
                       className="w-32 h-32 object-cover border"
                       onLoad={() =>
                         console.log("Image loaded successfully:", imageUrl)
                       }
-                      onError={(e) => {
+                      onError={() => {
                         console.error("Image failed to load:", imageUrl);
-                        console.error("Error event:", e);
                       }}
                     />
                   </div>
                 )}
               </div>
             );
-          })}
+          })
         </div>
       ) : (
         <p className="mt-2 text-muted-foreground">

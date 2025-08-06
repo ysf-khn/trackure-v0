@@ -12,10 +12,6 @@ const reworkInputSchema = z.object({
         id: z.string().uuid(),
         quantity: z.number().positive("Quantity must be a positive number."),
         source_stage_id: z.string().uuid("Invalid source stage ID."),
-        source_sub_stage_id: z
-          .string()
-          .uuid("Invalid source sub-stage ID.")
-          .nullable(),
       })
     )
     .min(1, "At least one item is required."),
@@ -24,11 +20,6 @@ const reworkInputSchema = z.object({
     .min(3, "Rework reason must be at least 3 characters long.")
     .max(255, "Rework reason must be at most 255 characters long."),
   target_rework_stage_id: z.string().uuid("Invalid target stage ID."),
-  target_rework_sub_stage_id: z
-    .string()
-    .uuid("Invalid target sub-stage ID.")
-    .nullable()
-    .optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -119,7 +110,6 @@ export async function POST(request: NextRequest) {
     items: itemsToRework,
     rework_reason,
     target_rework_stage_id,
-    target_rework_sub_stage_id,
   } = parseResult.data;
 
   try {
@@ -179,7 +169,7 @@ export async function POST(request: NextRequest) {
         .filter(stage => stage.parent_stage_id === parentId)
         .map(stage => ({
           ...stage,
-          sub_stages: buildTree(stages, stage.id)
+          children: buildTree(stages, stage.id)
         }))
         .sort((a, b) => a.sequence_order - b.sequence_order);
     };
@@ -192,8 +182,8 @@ export async function POST(request: NextRequest) {
         if (stage.id === targetId) {
           return stage;
         }
-        if (stage.sub_stages && stage.sub_stages.length > 0) {
-          const found = findStageInTree(stage.sub_stages, targetId);
+        if (stage.children && stage.children.length > 0) {
+          const found = findStageInTree(stage.children, targetId);
           if (found) return found;
         }
       }
@@ -220,203 +210,241 @@ export async function POST(request: NextRequest) {
     const errors = [];
     const timestamp = new Date().toISOString();
 
-    for (const itemInput of itemsToRework) {
-      const {
-        id: itemId,
-        quantity: requestedQuantity,
-        source_stage_id,
-        source_sub_stage_id,
-      } = itemInput;
+    // Process all items in a single transaction for data consistency
+    const { data: transactionResult, error: transactionError } = await supabase.rpc(
+      'process_rework_items_batch',
+      {
+        p_items: JSON.stringify(itemsToRework),
+        p_rework_reason: rework_reason,
+        p_target_stage_id: target_rework_stage_id,
+        p_organization_id: organizationId,
+        p_user_id: user.id
+      }
+    );
 
-      // Fetch current item allocation state for tree structure
-      // In tree structure, there are no sub-stages, only stage allocations
-      const { data: currentAllocation, error: allocationError } = await supabase
-        .from("item_stage_allocations")
-        .select("id, stage_id, sub_stage_id, quantity, organization_id")
-        .eq("item_id", itemId)
-        .eq("organization_id", organizationId)
-        .eq("stage_id", source_stage_id)
-        .single();
-
-      if (allocationError || !currentAllocation) {
-        console.error(`[Rework API] Allocation not found:`, {
-          itemId,
+    if (transactionError) {
+      console.error("[Rework API] Transaction Error:", transactionError);
+      
+      // Fallback to individual processing if batch function doesn't exist
+      for (const itemInput of itemsToRework) {
+        const {
+          id: itemId,
+          quantity: requestedQuantity,
           source_stage_id,
-          error: allocationError?.message
-        });
-        errors.push({
-          itemId,
-          error: `Allocation for item not found in specified stage. ${allocationError?.message || ""}`,
-        });
-        continue;
-      }
+        } = itemInput;
 
-      if (requestedQuantity > currentAllocation.quantity) {
-        console.error(`[Rework API] Insufficient quantity:`, {
-          itemId,
-          requestedQuantity,
-          availableQuantity: currentAllocation.quantity
-        });
-        errors.push({
-          itemId,
-          error: `Requested rework quantity (${requestedQuantity}) exceeds available quantity (${currentAllocation.quantity}) in stage.`,
-        });
-        continue;
-      }
+        try {
+          // Start a transaction for each item
+          const { data: currentAllocation, error: allocationError } = await supabase
+            .from("item_stage_allocations")
+            .select("id, stage_id, quantity, organization_id")
+            .eq("item_id", itemId)
+            .eq("organization_id", organizationId)
+            .eq("stage_id", source_stage_id)
+            .single();
 
-      console.log(`[Rework API] Found allocation:`, {
-        itemId,
-        allocationId: currentAllocation.id,
-        stageId: currentAllocation.stage_id,
-        quantity: currentAllocation.quantity,
-        requestedQuantity,
-        moveType: requestedQuantity === currentAllocation.quantity ? "FULL_REWORK" : "PARTIAL_REWORK"
-      });
+          if (allocationError || !currentAllocation) {
+            console.error(`[Rework API] Allocation not found:`, {
+              itemId,
+              source_stage_id,
+              error: allocationError?.message
+            });
+            errors.push({
+              itemId,
+              error: `Allocation for item not found in specified stage. ${allocationError?.message || ""}`,
+            });
+            continue;
+          }
 
-      // Handle the source allocation for Rework
-      if (requestedQuantity === currentAllocation.quantity) {
-        console.log(`[Rework API] Processing full rework for item ${itemId}`);
-        // FULL REWORK from source: Delete the source allocation
-        const { error: deleteSourceError } = await supabase
-          .from("item_stage_allocations")
-          .delete()
-          .eq("id", currentAllocation.id);
+          if (requestedQuantity > currentAllocation.quantity) {
+            console.error(`[Rework API] Insufficient quantity:`, {
+              itemId,
+              requestedQuantity,
+              availableQuantity: currentAllocation.quantity
+            });
+            errors.push({
+              itemId,
+              error: `Requested rework quantity (${requestedQuantity}) exceeds available quantity (${currentAllocation.quantity}) in stage.`,
+            });
+            continue;
+          }
 
-        if (deleteSourceError) {
-          console.error("Delete source error:", deleteSourceError);
+          console.log(`[Rework API] Found allocation:`, {
+            itemId,
+            allocationId: currentAllocation.id,
+            stageId: currentAllocation.stage_id,
+            quantity: currentAllocation.quantity,
+            requestedQuantity,
+            moveType: requestedQuantity === currentAllocation.quantity ? "FULL_REWORK" : "PARTIAL_REWORK"
+          });
+
+          // First, check if target rework allocation exists
+          // IMPORTANT: Rework ALWAYS goes to 'reworked' allocation type
+          const { data: targetAllocation, error: targetAllocationFetchError } = await supabase
+            .from("item_stage_allocations")
+            .select("id, quantity")
+            .eq("item_id", itemId)
+            .eq("organization_id", organizationId)
+            .eq("stage_id", target_rework_stage_id)
+            .eq("allocation_type", "reworked") // Always target reworked allocation for rework moves
+            .maybeSingle();
+
+          if (targetAllocationFetchError) {
+            errors.push({
+              itemId,
+              error: `Failed to check for existing target rework allocation. ${targetAllocationFetchError.message}`,
+            });
+            continue;
+          }
+
+          // Handle target allocation first to ensure data consistency
+          if (targetAllocation) {
+            // Target allocation exists: Update its quantity
+            const { error: targetUpdateError } = await supabase
+              .from("item_stage_allocations")
+              .update({
+                quantity: targetAllocation.quantity + requestedQuantity,
+                updated_at: timestamp,
+                moved_by: user.id,
+              })
+              .eq("id", targetAllocation.id);
+
+            if (targetUpdateError) {
+              console.error("Target update error:", targetUpdateError);
+              errors.push({
+                itemId,
+                error: `Failed to update target rework allocation. ${targetUpdateError.message}`,
+              });
+              continue;
+            }
+          } else {
+            // No target allocation exists: Create a new one
+            // IMPORTANT: Rework moves ALWAYS create 'reworked' allocation type
+            const { error: newInsertError } = await supabase
+              .from("item_stage_allocations")
+              .insert({
+                item_id: itemId,
+                organization_id: organizationId,
+                stage_id: target_rework_stage_id,
+                quantity: requestedQuantity,
+                allocation_type: "reworked", // Rework moves always go to reworked allocation
+                created_at: timestamp,
+                updated_at: timestamp,
+                moved_by: user.id,
+              });
+
+            if (newInsertError) {
+              console.error("Target insert error:", newInsertError);
+              errors.push({
+                itemId,
+                error: `Failed to create new allocation for reworked part. ${newInsertError.message}`,
+              });
+              continue;
+            }
+          }
+
+          // Now handle the source allocation
+          if (requestedQuantity === currentAllocation.quantity) {
+            console.log(`[Rework API] Processing full rework for item ${itemId}`);
+            // FULL REWORK from source: Delete the source allocation
+            const { error: deleteSourceError } = await supabase
+              .from("item_stage_allocations")
+              .delete()
+              .eq("id", currentAllocation.id);
+
+            if (deleteSourceError) {
+              console.error("Delete source error:", deleteSourceError);
+              errors.push({
+                itemId,
+                error: `Failed to remove source item allocation for full rework. ${deleteSourceError.message}`,
+              });
+              continue;
+            }
+          } else {
+            console.log("Partial rework - updating source allocation:");
+            // PARTIAL REWORK from source: Reduce quantity
+            const { error: existingUpdateError } = await supabase
+              .from("item_stage_allocations")
+              .update({
+                quantity: currentAllocation.quantity - requestedQuantity,
+                updated_at: timestamp,
+              })
+              .eq("id", currentAllocation.id);
+
+            if (existingUpdateError) {
+              console.error("Update source error:", existingUpdateError);
+              errors.push({
+                itemId,
+                error: `Failed to update existing allocation (partial rework). ${existingUpdateError.message}`,
+              });
+              continue;
+            }
+          }
+
+          // Insert movement history record
+          const { error: movementLogInsertError } = await supabase
+            .from("item_movement_history")
+            .insert({
+              item_id: itemId,
+              from_stage_id: currentAllocation.stage_id,
+              to_stage_id: target_rework_stage_id,
+              quantity: requestedQuantity,
+              moved_at: timestamp,
+              moved_by: user.id,
+              organization_id: organizationId,
+              rework_type: 'backward', // Use 'backward' to match our display logic
+              rework_reason: rework_reason,
+            });
+
+          if (movementLogInsertError) {
+            console.error("Movement history error:", movementLogInsertError);
+            errors.push({
+              itemId,
+              error: `Failed to log rework movement history. ${movementLogInsertError.message}`,
+            });
+            continue;
+          }
+
+          console.log(`[Rework API] Successfully completed rework for item ${itemId}:`, {
+            targetStageId: target_rework_stage_id,
+            quantity: requestedQuantity,
+            reason: rework_reason
+          });
+
+          results.push({
+            itemId,
+            status: "success",
+            reworkedToStageId: target_rework_stage_id,
+            quantity: requestedQuantity,
+          });
+
+        } catch (itemError) {
+          console.error(`[Rework API] Error processing item ${itemId}:`, itemError);
           errors.push({
             itemId,
-            error: `Failed to remove source item allocation for full rework. ${deleteSourceError.message}`,
+            error: `Unexpected error processing item: ${itemError instanceof Error ? itemError.message : 'Unknown error'}`,
           });
-          continue;
-        }
-      } else {
-        console.log("Partial rework - updating source allocation:");
-        // PARTIAL REWORK from source: Reduce quantity
-        const { error: existingUpdateError } = await supabase
-          .from("item_stage_allocations")
-          .update({
-            quantity: currentAllocation.quantity - requestedQuantity,
-            updated_at: timestamp,
-          })
-          .eq("id", currentAllocation.id);
-
-        if (existingUpdateError) {
-          console.error("Update source error:", existingUpdateError);
-          errors.push({
-            itemId,
-            error: `Failed to update existing allocation (partial rework). ${existingUpdateError.message}`,
-          });
-          continue;
         }
       }
-
-      // Handle the target allocation for Rework
-      // In tree structure, sub_stage_id is always null, so we only filter by stage_id
-      const targetAllocationQuery = supabase
-        .from("item_stage_allocations")
-        .select("id, quantity")
-        .eq("item_id", itemId)
-        .eq("organization_id", organizationId)
-        .eq("stage_id", target_rework_stage_id)
-        .is("sub_stage_id", null);
-
-      const { data: targetAllocation, error: targetAllocationFetchError } =
-        await targetAllocationQuery.limit(1).single();
-
-      if (
-        targetAllocationFetchError &&
-        targetAllocationFetchError.code !== "PGRST116" // PGRST116: single row not found
-      ) {
-        errors.push({
-          itemId,
-          error: `Failed to check for existing target rework allocation. ${targetAllocationFetchError.message}`,
-        });
-        continue;
-      }
-
-      if (targetAllocation) {
-        // Target allocation exists: Update its quantity
-        const { error: targetUpdateError } = await supabase
-          .from("item_stage_allocations")
-          .update({
-            quantity: targetAllocation.quantity + requestedQuantity,
-            updated_at: timestamp,
-            moved_by: user.id,
-          })
-          .eq("id", targetAllocation.id);
-
-        if (targetUpdateError) {
-          errors.push({
-            itemId,
-            error: `DATA INCONSISTENCY: Failed to update target rework allocation. Source modified. ${targetUpdateError.message}`,
-          });
-          continue;
-        }
-      } else {
-        // No target allocation exists: Create a new one
-        // In tree structure, sub_stage_id is always null
-        const newAllocationData = {
-          item_id: itemId,
-          organization_id: organizationId,
-          stage_id: target_rework_stage_id,
-          sub_stage_id: null, // Always null in tree structure
-          quantity: requestedQuantity,
-          created_at: timestamp,
-          updated_at: timestamp,
-          moved_by: user.id,
-        };
-        const { error: newInsertError } = await supabase
-          .from("item_stage_allocations")
-          .insert(newAllocationData);
-
-        if (newInsertError) {
-          errors.push({
-            itemId,
-            error: `DATA INCONSISTENCY: Failed to create new allocation for reworked part. Source modified. ${newInsertError.message}`,
-          });
-          continue;
+    } else {
+      // Process batch transaction result
+      if (transactionResult && Array.isArray(transactionResult)) {
+        for (const result of transactionResult) {
+          if (result.success) {
+            results.push({
+              itemId: result.item_id,
+              status: "success",
+              reworkedToStageId: target_rework_stage_id,
+              quantity: result.quantity,
+            });
+          } else {
+            errors.push({
+              itemId: result.item_id,
+              error: result.error_message || "Unknown error",
+            });
+          }
         }
       }
-
-      // Insert movement history record
-      // In tree structure, sub_stage_ids are always null
-      const { error: movementLogInsertError } = await supabase
-        .from("item_movement_history")
-        .insert({
-          item_id: itemId,
-          from_stage_id: currentAllocation.stage_id,
-          from_sub_stage_id: null, // Always null in tree structure
-          to_stage_id: target_rework_stage_id,
-          to_sub_stage_id: null, // Always null in tree structure
-          quantity: requestedQuantity,
-          moved_at: timestamp,
-          moved_by: user.id,
-          organization_id: organizationId,
-          rework_reason: rework_reason,
-        });
-
-      if (movementLogInsertError) {
-        errors.push({
-          itemId,
-          error: `Failed to log rework movement history. ${movementLogInsertError.message}`,
-        });
-        continue;
-      }
-
-      console.log(`[Rework API] Successfully completed rework for item ${itemId}:`, {
-        targetStageId: target_rework_stage_id,
-        quantity: requestedQuantity,
-        reason: rework_reason
-      });
-
-      results.push({
-        itemId,
-        status: "success",
-        reworkedToStageId: target_rework_stage_id,
-        reworkedToSubStageId: target_rework_sub_stage_id,
-        quantity: requestedQuantity,
-      });
     }
 
     if (errors.length > 0) {

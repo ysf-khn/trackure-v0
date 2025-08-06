@@ -8,6 +8,16 @@ const subStageSchema = z.object({
   location: z.string().optional(),
 });
 
+const vendorPricingSchema = z.object({
+  vendor_id: z.string().uuid("Invalid vendor ID"),
+  price: z.number().min(0, "Price must be non-negative"),
+  currency: z.string().min(1, "Currency is required"),
+  price_unit: z.string().min(1, "Price unit is required"),
+  minimum_quantity: z.number().int().min(1, "Minimum quantity must be at least 1"),
+  lead_time_days: z.number().int().min(0, "Lead time cannot be negative"),
+  notes: z.string().optional(),
+});
+
 const createStageSchema = z
   .object({
     name: z.string().min(1, "Stage name cannot be empty."),
@@ -16,6 +26,7 @@ const createStageSchema = z
     subStages: z.array(subStageSchema).optional(),
     selectedSKU: z.string().nullable().optional(), // SKU for SKU-specific workflows
     parent_stage_id: z.string().uuid().nullable().optional(), // For infinite nesting
+    vendorPricing: z.array(vendorPricingSchema).optional(), // Vendor pricing configuration
     // sequence_order will be calculated on the server
   })
   .refine(
@@ -91,7 +102,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, location, hasSubStages, subStages, selectedSKU, parent_stage_id } = validation.data;
+    const { name, location, hasSubStages, subStages, selectedSKU, parent_stage_id, vendorPricing } = validation.data;
 
     // Calculate next sequence_order using simple max + 1 logic
     // Completed stages now use sequence order 100000, so they won't interfere
@@ -207,6 +218,39 @@ export async function POST(request: Request) {
           { error: "Failed to create sub-stages." },
           { status: 500 }
         );
+      }
+    }
+
+    // Handle vendor pricing for leaf stages only
+    if (vendorPricing && vendorPricing.length > 0 && selectedSKU) {
+      // Only create vendor pricing for leaf stages
+      const targetStageId = newStage.is_leaf_stage ? newStage.id : null;
+      
+      if (targetStageId) {
+        const vendorPricingInserts = vendorPricing.map((pricing) => ({
+          vendor_id: pricing.vendor_id,
+          stage_id: targetStageId,
+          sku: selectedSKU,
+          organization_id: organization_id,
+          price: pricing.price,
+          currency: pricing.currency,
+          price_unit: pricing.price_unit,
+          minimum_quantity: pricing.minimum_quantity,
+          lead_time_days: pricing.lead_time_days,
+          notes: pricing.notes || null,
+          is_active: true,
+          created_by: user.id,
+        }));
+
+        const { error: vendorPricingError } = await supabase
+          .from("vendor_stage_pricing")
+          .insert(vendorPricingInserts);
+
+        if (vendorPricingError) {
+          console.error("Error inserting vendor pricing:", vendorPricingError);
+          // Don't fail the stage creation, just log the error
+          // The user can add vendor pricing later
+        }
       }
     }
 
