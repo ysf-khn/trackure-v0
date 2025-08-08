@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Handle, Position } from "@xyflow/react";
 import { MapPin, Package, Dot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,9 @@ export function StageNode({ data }: StageNodeProps) {
     onStageClick,
     isDragging = false,
   } = data;
+  
+  // Track if node is being dragged to prevent Link navigation
+  const [isNodeDragging, setIsNodeDragging] = React.useState(false);
 
   const stageName = stage.name || "Unnamed Stage";
   const itemCount = detailedCount.totalQuantity;
@@ -96,17 +100,6 @@ export function StageNode({ data }: StageNodeProps) {
   const nodeStyling = getNodeStyling();
   const nodeSize = getNodeSize();
 
-  const handleClick = (event: React.MouseEvent) => {
-    // Only handle clicks, not drags
-    // React Flow sets defaultPrevented during drag operations
-    if (event.defaultPrevented) {
-      return;
-    }
-
-    if (onStageClick) {
-      onStageClick(stage.id);
-    }
-  };
 
   return (
     <div
@@ -114,6 +107,20 @@ export function StageNode({ data }: StageNodeProps) {
       style={{
         width: nodeSize.width,
         height: nodeSize.height,
+      }}
+      onMouseDown={() => {
+        // Start tracking potential drag
+        const timeout = setTimeout(() => {
+          setIsNodeDragging(true);
+        }, 100);
+        
+        const handleMouseUp = () => {
+          clearTimeout(timeout);
+          setTimeout(() => setIsNodeDragging(false), 50);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+        
+        document.addEventListener('mouseup', handleMouseUp);
       }}
     >
       {/* Connection handles */}
@@ -155,19 +162,33 @@ export function StageNode({ data }: StageNodeProps) {
         />
       )}
 
-      {/* Main node content */}
-      <div
-        className={cn(
-          nodeStyling.className,
-          "w-full h-full p-0 rounded-xl border-solid select-none stage-node-content",
-          isDragging && "scale-105 shadow-xl shadow-blue-500/30"
-        )}
-        style={{
-          boxShadow: nodeStyling.boxShadow,
-        }}
-        onClick={handleClick}
-      >
-        <div className="flex flex-col w-full h-full justify-between p-4">
+      {/* Main node content - Link only for leaf nodes */}
+      {isLeafStage ? (
+        <Link 
+          href={`/workflow/${stage.id}`}
+          className={cn(
+            "block w-full h-full cursor-pointer",
+            isNodeDragging && "pointer-events-none" // Disable link during drag
+          )}
+          prefetch
+          onClick={(e) => {
+            // Prevent navigation if dragging
+            if (isNodeDragging || isDragging) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <div
+            className={cn(
+              nodeStyling.className,
+              "w-full h-full p-0 rounded-xl border-solid select-none stage-node-content",
+              isDragging && "scale-105 shadow-xl shadow-blue-500/30"
+            )}
+            style={{
+              boxShadow: nodeStyling.boxShadow,
+            }}
+          >
+            <div className="flex flex-col w-full h-full justify-between p-4">
           {/* Header with stage info */}
           <div className="flex items-start justify-between w-full">
             <div className="flex-1 min-w-0">
@@ -259,8 +280,124 @@ export function StageNode({ data }: StageNodeProps) {
               )}
             </div>
           </div>
+          </div>
         </div>
-      </div>
+      </Link>
+      ) : (
+        <div 
+          className={cn(
+            "block w-full h-full cursor-default",
+            "hover:cursor-default" // Indicate non-clickable
+          )}
+        >
+          <div
+            className={cn(
+              nodeStyling.className,
+              "w-full h-full p-0 rounded-xl border-solid select-none stage-node-content",
+              isDragging && "scale-105 shadow-xl shadow-blue-500/30",
+              // Add visual indication for parent nodes
+              !isLeafStage && "ring-1 ring-blue-200/50"
+            )}
+            style={{
+              boxShadow: nodeStyling.boxShadow,
+            }}
+          >
+            <div className="flex flex-col w-full h-full justify-between p-4">
+              {/* Header with stage info */}
+              <div className="flex items-start justify-between w-full">
+                <div className="flex-1 min-w-0">
+                  {/* Stage name */}
+                  <h3
+                    className={cn(
+                      "font-semibold text-left truncate",
+                      level === 0
+                        ? "text-base"
+                        : level === 1
+                          ? "text-sm"
+                          : "text-xs",
+                      isCurrentStage ? "text-blue-700" : "text-gray-900"
+                    )}
+                  >
+                    {stageName}
+                  </h3>
+
+                  {/* Location if available */}
+                  {stage.location && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <MapPin className="h-3 w-3 text-gray-500 flex-shrink-0" />
+                      <span className="text-xs text-gray-600 truncate">
+                        {stage.location}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Stage type indicator */}
+                <div className="flex items-center gap-1 ml-2">
+                  {isLeafStage ? (
+                    <Dot className="h-4 w-4 text-green-500" />
+                  ) : hasChildren ? (
+                    <Package className="h-4 w-4 text-blue-500" />
+                  ) : (
+                    <Dot className="h-4 w-4 text-gray-400" />
+                  )}
+                </div>
+              </div>
+
+              {/* Footer with item counts */}
+              <div className="flex items-end justify-between w-full">
+                {/* SKU badge if available */}
+                {stage.sku && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs px-2 py-0.5 bg-white/80 border-gray-300"
+                  >
+                    {stage.sku}
+                  </Badge>
+                )}
+
+                {/* Item counts */}
+                <div className="flex items-center gap-1">
+                  {isLoading ? (
+                    <Skeleton className="h-5 w-12 rounded-full" />
+                  ) : (
+                    <>
+                      {hasReworked ? (
+                        <div className="flex items-center gap-1">
+                          <Badge
+                            variant="default"
+                            className="bg-emerald-500 text-white text-xs px-2 py-0.5 font-medium shadow-sm"
+                          >
+                            {detailedCount.normalQuantity}
+                          </Badge>
+                          <Badge
+                            variant="secondary"
+                            className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 font-medium shadow-sm"
+                          >
+                            {detailedCount.reworkedQuantity}
+                          </Badge>
+                        </div>
+                      ) : (
+                        <Badge
+                          variant={itemCount > 0 ? "default" : "secondary"}
+                          className={cn(
+                            "text-xs px-3 py-1 font-medium shadow-sm",
+                            itemCount > 0
+                              ? "bg-emerald-500 text-white"
+                              : "bg-gray-100 text-gray-600"
+                          )}
+                        >
+                          {itemCount > 0 ? `${itemCount}` : "0"}
+                        </Badge>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hover glow effect - positioned to not interfere with dragging */}
       <div

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   MapPin,
   Terminal,
@@ -16,17 +16,13 @@ import { ItemListTable } from "@/components/items/item-list-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { useStage } from "@/hooks/queries/use-stage";
 import { useSingleStageItemCounts } from "@/hooks/queries/use-single-stage-item-counts";
-import { useWorkflowStructure } from "@/hooks/queries/use-workflow-structure";
-import { useStageItemCounts } from "@/hooks/queries/use-stage-item-counts";
 import { useStageVendorPricing } from "@/hooks/queries/use-stage-vendor-pricing";
-import { useSKUSelection } from "@/contexts/sku-selection-context";
 import { useOrderSelection } from "@/contexts/order-selection-context";
-import { WorkflowReactFlowCompact } from "@/components/workflow/WorkflowReactFlowCompact";
 import { Suspense } from "react";
+import { Separator } from "@/components/ui/separator";
 
 // Define types for stage data with tree structure
 interface StageData {
@@ -44,7 +40,6 @@ interface StageData {
 // Component for stage view content
 function StageViewContent() {
   const params = useParams();
-  const router = useRouter();
 
   // --- Authentication ---
   const {
@@ -57,7 +52,6 @@ function StageViewContent() {
   const stageId = params.stageId as string | undefined;
 
   // --- Global selections ---
-  const { selectedSKU } = useSKUSelection();
   const { selectedOrderNumber } = useOrderSelection();
 
   // --- Fetch Stage Data ---
@@ -72,15 +66,6 @@ function StageViewContent() {
   const { data: stageItemCounts, isLoading: isLoadingItemCounts } =
     useSingleStageItemCounts(organizationId, stageId, stageData?.sku);
 
-  // Get workflow structure - use stage SKU or global selected SKU
-  const workflowSKU = stageData?.sku || selectedSKU;
-  const { data: workflowData, isLoading: isLoadingWorkflow } =
-    useWorkflowStructure(organizationId, workflowSKU);
-
-  // Get stage item counts for the workflow
-  const { data: stageCountsData, isLoading: isLoadingStageCounts } =
-    useStageItemCounts(organizationId, workflowSKU, workflowData);
-
   // Get vendor pricing for current stage
   const { data: vendorPricingData, isLoading: isLoadingPricing } =
     useStageVendorPricing(stageId);
@@ -89,19 +74,10 @@ function StageViewContent() {
   const primaryVendor =
     vendorPricing.find((vp) => vp.vendor?.is_active) || vendorPricing[0];
 
-  // Handle stage navigation from tree
-  const handleStageClick = React.useCallback(
-    (clickedStageId: string) => {
-      router.push(`/workflow/${clickedStageId}`);
-    },
-    [router]
-  );
-
   // --- Loading and Error States ---
   if (isAuthLoading || isStageLoading) {
     return (
-      <div className="h-full flex flex-col px-6 py-4 space-y-4">
-        <Skeleton className="h-[400px] w-full" />
+      <div className="flex flex-col space-y-4">
         <Skeleton className="h-20 w-full" />
         <Skeleton className="h-[300px] w-full" />
       </div>
@@ -175,25 +151,7 @@ function StageViewContent() {
 
   // --- Main Content ---
   return (
-    <div className="h-full flex flex-col px-6 py-2 space-y-3">
-
-      {/* Workflow Tree Visualization - Always Visible */}
-      {workflowData && workflowData.length > 0 && (
-        <>
-          <div className="flex-shrink-0">
-            <WorkflowReactFlowCompact
-              workflowData={workflowData}
-              stageCountsData={stageCountsData}
-              isLoadingStageCounts={isLoadingStageCounts}
-              onStageClick={handleStageClick}
-              currentStageId={stageId}
-              height="h-96"
-            />
-          </div>
-          <Separator />
-        </>
-      )}
-
+    <div className="flex flex-col space-y-3">
       {/* Current Stage Details */}
       <div className="space-y-3">
         {/* Stage Header */}
@@ -289,9 +247,8 @@ export default function StageViewPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-full flex flex-col px-6 py-4 space-y-4">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-[400px] w-full" />
+        <div className="flex flex-col space-y-4">
+          <Skeleton className="h-20 w-full" />
           <Skeleton className="h-[300px] w-full" />
         </div>
       }
