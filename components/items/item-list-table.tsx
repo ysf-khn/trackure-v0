@@ -205,17 +205,98 @@ export const columns: ColumnDef<ItemInStage>[] = [
   {
     accessorKey: "sku",
     header: "SKU",
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const item = row.original;
+      const meta = table.options.meta as ItemListTableMeta | undefined;
+
+      // Extract necessary info from meta
+      const { workflowData, currentStageId } = meta || {};
+
+      // Determine if there are previous steps
+      const hasPreviousStep =
+        workflowData && currentStageId
+          ? determinePreviousStage(currentStageId, null, workflowData) !== null
+          : false;
+
+      const handleOpenSingleItemRework = () => {
+        if (meta?.handleOpenSingleReworkQuantityModal && meta.currentStageId) {
+          meta.handleOpenSingleReworkQuantityModal({
+            id: item.source_item_id,
+            sku: item.sku,
+            currentQuantity: item.quantity,
+            currentStageId: meta.currentStageId,
+            entryType: item.entry_type,
+          });
+        }
+      };
+
+      const canRework = meta?.hasPermission("items.move") ?? false;
+      const canAddRemark = meta?.hasPermission("items.view") ?? false;
+      const canDelete = meta?.hasPermission("items.delete") ?? false;
+
       return (
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{row.getValue("sku")}</span>
-          <Button variant="ghost" size="sm" asChild className="h-6 w-6 p-0">
-            <Link href={`/items/${item.source_item_id}`}>
-              <ExternalLink className="h-3 w-3" />
-              <span className="sr-only">View item details</span>
-            </Link>
-          </Button>
+        <div className="flex items-center gap-1">
+          <span className="font-medium mr-2">{row.getValue("sku")}</span>
+          <div className="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity">
+            <Button variant="ghost" size="sm" asChild className="h-7 w-7 p-0">
+              <Link href={`/items/${item.source_item_id}`}>
+                <ExternalLink className="h-3 w-3" />
+                <span className="sr-only">View item details</span>
+              </Link>
+            </Button>
+            {canRework && hasPreviousStep && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleOpenSingleItemRework}
+                disabled={
+                  meta?.isMovingItems ||
+                  meta?.isReworkingItems ||
+                  !hasPreviousStep
+                }
+                className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+              >
+                <RotateCcw className="h-3 w-3" />
+                <span className="sr-only">Rework item</span>
+              </Button>
+            )}
+            {canAddRemark && (
+              <AddRemarkModal itemId={item.source_item_id}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={meta?.isMovingItems || meta?.isReworkingItems}
+                  className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                >
+                  <FileText className="h-3 w-3" />
+                  <span className="sr-only">Add remark</span>
+                </Button>
+              </AddRemarkModal>
+            )}
+            {canDelete && (
+              <>
+                <div className="w-px h-4 bg-gray-300 mx-1" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `Are you sure you want to delete item ${item.sku}? This action cannot be undone.`
+                      )
+                    ) {
+                      meta?.handleDeleteItem?.(item.source_item_id);
+                    }
+                  }}
+                  disabled={meta?.isMovingItems || meta?.isReworkingItems}
+                  className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span className="sr-only">Delete item</span>
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       );
     },
@@ -326,7 +407,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
 
       return (
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={() =>
             meta.onViewDetails?.(
@@ -342,9 +423,10 @@ export const columns: ColumnDef<ItemInStage>[] = [
           }
           disabled={meta.isMovingItems || meta.isReworkingItems}
           aria-label="View Item Details"
+          className="h-8 px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
         >
-          <Info className="h-4 w-4 mr-2" />
-          View Details
+          <Info className="h-3 w-3 mr-2" />
+          Details
         </Button>
       );
     },
@@ -384,14 +466,15 @@ export const columns: ColumnDef<ItemInStage>[] = [
 
       return (
         <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
+          variant="ghost"
+          size="sm"
           onClick={() => meta.onViewHistory?.(item.source_item_id, item.sku)}
           disabled={meta.isMovingItems || meta.isReworkingItems}
           aria-label="View Item History"
+          className="h-8 px-3 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
         >
-          <History className="h-4 w-4" />
+          <History className="h-3 w-3 mr-2" />
+          History
         </Button>
       );
     },
@@ -434,21 +517,22 @@ export const columns: ColumnDef<ItemInStage>[] = [
 
       return (
         <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
+          variant="ghost"
+          size="sm"
           asChild
           disabled={meta?.isMovingItems || meta?.isReworkingItems}
           aria-label="Download Voucher for this Stage"
+          className="h-8 px-3 text-green-600 hover:text-green-700 hover:bg-green-50"
         >
           <a
             href={`/api/vouchers/${item.id}?history_id=${item.current_stage_history_id}`}
             target="_blank"
             rel="noopener noreferrer"
-            // Prevent click propagation if needed, though 'asChild' might handle this
             onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-2"
           >
-            <Download className="h-4 w-4" />
+            <Download className="h-3 w-3" />
+            Voucher
           </a>
         </Button>
       );
@@ -542,12 +626,13 @@ export const columns: ColumnDef<ItemInStage>[] = [
       if (!subsequentStages || subsequentStages.length === 0) {
         return (
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => handleOpenMoveModal()}
             disabled={meta?.isMovingItems || meta?.isReworkingItems}
+            className="h-8 px-3 text-primary hover:text-primary hover:bg-primary/10"
           >
-            <ChevronsRight className="mr-2 h-4 w-4" />
+            <ChevronsRight className="mr-2 h-3 w-3" />
             Move Forward
           </Button>
         );
@@ -558,11 +643,12 @@ export const columns: ColumnDef<ItemInStage>[] = [
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               disabled={meta?.isMovingItems || meta?.isReworkingItems}
+              className="h-8 px-3 text-primary hover:text-primary hover:bg-primary/10"
             >
-              <ChevronsRight className="mr-2 h-4 w-4" />
+              <ChevronsRight className="mr-2 h-3 w-3" />
               Move Forward
             </Button>
           </DropdownMenuTrigger>
@@ -588,117 +674,6 @@ export const columns: ColumnDef<ItemInStage>[] = [
                   </DropdownMenuItem>
                 )
               )
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
-    },
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    id: "actions",
-    cell: ({ row, table }) => {
-      const item = row.original;
-      const meta = table.options.meta as ItemListTableMeta | undefined;
-
-      // Extract necessary info from meta
-      const { workflowData, currentStageId } = meta || {};
-
-      // Determine if there are previous steps
-      const hasPreviousStep =
-        workflowData && currentStageId
-          ? determinePreviousStage(currentStageId, null, workflowData) !== null
-          : false;
-
-      const handleOpenSingleItemRework = () => {
-        if (meta?.handleOpenSingleReworkQuantityModal && meta.currentStageId) {
-          meta.handleOpenSingleReworkQuantityModal({
-            id: item.source_item_id, // Use source_item_id for actions
-            sku: item.sku,
-            currentQuantity: item.quantity,
-            currentStageId: meta.currentStageId,
-            entryType: item.entry_type, // Pass entry type for rework too
-          });
-        }
-      };
-
-      const canRework = meta?.hasPermission("items.move") ?? false; // Rework is also a move operation
-      const canAddRemark = meta?.hasPermission("items.view") ?? false; // Basic permission for remarks
-      const canDelete = meta?.hasPermission("items.delete") ?? false;
-
-      // If no actions are possible at all, don't render the dropdown
-      if (
-        (!canRework || !hasPreviousStep) && // Can't rework if no role OR no prev step
-        !canAddRemark && // No remark permission
-        !canDelete // No delete permission
-      ) {
-        return null;
-      }
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              disabled={meta?.isMovingItems || meta?.isReworkingItems}
-            >
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            {canRework && (
-              <DropdownMenuItem
-                onClick={handleOpenSingleItemRework}
-                disabled={
-                  // Disable if moving/reworking, or no previous step
-                  meta?.isMovingItems ||
-                  meta?.isReworkingItems ||
-                  !hasPreviousStep
-                }
-              >
-                <RotateCcw className="mr-2 h-4 w-4" />
-                <span>Rework Item</span>
-                {!hasPreviousStep && (
-                  <span className="text-xs text-muted-foreground ml-2">
-                    (Start of workflow)
-                  </span>
-                )}
-              </DropdownMenuItem>
-            )}
-            {canAddRemark && (
-              <AddRemarkModal itemId={item.source_item_id}>
-                <DropdownMenuItem
-                  onSelect={(e) => e.preventDefault()}
-                  disabled={meta?.isMovingItems || meta?.isReworkingItems}
-                >
-                  Add Remark
-                </DropdownMenuItem>
-              </AddRemarkModal>
-            )}
-            {canDelete && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (
-                      confirm(
-                        `Are you sure you want to delete item ${item.sku}? This action cannot be undone.`
-                      )
-                    ) {
-                      meta?.handleDeleteItem?.(item.source_item_id);
-                    }
-                  }}
-                  disabled={meta?.isMovingItems || meta?.isReworkingItems}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  <span>Delete Item</span>
-                </DropdownMenuItem>
-              </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>

@@ -8,20 +8,23 @@ import * as React from "react";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SKUSelectionProvider } from "@/contexts/sku-selection-context";
+import { OrderSelectionProvider } from "@/contexts/order-selection-context";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SKUSelectionProvider>
-      <SidebarProvider>
-        <Suspense fallback={<Skeleton className="h-screen w-64" />}>
-          <AppSidebar variant="inset" />
-        </Suspense>
-        <SidebarInset>
-          <TrialAlert />
-          <SiteHeader />
-          {children}
-        </SidebarInset>
-      </SidebarProvider>
-    </SKUSelectionProvider>
+    <OrderSelectionProvider>
+      <SKUSelectionProvider>
+        <SidebarProvider>
+          <Suspense fallback={<Skeleton className="h-screen w-64" />}>
+            <AppSidebar variant="inset" />
+          </Suspense>
+          <SidebarInset>
+            <TrialAlert />
+            <SiteHeader />
+            {children}
+          </SidebarInset>
+        </SidebarProvider>
+      </SKUSelectionProvider>
+    </OrderSelectionProvider>
   );
 }

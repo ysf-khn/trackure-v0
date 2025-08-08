@@ -1,27 +1,31 @@
 "use client";
 
 import * as React from "react";
-import { useParams } from "next/navigation";
-import { MapPin, Terminal } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  MapPin,
+  Terminal,
+  Package,
+  FileText,
+  Building2,
+  DollarSign,
+  Clock,
+} from "lucide-react";
 
 import { ItemListTable } from "@/components/items/item-list-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { VendorPricingCard } from "@/components/workflow/vendor-pricing-card";
-import { useSingleStageItemCounts } from "@/hooks/queries/use-single-stage-item-counts";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { useStage } from "@/hooks/queries/use-stage";
+import { useSingleStageItemCounts } from "@/hooks/queries/use-single-stage-item-counts";
+import { useWorkflowStructure } from "@/hooks/queries/use-workflow-structure";
+import { useStageItemCounts } from "@/hooks/queries/use-stage-item-counts";
+import { useStageVendorPricing } from "@/hooks/queries/use-stage-vendor-pricing";
+import { useSKUSelection } from "@/contexts/sku-selection-context";
+import { useOrderSelection } from "@/contexts/order-selection-context";
+import { WorkflowReactFlowCompact } from "@/components/workflow/WorkflowReactFlowCompact";
 import { Suspense } from "react";
 
 // Define types for stage data with tree structure
@@ -40,6 +44,7 @@ interface StageData {
 // Component for stage view content
 function StageViewContent() {
   const params = useParams();
+  const router = useRouter();
 
   // --- Authentication ---
   const {
@@ -50,9 +55,10 @@ function StageViewContent() {
 
   // --- Stage ID ---
   const stageId = params.stageId as string | undefined;
-  // In the tree structure, we no longer have separate sub-stages
-  // Everything is a workflow_stages entry with possible parent_stage_id
-  const subStageId: string | null = null;
+
+  // --- Global selections ---
+  const { selectedSKU } = useSKUSelection();
+  const { selectedOrderNumber } = useOrderSelection();
 
   // --- Fetch Stage Data ---
   const {
@@ -63,85 +69,46 @@ function StageViewContent() {
   } = useStage(stageId, organizationId);
 
   // --- Fetch Stage Item Counts ---
-  const {
-    data: stageItemCounts,
-    isLoading: isLoadingItemCounts,
-  } = useSingleStageItemCounts(organizationId, stageId, stageData?.sku);
+  const { data: stageItemCounts, isLoading: isLoadingItemCounts } =
+    useSingleStageItemCounts(organizationId, stageId, stageData?.sku);
 
-  // Note: With tree structure, we no longer need separate sub-stage queries
-  // All stages (including what were sub-stages) are in workflow_stages table
+  // Get workflow structure - use stage SKU or global selected SKU
+  const workflowSKU = stageData?.sku || selectedSKU;
+  const { data: workflowData, isLoading: isLoadingWorkflow } =
+    useWorkflowStructure(organizationId, workflowSKU);
+
+  // Get stage item counts for the workflow
+  const { data: stageCountsData, isLoading: isLoadingStageCounts } =
+    useStageItemCounts(organizationId, workflowSKU, workflowData);
+
+  // Get vendor pricing for current stage
+  const { data: vendorPricingData, isLoading: isLoadingPricing } =
+    useStageVendorPricing(stageId);
+
+  const vendorPricing = vendorPricingData?.vendorPricing || [];
+  const primaryVendor =
+    vendorPricing.find((vp) => vp.vendor?.is_active) || vendorPricing[0];
+
+  // Handle stage navigation from tree
+  const handleStageClick = React.useCallback(
+    (clickedStageId: string) => {
+      router.push(`/workflow/${clickedStageId}`);
+    },
+    [router]
+  );
 
   // --- Loading and Error States ---
   if (isAuthLoading || isStageLoading) {
     return (
-      <div className="container mx-auto py-4 px-4 md:px-6 space-y-4">
-        {/* Loading state for breadcrumbs */}
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/workflow">Workflow</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <Skeleton className="h-5 w-32" />
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-
-        {/* Loading state for stage info card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-8 w-48" />
-              <Skeleton className="h-6 w-24" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-5 w-32" />
-              </div>
-              <Separator className="my-4" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <Skeleton className="h-7 w-32" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-6 w-48" />
-                    <Skeleton className="h-5 w-32" />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <Skeleton className="h-7 w-32" />
-                  <Skeleton className="h-24 w-full rounded-md" />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Loading state for table */}
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            <div className="flex justify-between items-center">
-              <Skeleton className="h-9 w-48" />
-              <div className="flex gap-2">
-                <Skeleton className="h-9 w-24" />
-                <Skeleton className="h-9 w-32" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="h-full flex flex-col px-6 py-4 space-y-4">
+        <Skeleton className="h-[400px] w-full" />
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-[300px] w-full" />
       </div>
     );
   }
 
-  // Authentication Error (higher priority)
+  // Authentication Error
   if (authError) {
     return (
       <Alert variant="destructive" className="m-4">
@@ -154,7 +121,7 @@ function StageViewContent() {
     );
   }
 
-  // Missing Org ID (higher priority)
+  // Missing Org ID
   if (!organizationId) {
     return (
       <Alert className="m-4">
@@ -167,7 +134,7 @@ function StageViewContent() {
     );
   }
 
-  // Missing Stage ID (higher priority)
+  // Missing Stage ID
   if (!stageId) {
     return (
       <Alert variant="destructive" className="m-4">
@@ -192,89 +159,127 @@ function StageViewContent() {
     );
   }
 
-  // Stage not found (or RLS prevented access - handle appropriately)
+  // Stage not found
   if (!stageData) {
     return (
-      <div className="container mx-auto py-4 px-4 md:px-6 space-y-4">
-        <Alert variant="destructive" className="m-4">
-          <Terminal className="h-4 w-4" />
-          <AlertTitle>Stage Not Found</AlertTitle>
-          <AlertDescription>
-            The requested stage could not be found or you do not have access to
-            it.
-          </AlertDescription>
-        </Alert>
-      </div>
+      <Alert variant="destructive" className="m-4">
+        <Terminal className="h-4 w-4" />
+        <AlertTitle>Stage Not Found</AlertTitle>
+        <AlertDescription>
+          The requested stage could not be found or you do not have access to
+          it.
+        </AlertDescription>
+      </Alert>
     );
   }
 
   // --- Main Content ---
   return (
-    <div className="container mx-auto py-4 px-4 md:px-6 space-y-4">
-      {/* Breadcrumbs */}
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbPage>Workflow</BreadcrumbPage>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{stageData?.name || "Unnamed Stage"}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+    <div className="h-full flex flex-col px-6 py-2 space-y-3">
 
-      {/* Stage Info Card */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold">
-                {stageData?.name || "Unnamed Stage"}
-              </h2>
-              {/* Display parent stage info if this is a child stage */}
-              {stageData?.parent_stage_id && stageData?.full_path && (
-                <span className="text-muted-foreground text-sm">
-                  ({stageData.full_path})
-                </span>
-              )}
-            </div>
-            <Badge variant="outline">
-              Sequence Order: {(stageData?.sequence_order ?? 0) + 1}
-            </Badge>
+      {/* Workflow Tree Visualization - Always Visible */}
+      {workflowData && workflowData.length > 0 && (
+        <>
+          <div className="flex-shrink-0">
+            <WorkflowReactFlowCompact
+              workflowData={workflowData}
+              stageCountsData={stageCountsData}
+              isLoadingStageCounts={isLoadingStageCounts}
+              onStageClick={handleStageClick}
+              currentStageId={stageId}
+              height="h-96"
+            />
           </div>
-        </CardHeader>
-        <CardContent className="pt-2">
+          <Separator />
+        </>
+      )}
+
+      {/* Current Stage Details */}
+      <div className="space-y-3">
+        {/* Stage Header */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">
+            {stageData?.name || "Unnamed Stage"}
+            {stageData?.parent_stage_id && stageData?.full_path && (
+              <span className="text-muted-foreground text-sm ml-2">
+                ({stageData.full_path})
+              </span>
+            )}
+          </h2>
+          <Badge variant="outline">
+            Sequence Order: {(stageData?.sequence_order ?? 0) + 1}
+          </Badge>
+        </div>
+
+        {/* Vendor and Cost Info */}
+        <div className="flex items-center gap-6 flex-wrap">
           {stageData?.location && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <MapPin className="h-3 w-3" />
               <span>{stageData.location}</span>
             </div>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Vendor Pricing Card - Only show for leaf stages with SKU */}
-      {stageData?.is_leaf_stage && stageData?.sku && stageId && (
-        <VendorPricingCard 
-          stageId={stageId}
-          stageName={stageData?.name || "Unnamed Stage"}
-          itemCount={stageItemCounts?.itemCount || 0}
-          totalQuantity={stageItemCounts?.totalQuantity || 0}
-        />
-      )}
+          {isLoadingPricing ? (
+            <>
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-20" />
+            </>
+          ) : primaryVendor ? (
+            <>
+              <div className="flex items-center gap-2">
+                <Building2 className="h-3 w-3 text-muted-foreground" />
+                <span className="text-sm">
+                  <span className="font-medium">
+                    {primaryVendor.vendor?.name}
+                  </span>
+                  {primaryVendor.vendor?.firm_name && (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      • {primaryVendor.vendor?.firm_name}
+                    </span>
+                  )}
+                </span>
+              </div>
+
+              {primaryVendor.price && (
+                <div className="flex items-center gap-1.5">
+                  <DollarSign className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-sm font-medium">
+                    {primaryVendor.currency} {primaryVendor.price.toFixed(2)}
+                  </span>
+                </div>
+              )}
+
+              {primaryVendor.lead_time_days && (
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  <span>{primaryVendor.lead_time_days} days</span>
+                </div>
+              )}
+
+              {vendorPricing && vendorPricing.length > 1 && (
+                <Badge variant="secondary" className="text-xs">
+                  +{vendorPricing.length - 1} vendors
+                </Badge>
+              )}
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground">
+              No vendor assigned
+            </span>
+          )}
+        </div>
+      </div>
+
+      <Separator />
 
       {/* Items Table */}
-      <Card>
-        <CardContent className="p-4">
-          {stageId && organizationId && (
-            <ItemListTable
-              stageId={stageId}
-              organizationId={organizationId}
-            />
-          )}
-        </CardContent>
-      </Card>
+      <div className="flex-1 overflow-auto">
+        {stageId && organizationId && (
+          <ItemListTable stageId={stageId} organizationId={organizationId} />
+        )}
+      </div>
     </div>
   );
 }
@@ -284,10 +289,10 @@ export default function StageViewPage() {
   return (
     <Suspense
       fallback={
-        <div className="container mx-auto py-4 px-4 md:px-6 space-y-4">
+        <div className="h-full flex flex-col px-6 py-4 space-y-4">
           <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-[200px] w-full" />
           <Skeleton className="h-[400px] w-full" />
+          <Skeleton className="h-[300px] w-full" />
         </div>
       }
     >

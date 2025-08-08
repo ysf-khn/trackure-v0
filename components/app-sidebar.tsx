@@ -5,15 +5,8 @@ import { useState, useCallback } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   SettingsIcon,
-  Wrench,
-  TriangleAlert,
-  ChevronDown,
-  ChevronRight,
-  Dot,
   PackageOpenIcon,
   CheckCircle2Icon,
-  Lightbulb,
-  Layers,
   BookOpen,
   Package,
   Building2,
@@ -41,12 +34,6 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Popover,
   PopoverContent,
@@ -61,24 +48,15 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
-import { useWorkflowStructure } from "@/hooks/queries/use-workflow-structure";
 import { useNewItemsCount } from "@/hooks/queries/use-new-items-count";
 import { useCompletedItemsCount } from "@/hooks/queries/use-completed-items-count";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { useSKUs } from "@/hooks/queries/use-skus";
 import { useSKUSelection } from "@/contexts/sku-selection-context";
-import {
-  useStageItemCounts,
-  calculateTotalStageCount,
-  calculateDetailedStageCount,
-  calculateWorkflowItemsSummary,
-} from "@/hooks/queries/use-stage-item-counts";
-import { useWorkflowCostSummary } from "@/hooks/queries/use-workflow-cost-summary";
-import { WorkflowCostSummaryComponent } from "@/components/workflow/workflow-cost-summary";
-import { WorkflowItemsSummaryComponent } from "@/components/workflow/workflow-items-summary";
+import { useOrderSelection } from "@/contexts/order-selection-context";
+import { useOrderSKUs } from "@/hooks/queries/use-order-skus";
+import { OrderSelector } from "@/components/workflow-hub/order-selector";
 
-// Use the infinite nesting types from useWorkflowStructure
-import type { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
 
 const data = {
   navSecondary: [
@@ -110,17 +88,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Use global SKU selection context
   const { selectedSKU, setSelectedSKU } = useSKUSelection();
   const [skuSelectorOpen, setSKUSelectorOpen] = useState(false);
+  
+  // Use order selection context
+  const { selectedOrderId } = useOrderSelection();
 
-  // Get available SKUs
-  const { data: skuData, isLoading: isLoadingSKUs } = useSKUs();
+  // Get available SKUs - either from order or all SKUs
+  const { data: allSkuData, isLoading: isLoadingAllSKUs } = useSKUs();
+  const { data: orderSkuData, isLoading: isLoadingOrderSKUs } = useOrderSKUs(organizationId, selectedOrderId);
+  
+  const skuData = selectedOrderId ? orderSkuData : allSkuData;
+  const isLoadingSKUs = selectedOrderId ? isLoadingOrderSKUs : isLoadingAllSKUs;
 
-  // Get workflow structure for selected SKU
-  const {
-    data: workflowData,
-    isLoading: isLoadingWorkflow,
-    isError: isErrorWorkflow,
-    error: errorWorkflow,
-  } = useWorkflowStructure(organizationId, selectedSKU);
 
   const {
     data: newItemsCount,
@@ -136,282 +114,33 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     // error: errorCompletedItemsCount
   } = useCompletedItemsCount(); // Use the new hook
 
-  // Get stage item counts for the selected SKU
-  const { data: stageCountsData, isLoading: isLoadingStageCounts } =
-    useStageItemCounts(organizationId, selectedSKU, workflowData);
 
-  // Debug logging for cost summary hook
-  console.log("[AppSidebar] Cost summary hook params:", {
-    organizationId,
-    selectedSKU,
-    workflowData: workflowData?.length || 0,
-    hasWorkflowData: !!workflowData
-  });
 
-  // Get workflow cost summary for the selected SKU
-  const { data: costSummaryData, isLoading: isLoadingCostSummary } =
-    useWorkflowCostSummary(organizationId, selectedSKU, workflowData);
-
-  // Calculate workflow items summary
-  const workflowItemsSummary = React.useMemo(() => {
-    if (!workflowData || !stageCountsData?.stageCountsMap) {
-      return {
-        totalItems: 0,
-        totalQuantity: 0,
-        normalQuantity: 0,
-        reworkedQuantity: 0,
-        stagesWithItems: 0,
-        totalStages: 0,
-      };
-    }
-    return calculateWorkflowItemsSummary(workflowData, stageCountsData.stageCountsMap);
-  }, [workflowData, stageCountsData]);
 
   // Available SKUs for the selector
   const availableSKUs = React.useMemo(() => {
-    if (!skuData?.skus) return [];
-    return skuData.skus.map((item) => ({
-      value: item.sku,
-      label: item.sku_name || item.sku,
-    }));
-  }, [skuData]);
+    if (selectedOrderId) {
+      // Use order-specific SKUs
+      if (!orderSkuData) return [];
+      return orderSkuData.map((item) => ({
+        value: item.sku,
+        label: item.sku_name || item.sku,
+        completedQuantity: item.completed_quantity,
+        totalQuantity: item.total_quantity,
+      }));
+    } else {
+      // Use all SKUs
+      if (!allSkuData?.skus) return [];
+      return allSkuData.skus.map((item) => ({
+        value: item.sku,
+        label: item.sku_name || item.sku,
+        completedQuantity: 0,
+        totalQuantity: 0,
+      }));
+    }
+  }, [selectedOrderId, orderSkuData, allSkuData]);
 
-  const [openStates, setOpenStates] = useState<Record<string, boolean>>({});
 
-  const toggleCollapsible = useCallback((stageId: string) => {
-    setOpenStates((prev) => ({ ...prev, [stageId]: !prev[stageId] }));
-  }, []);
-
-  const getIsOpen = useCallback(
-    (stageId: string) => !!openStates[stageId],
-    [openStates]
-  );
-
-  const isActive = useCallback(
-    (stageId: string) => {
-      const pathSegments = pathname.split("/");
-      const currentWorkflowPathSegment = pathSegments[1];
-      const currentStageId = pathSegments[2];
-
-      return (
-        currentWorkflowPathSegment === "workflow" && currentStageId === stageId
-      );
-    },
-    [pathname]
-  );
-
-  // Get depth indicator color based on nesting level
-  const getDepthIndicatorColor = useCallback((depth: number) => {
-    const colors = [
-      "bg-blue-500", // Level 0
-      "bg-green-500", // Level 1
-      "bg-orange-500", // Level 2
-      "bg-purple-500", // Level 3
-      "bg-pink-500", // Level 4+
-    ];
-    return colors[Math.min(depth, colors.length - 1)];
-  }, []);
-
-  // Recursive component for rendering workflow stages with infinite nesting
-  const renderWorkflowStage = useCallback(
-    (stage: FetchedWorkflowStage, depth: number = 0) => {
-      const stageName = stage.name || "Unnamed Stage";
-      const active = isActive(stage.id);
-      const isOpen = getIsOpen(stage.id);
-      const hasSubStages = stage.children && stage.children.length > 0;
-      const indentPadding = depth * 8; // Minimal 8px per level instead of 16px
-      const depthIndicatorColor = getDepthIndicatorColor(depth);
-      const textOpacity = Math.max(0.7, 1 - depth * 0.1); // Slightly fade deeper levels
-
-      // Calculate detailed item counts for this stage (normal + reworked)
-      const detailedCount = stageCountsData?.stageCountsMap
-        ? calculateDetailedStageCount(
-            stage.id,
-            workflowData,
-            stageCountsData.stageCountsMap
-          )
-        : { totalQuantity: 0, normalQuantity: 0, reworkedQuantity: 0 };
-      
-      const itemCount = detailedCount.totalQuantity;
-      const hasReworked = detailedCount.reworkedQuantity > 0;
-
-      return (
-        <Collapsible
-          key={stage.id}
-          open={isOpen}
-          onOpenChange={() => toggleCollapsible(stage.id)}
-          className="w-full group"
-        >
-          <div
-            className="relative flex items-center"
-            style={{ paddingLeft: `${indentPadding}px` }}
-          >
-            {/* Active state indicator */}
-            <div
-              className={`absolute left-0 top-1 bottom-1 w-1 rounded-r-full bg-primary ${
-                active ? "opacity-100" : "opacity-0"
-              } transition-opacity duration-200`}
-              aria-hidden="true"
-            />
-
-            {/* Depth indicator - only show for nested levels */}
-            {depth > 0 && (
-              <div
-                className={`w-2 h-2 rounded-full mr-2 flex-shrink-0 ${depthIndicatorColor}`}
-                style={{ marginLeft: `${Math.max(0, indentPadding - 16)}px` }}
-                aria-hidden="true"
-              />
-            )}
-
-            {/* Connecting line for nested items */}
-            {depth > 0 && (
-              <div
-                className="absolute w-px bg-border opacity-40"
-                style={{
-                  left: `${indentPadding - 12}px`,
-                  top: "-8px",
-                  height: "20px",
-                }}
-                aria-hidden="true"
-              />
-            )}
-
-            {hasSubStages ? (
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant={"ghost"}
-                  size="sm"
-                  className={cn(
-                    "w-full justify-start pr-2 flex-grow",
-                    depth === 0 ? "pl-3" : "pl-1",
-                    active
-                      ? "bg-accent/20 text-accent-foreground font-semibold"
-                      : "",
-                    !isOpen && !active ? "text-muted-foreground" : ""
-                  )}
-                  style={{ opacity: textOpacity }}
-                >
-                  {isOpen ? (
-                    <ChevronDown className="mr-2 h-4 w-4 flex-shrink-0" />
-                  ) : (
-                    <ChevronRight className="mr-2 h-4 w-4 flex-shrink-0" />
-                  )}
-                  <span className="flex-grow text-left mr-2 truncate">
-                    {stageName.length > (depth > 0 ? 18 : 22)
-                      ? `${stageName.slice(0, depth > 0 ? 18 : 22)}...`
-                      : stageName}
-                  </span>
-                  {isLoadingStageCounts ? (
-                    <Skeleton className="h-4 w-6 rounded-full flex-shrink-0 mr-1" />
-                  ) : (
-                    <div className="flex items-center gap-1 flex-shrink-0 mr-1">
-                      {hasReworked ? (
-                        <>
-                          <Badge
-                            variant="default"
-                            className="bg-primary text-white text-xs px-1.5 py-0.5"
-                          >
-                            {detailedCount.normalQuantity}
-                          </Badge>
-                          <span className="text-muted-foreground text-xs">|</span>
-                          <Badge
-                            variant="destructive"
-                            className="bg-orange-500 text-white text-xs px-1.5 py-0.5"
-                          >
-                            {detailedCount.reworkedQuantity}
-                          </Badge>
-                        </>
-                      ) : (
-                        <Badge
-                          variant={itemCount > 0 ? "default" : "secondary"}
-                          className="bg-primary text-white"
-                        >
-                          {itemCount}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                </Button>
-              </CollapsibleTrigger>
-            ) : (
-              <Link
-                href={`/workflow/${stage.id}`}
-                passHref
-                className="flex-grow"
-              >
-                <Button
-                  variant={"ghost"}
-                  size="sm"
-                  className={cn(
-                    "w-full justify-start pr-2",
-                    depth === 0 ? "pl-3" : "pl-1",
-                    active
-                      ? "bg-accent/20 text-accent-foreground font-semibold"
-                      : "",
-                    !isOpen && !active ? "text-muted-foreground" : ""
-                  )}
-                  style={{ opacity: textOpacity }}
-                >
-                  <Dot className="mr-2 h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                  <span className="flex-grow text-left mr-2 truncate">
-                    {stageName.length > (depth > 0 ? 18 : 22)
-                      ? `${stageName.slice(0, depth > 0 ? 18 : 22)}...`
-                      : stageName}
-                  </span>
-                  {isLoadingStageCounts ? (
-                    <Skeleton className="h-4 w-6 rounded-full flex-shrink-0 mr-1" />
-                  ) : (
-                    <div className="flex items-center gap-1 flex-shrink-0 mr-1">
-                      {hasReworked ? (
-                        <>
-                          <Badge
-                            variant="default"
-                            className="bg-primary text-white text-xs px-1.5 py-0.5"
-                          >
-                            {detailedCount.normalQuantity}
-                          </Badge>
-                          <span className="text-muted-foreground text-xs">|</span>
-                          <Badge
-                            variant="destructive"
-                            className="bg-orange-500 text-white text-xs px-1.5 py-0.5"
-                          >
-                            {detailedCount.reworkedQuantity}
-                          </Badge>
-                        </>
-                      ) : (
-                        <Badge
-                          variant={itemCount > 0 ? "default" : "secondary"}
-                          className="bg-primary text-white"
-                        >
-                          {itemCount}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                </Button>
-              </Link>
-            )}
-          </div>
-          {hasSubStages && (
-            <CollapsibleContent className="pt-1 space-y-1">
-              {stage?.children?.map((childStage) =>
-                renderWorkflowStage(childStage, depth + 1)
-              )}
-            </CollapsibleContent>
-          )}
-        </Collapsible>
-      );
-    },
-    [
-      isActive,
-      getIsOpen,
-      toggleCollapsible,
-      getDepthIndicatorColor,
-      stageCountsData,
-      workflowData,
-      isLoadingStageCounts,
-    ]
-  );
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -476,6 +205,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </Link>
         </div>
 
+        {/* Order Selection Section */}
+        <div className="border-b border-sidebar-border pb-3">
+          <OrderSelector />
+        </div>
+
         {/* SKU Workflow Section */}
         <div className="space-y-2">
           <h3 className="mt-2 mb-1 px-3 text-sm font-semibold tracking-wider">
@@ -504,7 +238,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             )?.label || selectedSKU}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            SKU Workflow
+                            {selectedOrderId ? "SKU in Order" : "SKU Workflow"}
                           </div>
                         </div>
                       </>
@@ -514,7 +248,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm">Select SKU</div>
                           <div className="text-xs text-muted-foreground">
-                            Choose SKU workflow
+                            {selectedOrderId ? "Select SKU from order" : "Choose SKU workflow"}
                           </div>
                         </div>
                       </>
@@ -577,6 +311,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             <div className="text-xs text-muted-foreground">
                               SKU: {sku.value}
                             </div>
+                            {selectedOrderId && sku.completedQuantity !== undefined && (
+                              <div className="text-xs text-muted-foreground">
+                                {sku.completedQuantity}/{sku.totalQuantity} completed
+                              </div>
+                            )}
                           </div>
                         </CommandItem>
                       ))}
@@ -587,65 +326,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </Popover>
           </div>
 
-          {/* Items Summary - Only show when SKU is selected */}
+          {/* Completed Items Count for Selected SKU */}
           {selectedSKU && (
-            <WorkflowItemsSummaryComponent 
-              itemsSummary={workflowItemsSummary}
-              isLoading={isLoadingStageCounts}
-            />
-          )}
-
-          {/* Cost Summary - Only show when SKU is selected */}
-          {selectedSKU && (
-            <WorkflowCostSummaryComponent 
-              costSummary={costSummaryData}
-              isLoading={isLoadingCostSummary}
-            />
-          )}
-
-          {/* Workflow Stages */}
-          {isLoadingWorkflow && (
-            <div className="space-y-2 px-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+            <div className="px-3 py-2 border-b border-sidebar-border">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Completed Items</span>
+                {availableSKUs.find(s => s.value === selectedSKU)?.completedQuantity !== undefined ? (
+                  <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                    {availableSKUs.find(s => s.value === selectedSKU)?.completedQuantity || 0}
+                  </Badge>
+                ) : (
+                  <Skeleton className="h-5 w-12 rounded-full" />
+                )}
+              </div>
             </div>
           )}
-          {isErrorWorkflow && (
-            <Alert variant="destructive" className="mx-3">
-              <TriangleAlert className="h-4 w-4" />
-              <AlertDescription>
-                Error loading workflow:{" "}
-                {errorWorkflow?.message || "Unknown error"}
-              </AlertDescription>
-            </Alert>
-          )}
-          {!isLoadingWorkflow &&
-            !isErrorWorkflow &&
-            (!workflowData || workflowData.length === 0) && (
-              <div className="px-3">
-                <Link href="/settings" passHref>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                  >
-                    <Wrench className="mr-2 h-4 w-4" />
-                    {selectedSKU
-                      ? "Configure SKU Workflow"
-                      : "Configure Workflow"}
-                  </Button>
-                </Link>
-              </div>
-            )}
-          {!isLoadingWorkflow &&
-            !isErrorWorkflow &&
-            workflowData &&
-            workflowData.length > 0 && (
-              <nav className="flex flex-col space-y-1 px-3">
-                {workflowData.map((stage) => renderWorkflowStage(stage))}
-              </nav>
-            )}
+
         </div>
 
         {/* Completed Items Section */}

@@ -158,7 +158,7 @@ export function calculateDetailedStageCount(
       "[calculateTotalStageCount] No workflow data for stage:",
       stageId
     );
-    return 0;
+    return { totalQuantity: 0, normalQuantity: 0, reworkedQuantity: 0 };
   }
 
   const findStageInTree = (
@@ -190,7 +190,7 @@ export function calculateDetailedStageCount(
   const stage = findStageInTree(workflowData, stageId);
   if (!stage) {
     console.log("[calculateTotalStageCount] Stage not found in tree:", stageId);
-    return 0;
+    return { totalQuantity: 0, normalQuantity: 0, reworkedQuantity: 0 };
   }
 
   // If this is a leaf stage (no children), return its direct count
