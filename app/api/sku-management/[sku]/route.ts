@@ -69,16 +69,16 @@ export async function GET(
       .select(`
         id,
         name,
-        stage_order,
-        workflow_sub_stages(
-          id,
-          name,
-          sub_stage_order
-        )
+        sequence_order,
+        parent_stage_id,
+        depth_level,
+        is_leaf_stage,
+        sku,
+        location
       `)
       .eq("sku", sku)
       .eq("organization_id", profile.organization_id)
-      .order("stage_order");
+      .order("sequence_order");
 
     if (stagesError) {
       console.error("Error fetching workflow stages:", stagesError);
@@ -90,19 +90,16 @@ export async function GET(
       .select(`
         id,
         stage_id,
-        sub_stage_id,
         vendor_id,
-        price_per_unit,
-        created_at,
+        price,
+        currency,
+        lead_time_days,
         vendors(
           id,
           name,
-          contact_info
+          firm_name
         ),
         workflow_stages(
-          name
-        ),
-        workflow_sub_stages(
           name
         )
       `)
@@ -118,14 +115,11 @@ export async function GET(
       .from("samples")
       .select(`
         id,
-        stage_id,
-        sample_name,
-        image_url,
-        description,
-        created_at,
-        workflow_stages(
-          name
-        )
+        sample_code,
+        name,
+        status,
+        location,
+        created_at
       `)
       .eq("sku", sku)
       .eq("organization_id", profile.organization_id);
@@ -142,18 +136,15 @@ export async function GET(
         quantity,
         moved_at,
         rework_reason,
+        rework_type,
         from_stage_id,
         to_stage_id,
         moved_by,
-        workflow_stages!item_movement_history_from_stage_id_fkey(
+        from_stage:workflow_stages!item_movement_history_from_stage_id_fkey(
           name
         ),
         to_stage:workflow_stages!item_movement_history_to_stage_id_fkey(
           name
-        ),
-        profiles(
-          first_name,
-          last_name
         )
       `)
       .eq("organization_id", profile.organization_id)
