@@ -16,7 +16,6 @@ import { DateRange } from "react-day-picker";
 import Link from "next/link"; // Add this import
 
 import {
-  MoreHorizontal,
   ChevronRight,
   History,
   Download,
@@ -98,7 +97,7 @@ interface ItemForSingleRework {
   sku: string | null;
   currentQuantity: number;
   currentStageId: string;
-  entryType?: 'normal' | 'reworked';
+  entryType?: "normal" | "reworked";
 }
 
 interface ItemToMoveDetails {
@@ -107,7 +106,7 @@ interface ItemToMoveDetails {
   currentQuantity: number;
   targetStageId?: string | null;
   targetStageName: string;
-  entryType?: 'normal' | 'reworked';
+  entryType?: "normal" | "reworked";
 }
 
 interface ItemListTableMeta {
@@ -235,10 +234,17 @@ export const columns: ColumnDef<ItemInStage>[] = [
       const canDelete = meta?.hasPermission("items.delete") ?? false;
 
       return (
-        <div className="flex items-center gap-1">
-          <span className="font-medium mr-2">{row.getValue("sku")}</span>
-          <div className="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity">
-            <Button variant="ghost" size="sm" asChild className="h-7 w-7 p-0">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-foreground">
+            {row.getValue("sku")}
+          </span>
+          <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="h-6 w-6 p-0 hover:bg-primary/10"
+            >
               <Link href={`/items/${item.source_item_id}`}>
                 <ExternalLink className="h-3 w-3" />
                 <span className="sr-only">View item details</span>
@@ -254,7 +260,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
                   meta?.isReworkingItems ||
                   !hasPreviousStep
                 }
-                className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                className="h-6 w-6 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-md"
               >
                 <RotateCcw className="h-3 w-3" />
                 <span className="sr-only">Rework item</span>
@@ -266,7 +272,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
                   variant="ghost"
                   size="sm"
                   disabled={meta?.isMovingItems || meta?.isReworkingItems}
-                  className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md"
                 >
                   <FileText className="h-3 w-3" />
                   <span className="sr-only">Add remark</span>
@@ -275,7 +281,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
             )}
             {canDelete && (
               <>
-                <div className="w-px h-4 bg-gray-300 mx-1" />
+                <div className="w-px h-4 bg-border mx-1.5" />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -289,7 +295,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
                     }
                   }}
                   disabled={meta?.isMovingItems || meta?.isReworkingItems}
-                  className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md"
                 >
                   <Trash2 className="h-3 w-3" />
                   <span className="sr-only">Delete item</span>
@@ -306,26 +312,29 @@ export const columns: ColumnDef<ItemInStage>[] = [
     header: "Type",
     cell: ({ row }) => {
       const item = row.original;
-      
+
       // Show entry type (normal/reworked) with appropriate styling
-      if (item.entry_type === 'reworked') {
+      if (item.entry_type === "reworked") {
         return (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1 cursor-help">
-                  <RotateCcw className="h-3 w-3 text-amber-600" />
-                  <span className="text-xs text-amber-800 bg-amber-100 px-2 py-1 rounded border border-amber-200">
+                  <span className="text-xs text-amber-800 bg-amber-100 px-2 py-1 rounded-md border border-amber-200 font-medium">
                     Reworked
                   </span>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
                 <div className="text-sm max-w-xs">
-                  <p><strong>Entry Type:</strong> Reworked quantities</p>
+                  <p>
+                    <strong>Entry Type:</strong> Reworked quantities
+                  </p>
                   {item.rework_reasons && item.rework_reasons.length > 0 && (
                     <>
-                      <p className="mt-2"><strong>Rework Reasons:</strong></p>
+                      <p className="mt-2">
+                        <strong>Rework Reasons:</strong>
+                      </p>
                       <ul className="list-disc list-inside">
                         {item.rework_reasons.map((reason, index) => (
                           <li key={index}>{reason}</li>
@@ -339,7 +348,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
           </TooltipProvider>
         );
       }
-      
+
       // Show composite info for normal entries if applicable
       if (item.parent_composite_sku) {
         return (
@@ -348,7 +357,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1 cursor-help">
                   <Layers className="h-3 w-3 text-primary" />
-                  <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">
+                  <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded-md font-medium">
                     Component
                   </span>
                 </div>
@@ -368,9 +377,9 @@ export const columns: ColumnDef<ItemInStage>[] = [
           </TooltipProvider>
         );
       }
-      
+
       return (
-        <span className="text-xs text-muted-foreground bg-gray-50 px-2 py-1 rounded">
+        <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md font-medium">
           Normal
         </span>
       );
@@ -380,14 +389,18 @@ export const columns: ColumnDef<ItemInStage>[] = [
   {
     accessorKey: "order_number",
     header: "Order Number",
-    cell: ({ row }) => <div>{row.getValue("order_number")}</div>,
+    cell: ({ row }) => (
+      <div className="font-medium text-muted-foreground">
+        {row.getValue("order_number")}
+      </div>
+    ),
   },
   {
     accessorKey: "quantity",
     header: "Quantity",
     cell: ({ row }) => {
       const quantity = row.getValue("quantity") as number;
-      return <div className="font-medium">{quantity}</div>;
+      return <div className="font-semibold text-foreground">{quantity}</div>;
     },
   },
   {
@@ -522,14 +535,14 @@ export const columns: ColumnDef<ItemInStage>[] = [
           asChild
           disabled={meta?.isMovingItems || meta?.isReworkingItems}
           aria-label="Download Voucher for this Stage"
-          className="h-8 px-3 text-green-600 hover:text-green-700 hover:bg-green-50"
+          className="h-7 px-2.5 text-xs font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md transition-colors"
         >
           <a
             href={`/api/vouchers/${item.id}?history_id=${item.current_stage_history_id}`}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-2"
+            className="flex items-center gap-1.5"
           >
             <Download className="h-3 w-3" />
             Voucher
@@ -614,7 +627,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
       if (!canMove || !hasNextStep) {
         if (!hasNextStep) {
           return (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground font-medium px-2 py-1 bg-muted/30 rounded-md">
               End of workflow
             </span>
           );
@@ -630,9 +643,9 @@ export const columns: ColumnDef<ItemInStage>[] = [
             size="sm"
             onClick={() => handleOpenMoveModal()}
             disabled={meta?.isMovingItems || meta?.isReworkingItems}
-            className="h-8 px-3 text-primary hover:text-primary hover:bg-primary/10"
+            className="h-7 px-2.5 text-xs font-medium text-primary hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
           >
-            <ChevronsRight className="mr-2 h-3 w-3" />
+            <ChevronsRight className="mr-1.5 h-3 w-3" />
             Move Forward
           </Button>
         );
@@ -646,9 +659,9 @@ export const columns: ColumnDef<ItemInStage>[] = [
               variant="ghost"
               size="sm"
               disabled={meta?.isMovingItems || meta?.isReworkingItems}
-              className="h-8 px-3 text-primary hover:text-primary hover:bg-primary/10"
+              className="h-7 px-2.5 text-xs font-medium text-primary hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
             >
-              <ChevronsRight className="mr-2 h-3 w-3" />
+              <ChevronsRight className="mr-1.5 h-3 w-3" />
               Move Forward
             </Button>
           </DropdownMenuTrigger>

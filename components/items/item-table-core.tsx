@@ -33,6 +33,7 @@ import { BulkReworkQuantityModal } from "@/components/items/bulk-rework-quantity
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { toast } from "sonner";
 import { useReworkItems } from "@/hooks/mutations/use-rework-items";
+import { cn } from "@/lib/utils";
 
 // Re-define necessary types locally or import if centralized
 interface ReworkableItem {
@@ -369,19 +370,19 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
     return (
       <>
         {/* Table */}
-        <div className="rounded-md border border-border">
+        <div className="rounded-lg border border-border/60 shadow-sm overflow-hidden bg-card">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow
                   key={headerGroup.id}
-                  className="border-b hover:bg-transparent"
+                  className="border-0 hover:bg-transparent"
                 >
                   {headerGroup.headers.map((header) => {
                     return (
                       <TableHead
                         key={header.id}
-                        className="bg-muted/50 first:rounded-tl-md last:rounded-tr-md"
+                        className="text-xs font-semibold uppercase tracking-wider"
                       >
                         {header.isPlaceholder
                           ? null
@@ -397,11 +398,13 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
+                table.getRowModel().rows.map((row, index) => (
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
-                    className="hover:bg-muted/50 transition-colors"
+                    className={cn(
+                      index % 2 === 0 ? "bg-background" : "bg-muted/10"
+                    )}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>

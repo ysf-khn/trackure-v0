@@ -25,23 +25,34 @@ export async function GET(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    // Get detailed SKU information
+    // Get comprehensive SKU data from the management view
     const { data: skuData, error: skuError } = await supabase
-      .from("item_master")
+      .from("sku_management_view")
       .select(`
         sku,
-        master_details,
-        created_at,
-        sku_cost_calculations(
-          id,
-          base_material_cost,
-          total_workflow_cost,
-          markup_percentage,
-          final_calculated_cost,
-          last_calculated_at,
-          created_by,
-          calculation_details
-        )
+        sku_name,
+        sku_description,
+        specifications,
+        final_calculated_cost,
+        base_material_cost,
+        total_workflow_cost,
+        markup_percentage,
+        currency,
+        cost_per_unit,
+        last_calculated_at,
+        active_items_count,
+        total_active_quantity,
+        completed_items_count,
+        total_completed_quantity,
+        workflow_stages_count,
+        leaf_stages_count,
+        vendors_count,
+        min_vendor_price,
+        avg_vendor_price,
+        samples_count,
+        last_item_created,
+        last_movement,
+        created_at
       `)
       .eq("sku", sku)
       .eq("organization_id", profile.organization_id)
@@ -52,12 +63,16 @@ export async function GET(
       return NextResponse.json({ error: "SKU not found" }, { status: 404 });
     }
 
-    // Get item statistics
+    // Get supplementary data for modal tabs
+    
+    // Get basic items list
     const { data: items, error: itemsError } = await supabase
       .from("items")
       .select("id, total_quantity, remaining_quantity, status, created_at")
       .eq("sku", sku)
-      .eq("organization_id", profile.organization_id);
+      .eq("organization_id", profile.organization_id)
+      .order("created_at", { ascending: false })
+      .limit(50);
 
     if (itemsError) {
       console.error("Error fetching items:", itemsError);
@@ -73,7 +88,6 @@ export async function GET(
         parent_stage_id,
         depth_level,
         is_leaf_stage,
-        sku,
         location
       `)
       .eq("sku", sku)
@@ -84,7 +98,7 @@ export async function GET(
       console.error("Error fetching workflow stages:", stagesError);
     }
 
-    // Get vendor pricing
+    // Get vendor pricing with vendor details
     const { data: vendorPricing, error: vendorError } = await supabase
       .from("vendor_stage_pricing")
       .select(`
@@ -94,6 +108,7 @@ export async function GET(
         price,
         currency,
         lead_time_days,
+        is_active,
         vendors(
           id,
           name,
@@ -104,7 +119,8 @@ export async function GET(
         )
       `)
       .eq("sku", sku)
-      .eq("organization_id", profile.organization_id);
+      .eq("organization_id", profile.organization_id)
+      .eq("is_active", true);
 
     if (vendorError) {
       console.error("Error fetching vendor pricing:", vendorError);
@@ -115,10 +131,10 @@ export async function GET(
       .from("samples")
       .select(`
         id,
-        sample_code,
         name,
-        status,
         location,
+        quantity,
+        size,
         created_at
       `)
       .eq("sku", sku)
@@ -129,52 +145,50 @@ export async function GET(
     }
 
     // Get recent movements
-    const { data: recentMovements, error: movementsError } = await supabase
-      .from("item_movement_history")
-      .select(`
-        id,
-        quantity,
-        moved_at,
-        rework_reason,
-        rework_type,
-        from_stage_id,
-        to_stage_id,
-        moved_by,
-        from_stage:workflow_stages!item_movement_history_from_stage_id_fkey(
-          name
-        ),
-        to_stage:workflow_stages!item_movement_history_to_stage_id_fkey(
-          name
-        )
-      `)
-      .eq("organization_id", profile.organization_id)
-      .in("item_id", items?.map(i => i.id) || [])
-      .order("moved_at", { ascending: false })
-      .limit(10);
+    const itemIds = items?.map(i => i.id) || [];
+    const { data: recentMovements, error: movementsError } = itemIds.length > 0 
+      ? await supabase
+          .from("item_movement_history")
+          .select(`
+            id,
+            quantity,
+            moved_at,
+            rework_reason,
+            rework_type,
+            from_stage_id,
+            to_stage_id,
+            moved_by,
+            from_stage:workflow_stages!item_movement_history_from_stage_id_fkey(
+              name
+            ),
+            to_stage:workflow_stages!item_movement_history_to_stage_id_fkey(
+              name
+            )
+          `)
+          .in("item_id", itemIds)
+          .order("moved_at", { ascending: false })
+          .limit(10)
+      : { data: [], error: null };
 
     if (movementsError) {
       console.error("Error fetching movements:", movementsError);
     }
 
-    // Calculate statistics
-    const stats = {
-      total_items: items?.length || 0,
-      active_items: items?.filter(i => i.status !== 'Completed').length || 0,
-      completed_items: items?.filter(i => i.status === 'Completed').length || 0,
-      total_quantity: items?.reduce((sum, i) => sum + (i.total_quantity || 0), 0) || 0,
-      completed_quantity: items?.filter(i => i.status === 'Completed')
-        .reduce((sum, i) => sum + (i.total_quantity || 0), 0) || 0,
-      workflow_stages_count: workflowStages?.length || 0,
-      vendors_count: new Set(vendorPricing?.map(vp => vp.vendor_id)).size || 0,
-      samples_count: samples?.length || 0,
-    };
-
     return NextResponse.json({
       sku: {
         ...skuData,
-        sku_name: skuData.sku,
+        // Add any additional computed fields if needed
+        total_items: (skuData.active_items_count || 0) + (skuData.completed_items_count || 0),
+        active_items: skuData.active_items_count || 0,
+        completed_items: skuData.completed_items_count || 0,
+        workflow_stages_count: skuData.workflow_stages_count || 0,
+        vendors_count: skuData.vendors_count || 0,
+        samples_count: skuData.samples_count || 0,
+        last_movement: skuData.last_movement,
+        // Ensure backwards compatibility with existing modal code
+        active_items_count: skuData.active_items_count || 0,
+        completed_items_count: skuData.completed_items_count || 0,
       },
-      stats,
       items: items || [],
       workflow_stages: workflowStages || [],
       vendor_pricing: vendorPricing || [],

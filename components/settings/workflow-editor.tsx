@@ -109,7 +109,7 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 bg-green-50 border-green-200 border text-green-600 hover:bg-green-100 hover:border-green-300 hover:text-green-700 transition-all duration-200 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950/50 dark:hover:border-green-700 dark:hover:text-green-300"
+                    className="h-8 w-8"
                     title="Add Child Stage"
                     onClick={() => handleAddChildStage(childStage)}
                     disabled={isPending}
@@ -119,7 +119,7 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 bg-blue-50 border-blue-200 border text-blue-600 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:border-blue-700 dark:hover:text-blue-300"
+                    className="h-8 w-8"
                     title="Move Stage Up"
                     onClick={() => handleMoveStage(childStage.id, "up")}
                     disabled={childStageIndex === 0 || isPending}
@@ -129,7 +129,7 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 bg-blue-50 border-blue-200 border text-blue-600 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:border-blue-700 dark:hover:text-blue-300"
+                    className="h-8 w-8"
                     title="Move Stage Down"
                     onClick={() => handleMoveStage(childStage.id, "down")}
                     disabled={childStageIndex === stages.length - 1 || isPending}
@@ -139,7 +139,7 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 bg-amber-50 border-amber-200 border text-amber-600 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-700 transition-all duration-200 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/50 dark:hover:border-amber-700 dark:hover:text-amber-300"
+                    className="h-8 w-8"
                     title="Edit Stage"
                     onClick={() => handleEditStage(childStage)}
                     disabled={isPending}
@@ -151,7 +151,7 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 bg-purple-50 border-purple-200 border text-purple-600 hover:bg-purple-100 hover:border-purple-300 hover:text-purple-700 transition-all duration-200 dark:bg-purple-950/30 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-950/50 dark:hover:border-purple-700 dark:hover:text-purple-300"
+                      className="h-8 w-8"
                       title="Manage Vendor Pricing"
                       onClick={() => handleVendorPricing(childStage)}
                       disabled={isPending}
@@ -162,7 +162,7 @@ const RecursiveStageRenderer: React.FC<RecursiveStageRendererProps> = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 bg-red-50 border-red-200 border text-red-600 hover:bg-red-100 hover:border-red-300 hover:text-red-700 transition-all duration-200 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:border-red-700 dark:hover:text-red-300"
+                    className="h-8 w-8"
                     title="Delete Stage"
                     onClick={() => handleDeleteStage(childStage)}
                     disabled={isPending}
@@ -318,7 +318,7 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
     return (
       <Alert
         variant="destructive"
-        className="border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30"
+        className="border-destructive/50 bg-destructive/5 dark:border-destructive dark:bg-destructive/10"
       >
         <Terminal className="h-4 w-4" />
         <AlertTitle>Error Loading Workflow</AlertTitle>
@@ -332,12 +332,12 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
   // --- No Permission State ---
   if (!canEditWorkflow) {
     return (
-      <Alert className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30">
-        <InfoIcon className="h-4 w-4 text-amber-600" />
-        <AlertTitle className="text-amber-800 dark:text-amber-200">
+      <Alert className="border-muted-foreground/20 bg-muted/20 dark:border-muted-foreground/30 dark:bg-muted/30">
+        <InfoIcon className="h-4 w-4 text-muted-foreground" />
+        <AlertTitle>
           Access Restricted
         </AlertTitle>
-        <AlertDescription className="text-amber-700 dark:text-amber-300">
+        <AlertDescription>
           You don't have permission to edit the workflow. Only users with
           workflow editing permissions can modify stages and sub-stages.
         </AlertDescription>
@@ -348,6 +348,10 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
   // --- Helper Functions ---
   const isCompletedStage = (stage: FetchedWorkflowStage): boolean => {
     return stage.name?.toLowerCase().includes("completed") ?? false;
+  };
+  
+  const isSystemStage = (stage: FetchedWorkflowStage): boolean => {
+    return stage.is_system_stage || isCompletedStage(stage);
   };
 
   // Sort workflow structure by sequence_order
@@ -361,10 +365,10 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
     setEditingStage(stage);
 
   const handleDeleteStage = (stage: FetchedWorkflowStage) => {
-    // Prevent deletion of completed stage
-    if (isCompletedStage(stage)) {
+    // Prevent deletion of system stages
+    if (isSystemStage(stage)) {
       toast.error(
-        "The 'Completed' stage cannot be deleted as it's required by the system."
+        "System stages cannot be deleted as they're required for the workflow to function properly."
       );
       return;
     }
@@ -377,9 +381,9 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
 
     // Find the stage being moved
     const stage = workflowStructure?.find((s) => s.id === id);
-    if (stage && isCompletedStage(stage)) {
+    if (stage && isSystemStage(stage)) {
       toast.error(
-        "The 'Completed' stage cannot be moved as it must remain the final stage."
+        "System stages cannot be moved as they must maintain their position in the workflow."
       );
       return;
     }
@@ -416,9 +420,8 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
       <Alert className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/30">
         <InfoIcon className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-800 dark:text-blue-200">
-          <strong>Workflow Rules:</strong> Stages can be nested infinitely to create
-          a tree structure. Items can only be allocated to leaf stages (stages without children).
-          You can add child stages to any existing stage to create deeper workflow levels.
+          <strong>Workflow Setup:</strong> Create stages that match your item's whole process. 
+          You can break any stage into smaller sub-steps. Items are only assigned to the final working steps, not the grouping stages.
         </AlertDescription>
       </Alert>
 
@@ -452,6 +455,7 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
           <div className="space-y-4">
             {sortedWorkflowStructure.map((stage, stageIndex) => {
               const isCompleted = isCompletedStage(stage);
+              const isSystem = isSystemStage(stage);
               const isFirstNonCompletedStage = stageIndex === 0 && !isCompleted;
 
               // Fix: Check if this is the last non-completed stage
@@ -469,7 +473,7 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                   key={stage.id}
                   className={`transition-all duration-200 hover:shadow-md ${
                     isCompleted
-                      ? "border-green-200 bg-green-50/30 dark:border-green-800 dark:bg-green-950/20"
+                      ? "border-primary/20 bg-primary/5 dark:border-primary/30 dark:bg-primary/10"
                       : "border-border/50 bg-card hover:border-border"
                   } ${isPending ? "opacity-70" : ""}`}
                 >
@@ -479,8 +483,8 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                       <div className="flex items-center space-x-3">
                         <div className="flex-shrink-0">
                           {isCompleted ? (
-                            <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/50 flex items-center justify-center border-2 border-green-200 dark:border-green-800">
-                              <WorkflowIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                            <div className="w-12 h-12 rounded-xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center border-2 border-primary/20 dark:border-primary/30">
+                              <WorkflowIcon className="h-6 w-6 text-primary dark:text-primary" />
                             </div>
                           ) : (
                             <div className="flex items-center gap-1 px-4 py-2 bg-gradient-to-r from-primary/5 to-primary/10 rounded-full border border-primary/20">
@@ -495,13 +499,13 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                             <h3 className="text-lg font-semibold text-foreground">
                               {stage.name}
                             </h3>
-                            {isCompleted && (
+                            {isSystem && (
                               <Badge
                                 variant="secondary"
-                                className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs"
+                                className="bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary text-xs"
                               >
                                 <Settings2Icon className="h-3 w-3 mr-1" />
-                                System Required
+                                System Stage
                               </Badge>
                             )}
                             {stage.children && stage.children.length > 0 && (
@@ -529,7 +533,7 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-9 bg-blue-50 border-blue-200 border text-blue-600 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:border-blue-700 dark:hover:text-blue-300"
+                            className="h-9 w-9"
                             title="Move Stage Up"
                             onClick={() => handleMoveStage(stage.id, "up")}
                             disabled={isPending}
@@ -543,7 +547,7 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-9 bg-blue-50 border-blue-200 border text-blue-600 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/50 dark:hover:border-blue-700 dark:hover:text-blue-300"
+                            className="h-9 w-9"
                             title="Move Stage Down"
                             onClick={() => handleMoveStage(stage.id, "down")}
                             disabled={isPending}
@@ -556,7 +560,7 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-9 w-9 bg-green-50 border-green-200 border text-green-600 hover:bg-green-100 hover:border-green-300 hover:text-green-700 transition-all duration-200 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950/50 dark:hover:border-green-700 dark:hover:text-green-300"
+                          className="h-9 w-9"
                           title="Add Child Stage"
                           onClick={() => handleAddChildStage(stage)}
                           disabled={isPending}
@@ -565,25 +569,25 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                         </Button>
 
                         {/* Edit Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 bg-amber-50 border-amber-200 border text-amber-600 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-700 transition-all duration-200 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/50 dark:hover:border-amber-700 dark:hover:text-amber-300"
-                          title={
-                            isCompleted ? "Edit Stage (Limited)" : "Edit Stage"
-                          }
-                          onClick={() => handleEditStage(stage)}
-                          disabled={isPending}
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </Button>
+                        {!isSystem && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9"
+                            title="Edit Stage"
+                            onClick={() => handleEditStage(stage)}
+                            disabled={isPending}
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </Button>
+                        )}
 
                         {/* Vendor Pricing Button - Only for leaf stages with SKU */}
                         {stage.is_leaf_stage && selectedSKU && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-9 bg-purple-50 border-purple-200 border text-purple-600 hover:bg-purple-100 hover:border-purple-300 hover:text-purple-700 transition-all duration-200 dark:bg-purple-950/30 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-950/50 dark:hover:border-purple-700 dark:hover:text-purple-300"
+                            className="h-9 w-9"
                             title="Manage Vendor Pricing"
                             onClick={() => handleVendorPricing(stage)}
                             disabled={isPending}
@@ -597,7 +601,7 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-9 bg-red-50 border-red-200 border text-red-600 hover:bg-red-100 hover:border-red-300 hover:text-red-700 transition-all duration-200 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:border-red-700 dark:hover:text-red-300"
+                            className="h-9 w-9"
                             title="Delete Stage"
                             onClick={() => handleDeleteStage(stage)}
                             disabled={isPending}

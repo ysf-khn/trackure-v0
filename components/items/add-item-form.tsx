@@ -188,6 +188,15 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
   const [skuSearch, setSkuSearch] = React.useState("");
   const debouncedSkuSearch = useDebounce(skuSearch, 300);
   const [popoverOpen, setPopoverOpen] = React.useState(false);
+  
+  // Trigger initial fetch when popover opens
+  React.useEffect(() => {
+    if (popoverOpen && !skuSearch) {
+      // This will trigger the query with empty search to load all SKUs
+      queryClient.invalidateQueries({ queryKey: ["skuSuggestions", ""] });
+    }
+  }, [popoverOpen, skuSearch, queryClient]);
+  
   const [selectedCompositeInfo, setSelectedCompositeInfo] = React.useState<{
     sku: string;
     name: string;
@@ -200,18 +209,20 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
   const skuQueryResult = useQuery({
     queryKey: ["skuSuggestions", debouncedSkuSearch],
     queryFn: async (): Promise<SkuSuggestion[]> => {
-      if (!debouncedSkuSearch) return [];
-
+      // Fetch all SKUs if search is empty (for initial dropdown)
+      const searchQuery = debouncedSkuSearch || "";
+      
       const response = await fetch(
-        `/api/item-master/search?q=${encodeURIComponent(debouncedSkuSearch)}`
+        `/api/item-master/search?q=${encodeURIComponent(searchQuery)}`
       );
       if (!response.ok) {
         throw new Error("Failed to fetch SKU suggestions");
       }
       const data = await response.json();
-      return data.suggestions || [];
+      // Fix: API returns array directly, not wrapped in suggestions
+      return Array.isArray(data) ? data : (data.suggestions || []);
     },
-    enabled: !!debouncedSkuSearch,
+    enabled: true, // Always enabled to show SKUs when dropdown opens
     staleTime: 30000,
   });
 
@@ -337,7 +348,7 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
       setSelectedCompositeInfo(null); // Clear composite info
       setShowComponentInput(false); // Reset component input visibility
       // Invalidate queries to refetch relevant data
-      queryClient.invalidateQueries({ queryKey: ["orderItems", orderId] }); // If you have a query for items specific to this order
+      queryClient.invalidateQueries({ queryKey: ["orderItems", organizationId, orderId] }); // Fix query key to match hook
       queryClient.invalidateQueries({ queryKey: ["itemsInStage"] }); // To update stage view lists
 
       // Use centralized cache invalidation for consistency
@@ -554,13 +565,13 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
                         <CommandList>
                           {isLoadingSuggestions && (
                             <div className="p-2 text-center text-sm">
-                              Loading...
+                              Loading SKUs...
                             </div>
                           )}
                           {!isLoadingSuggestions &&
                             !skuSuggestions?.length &&
                             !skuSearch && (
-                              <CommandEmpty>Type to search SKUs.</CommandEmpty>
+                              <CommandEmpty>No SKUs found. Start typing to create a new one.</CommandEmpty>
                             )}
                           {/* Show 'Create' option if typing and no exact match */}
                           {!isLoadingSuggestions &&
@@ -613,7 +624,20 @@ export function AddItemForm({ orderId, onItemAdded }: AddItemFormProps) {
                                   )}
                                 />
                                 <div className="flex items-center justify-between w-full">
-                                  <span>{suggestion.label}</span>
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{suggestion.label}</span>
+                                    {suggestion.master_details && Object.keys(suggestion.master_details).length > 0 && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {(() => {
+                                          const details = suggestion.master_details as Record<string, any>;
+                                          const info = [];
+                                          if (details.size) info.push(`Size: ${details.size}`);
+                                          if (details.weight) info.push(`Weight: ${details.weight}`);
+                                          return info.join(' • ') || 'Has saved details';
+                                        })()}
+                                      </span>
+                                    )}
+                                  </div>
                                   {suggestion.is_composite && (
                                     <div className="flex items-center text-xs text-primary bg-primary/10 px-2 py-1 rounded-md ml-2">
                                       <Layers className="h-3 w-3 mr-1" />

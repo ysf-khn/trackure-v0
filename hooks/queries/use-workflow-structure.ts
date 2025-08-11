@@ -19,6 +19,7 @@ export interface FetchedWorkflowStage {
   sku: string | null;
   vendor_pricing_count?: number; // Count of active vendor pricing for this stage
   children?: FetchedWorkflowStage[]; // Recursive for infinite nesting
+  is_system_stage?: boolean; // Flag to identify system stages like "Completed"
 }
 
 // --- Query Key Generator --- //
@@ -39,6 +40,7 @@ const buildTree = (stages: any[], parentId: string | null = null): FetchedWorkfl
       vendor_pricing_count: Array.isArray(stage.vendor_stage_pricing) 
         ? stage.vendor_stage_pricing.length 
         : 0,
+      is_system_stage: stage.name === 'Completed', // Flag system stages
       children: buildTree(stages, stage.id)
     }))
     .sort((a, b) => a.sequence_order - b.sequence_order);

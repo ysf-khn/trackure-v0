@@ -12,7 +12,7 @@ export function VendorPricingBadge({ count, className }: VendorPricingBadgeProps
   return (
     <Badge
       variant="secondary"
-      className={`text-xs bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200 ${className}`}
+      className={`text-xs ${className}`}
     >
       <DollarSignIcon className="h-3 w-3 mr-1" />
       {count} vendor{count !== 1 ? 's' : ''}

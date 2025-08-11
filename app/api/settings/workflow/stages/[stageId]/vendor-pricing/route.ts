@@ -7,7 +7,6 @@ const vendorPricingSchema = z.object({
   vendor_id: z.string().uuid("Invalid vendor ID"),
   price: z.number().min(0, "Price must be non-negative"),
   currency: z.string().min(1, "Currency is required"),
-  price_unit: z.string().min(1, "Price unit is required"),
   minimum_quantity: z
     .number()
     .int()
@@ -172,7 +171,7 @@ export async function PUT(
         organization_id: organization_id,
         price: pricing.price,
         currency: pricing.currency,
-        price_unit: pricing.price_unit,
+        price_unit: "per_piece", // Always per piece as established
         minimum_quantity: pricing.minimum_quantity,
         lead_time_days: pricing.lead_time_days,
         notes: pricing.notes || null,

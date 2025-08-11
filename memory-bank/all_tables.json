@@ -438,6 +438,50 @@
     ]
   },
   {
+    "table_name": "sku_order_management_view",
+    "columns": [
+      "sku",
+      "organization_id",
+      "order_id",
+      "order_number",
+      "buyer_id",
+      "order_status",
+      "sku_name",
+      "sku_description",
+      "items_count_for_order",
+      "total_quantity_for_order",
+      "remaining_quantity_for_order",
+      "active_items_for_order",
+      "completed_items_for_order",
+      "active_template_id",
+      "active_template_name",
+      "template_description",
+      "has_active_template",
+      "workflow_stages_count",
+      "leaf_stages_count",
+      "vendors_count",
+      "min_vendor_price",
+      "avg_vendor_price",
+      "max_vendor_price",
+      "final_calculated_cost",
+      "base_material_cost",
+      "total_workflow_cost",
+      "markup_percentage",
+      "currency",
+      "last_calculated_at",
+      "estimated_workflow_cost",
+      "samples_count",
+      "order_created_at",
+      "last_item_created",
+      "last_movement",
+      "template_usage_count",
+      "template_avg_days",
+      "parent_composite_sku",
+      "is_component_item",
+      "sku_order_status"
+    ]
+  },
+  {
     "table_name": "vendor_orders",
     "columns": [
       "id",
@@ -607,6 +651,25 @@
       "is_leaf_stage",
       "location",
       "avg_time_hours",
+      "created_at"
+    ]
+  },
+  {
+    "table_name": "workflow_template_vendor_pricing",
+    "columns": [
+      "id",
+      "template_id",
+      "template_stage_id",
+      "original_vendor_pricing_id",
+      "vendor_id",
+      "vendor_name",
+      "vendor_firm_name",
+      "price",
+      "currency",
+      "price_unit",
+      "minimum_quantity",
+      "lead_time_days",
+      "notes",
       "created_at"
     ]
   },

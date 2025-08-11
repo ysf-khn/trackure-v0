@@ -21,145 +21,97 @@ export async function GET() {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    // Get SKU data with aggregated counts
-    const { data: skus, error: skusError } = await supabase
-      .from("item_master")
+    // Get SKU-Order combinations from the new management view
+    const { data: skuOrders, error: skuOrdersError } = await supabase
+      .from("sku_order_management_view")
       .select(`
         sku,
-        items!inner(
-          id,
-          total_quantity,
-          remaining_quantity,
-          status,
-          created_at,
-          item_movement_history!item_movement_history_item_id_fkey(
-            moved_at
-          )
-        ),
-        sku_cost_calculations(
-          final_calculated_cost,
-          last_calculated_at
-        )
+        sku_name,
+        order_id,
+        order_number,
+        buyer_id,
+        order_status,
+        items_count_for_order,
+        total_quantity_for_order,
+        remaining_quantity_for_order,
+        active_items_for_order,
+        completed_items_for_order,
+        active_template_id,
+        active_template_name,
+        template_description,
+        has_active_template,
+        workflow_stages_count,
+        leaf_stages_count,
+        vendors_count,
+        min_vendor_price,
+        avg_vendor_price,
+        max_vendor_price,
+        final_calculated_cost,
+        base_material_cost,
+        total_workflow_cost,
+        estimated_workflow_cost,
+        samples_count,
+        order_created_at,
+        last_movement,
+        template_usage_count,
+        template_avg_days,
+        parent_composite_sku,
+        is_component_item,
+        sku_order_status,
+        currency,
+        last_calculated_at
       `)
-      .eq("organization_id", profile.organization_id);
+      .eq("organization_id", profile.organization_id)
+      .order("order_created_at", { ascending: false });
 
-    if (skusError) {
-      console.error("Error fetching SKUs:", skusError);
-      return NextResponse.json({ error: "Failed to fetch SKU data" }, { status: 500 });
+    if (skuOrdersError) {
+      console.error("Error fetching SKU-Order combinations:", skuOrdersError);
+      return NextResponse.json({ error: "Failed to fetch SKU-Order data" }, { status: 500 });
     }
 
-    // Get workflow stages count for each SKU
-    const { data: workflowStages, error: workflowError } = await supabase
-      .from("workflow_stages")
-      .select("sku, id")
-      .eq("organization_id", profile.organization_id);
+    // Calculate aggregate stats from the SKU-Order data
+    const uniqueSKUs = new Set();
+    const uniqueOrders = new Set();
+    const uniqueVendors = new Set();
+    let totalActiveItems = 0;
+    let totalCosts = 0;
+    let costsCount = 0;
 
-    if (workflowError) {
-      console.error("Error fetching workflow stages:", workflowError);
-    }
-
-    // Get vendor counts for each SKU
-    const { data: vendorPricing, error: vendorError } = await supabase
-      .from("vendor_stage_pricing")
-      .select("sku, vendor_id")
-      .eq("organization_id", profile.organization_id);
-
-    if (vendorError) {
-      console.error("Error fetching vendor pricing:", vendorError);
-    }
-
-    // Get sample counts for each SKU
-    const { data: samples, error: samplesError } = await supabase
-      .from("samples")
-      .select("sku, id")
-      .eq("organization_id", profile.organization_id);
-
-    if (samplesError) {
-      console.error("Error fetching samples:", samplesError);
-    }
-
-    // Process SKU data
-    const skuMap = new Map();
-    
-    // Initialize SKU data
-    skus?.forEach(sku => {
-      if (!skuMap.has(sku.sku)) {
-        skuMap.set(sku.sku, {
-          sku: sku.sku,
-          sku_name: sku.sku,
-          active_items_count: 0,
-          completed_items_count: 0,
-          workflow_stages_count: 0,
-          vendors_count: 0,
-          samples_count: 0,
-          final_calculated_cost: sku.sku_cost_calculations?.[0]?.final_calculated_cost,
-          last_calculated_at: sku.sku_cost_calculations?.[0]?.last_calculated_at,
-          last_movement: null,
-        });
+    skuOrders?.forEach(record => {
+      uniqueSKUs.add(record.sku);
+      uniqueOrders.add(record.order_id);
+      totalActiveItems += record.active_items_for_order || 0;
+      
+      if (record.final_calculated_cost) {
+        totalCosts += record.final_calculated_cost;
+        costsCount++;
       }
       
-      const skuData = skuMap.get(sku.sku);
-      
-      // Count items by status
-      sku.items?.forEach(item => {
-        if (item.status === 'Completed') {
-          skuData.completed_items_count += item.total_quantity || 1;
-        } else {
-          skuData.active_items_count += item.total_quantity || 1;
-        }
-        
-        // Get latest movement
-        const latestMovement = item.item_movement_history?.[0]?.moved_at;
-        if (latestMovement && (!skuData.last_movement || latestMovement > skuData.last_movement)) {
-          skuData.last_movement = latestMovement;
-        }
-      });
-    });
-
-    // Add workflow stages count
-    workflowStages?.forEach(stage => {
-      if (skuMap.has(stage.sku)) {
-        skuMap.get(stage.sku).workflow_stages_count++;
+      // Count unique vendors across all SKU-Order combinations
+      if (record.vendors_count > 0) {
+        uniqueVendors.add(`${record.sku}-vendors`); // Approximation
       }
     });
 
-    // Add vendor counts
-    const vendorCounts = new Map();
-    vendorPricing?.forEach(pricing => {
-      if (!vendorCounts.has(pricing.sku)) {
-        vendorCounts.set(pricing.sku, new Set());
-      }
-      vendorCounts.get(pricing.sku).add(pricing.vendor_id);
-    });
-    
-    vendorCounts.forEach((vendorSet, sku) => {
-      if (skuMap.has(sku)) {
-        skuMap.get(sku).vendors_count = vendorSet.size;
-      }
-    });
-
-    // Add sample counts
-    samples?.forEach(sample => {
-      if (sample.sku && skuMap.has(sample.sku)) {
-        skuMap.get(sample.sku).samples_count++;
-      }
-    });
-
-    const processedSKUs = Array.from(skuMap.values());
-
-    // Calculate stats
     const stats = {
-      total_skus: processedSKUs.length,
-      active_skus: processedSKUs.filter(sku => sku.active_items_count > 0).length,
-      avg_cost: processedSKUs.reduce((sum, sku) => sum + (sku.final_calculated_cost || 0), 0) / 
-                Math.max(1, processedSKUs.filter(sku => sku.final_calculated_cost).length),
-      total_active_items: processedSKUs.reduce((sum, sku) => sum + sku.active_items_count, 0),
-      total_vendors: vendorPricing?.length || 0,
+      total_sku_order_combinations: skuOrders?.length || 0,
+      unique_skus: uniqueSKUs.size,
+      unique_orders: uniqueOrders.size,
+      active_sku_order_combinations: skuOrders?.filter(r => r.active_items_for_order > 0).length || 0,
+      avg_cost: costsCount > 0 ? totalCosts / costsCount : 0,
+      total_active_items: totalActiveItems,
+      total_estimated_workflow_cost: skuOrders?.reduce((sum, r) => sum + (r.estimated_workflow_cost || 0), 0) || 0,
+      // Keep legacy fields for backward compatibility
+      total_skus: uniqueSKUs.size,
+      active_skus: skuOrders?.filter(r => r.active_items_for_order > 0).length || 0,
+      total_vendors: uniqueVendors.size,
     };
 
     return NextResponse.json({
-      skus: processedSKUs,
+      sku_orders: skuOrders || [],
       stats,
+      // Keep legacy field for backward compatibility
+      skus: skuOrders || [],
     });
 
   } catch (error) {

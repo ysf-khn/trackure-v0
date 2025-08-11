@@ -28,7 +28,6 @@ export interface VendorPricingData {
   vendor_id: string;
   price: number;
   currency: string;
-  price_unit: string;
   minimum_quantity: number;
   lead_time_days: number;
   notes: string;
@@ -63,7 +62,6 @@ export function VendorPricingSection({
       vendor_id: "",
       price: 0,
       currency: "INR",
-      price_unit: "per_piece",
       minimum_quantity: 1,
       lead_time_days: 0,
       notes: "",
@@ -172,7 +170,7 @@ export function VendorPricingSection({
                   name={`vendorPricing.${index}.price`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Price</FormLabel>
+                      <FormLabel>Price (Per Piece)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -212,29 +210,6 @@ export function VendorPricingSection({
                   )}
                 />
 
-                <FormField
-                  control={control}
-                  name={`vendorPricing.${index}.price_unit`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Price Unit</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="per_piece">Per Piece</SelectItem>
-                          <SelectItem value="per_kg">Per KG</SelectItem>
-                          <SelectItem value="per_dozen">Per Dozen</SelectItem>
-                          <SelectItem value="per_hundred">Per Hundred</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
                 <FormField
                   control={control}

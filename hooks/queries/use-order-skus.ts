@@ -14,11 +14,12 @@ const fetchOrderSKUs = async (
 ): Promise<OrderSKU[]> => {
   const supabase = await createClient();
 
-  // Get all items for this order grouped by SKU
+  // First, get all items for this order
   const { data: items, error: itemsError } = await supabase
     .from("items")
     .select(
       `
+      id,
       sku,
       total_quantity,
       status
@@ -36,44 +37,84 @@ const fetchOrderSKUs = async (
     return [];
   }
 
-  // Group by SKU and calculate totals
-  const skuMap = items.reduce((acc, item) => {
-    if (!acc[item.sku]) {
-      acc[item.sku] = {
-        sku: item.sku,
-        sku_name: null,
-        total_quantity: 0,
-        completed_quantity: 0,
-      };
+  // Get unique SKUs
+  const uniqueSkus = [...new Set(items.map(item => item.sku))];
+  
+  // For each SKU, get the completed stage and count allocations
+  const skuDataPromises = uniqueSkus.map(async (sku) => {
+    // Find the completed stage for this SKU
+    const { data: completedStage } = await supabase
+      .from("workflow_stages")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("name", "Completed")
+      .eq("sku", sku)
+      .single();
+    
+    // If no SKU-specific completed stage, try organization-level
+    let completedStageId = completedStage?.id;
+    if (!completedStageId) {
+      const { data: orgCompletedStage } = await supabase
+        .from("workflow_stages")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("name", "Completed")
+        .is("sku", null)
+        .single();
+      completedStageId = orgCompletedStage?.id;
     }
-    acc[item.sku].total_quantity += item.total_quantity;
-    if (item.status === "Completed") {
-      acc[item.sku].completed_quantity += item.total_quantity;
+    
+    // Get items for this SKU
+    const skuItems = items.filter(item => item.sku === sku);
+    const itemIds = skuItems.map(item => item.id);
+    
+    // Calculate total quantity for this SKU
+    const totalQuantity = skuItems.reduce((sum, item) => sum + item.total_quantity, 0);
+    
+    // Get completed quantity from allocations to the completed stage
+    let completedQuantity = 0;
+    if (completedStageId && itemIds.length > 0) {
+      const { data: allocations } = await supabase
+        .from("item_stage_allocations")
+        .select("quantity")
+        .in("item_id", itemIds)
+        .eq("stage_id", completedStageId);
+      
+      completedQuantity = allocations?.reduce((sum, alloc) => sum + (alloc.quantity || 0), 0) || 0;
     }
-    return acc;
-  }, {} as Record<string, OrderSKU>);
+    
+    return {
+      sku,
+      sku_name: null,
+      total_quantity: totalQuantity,
+      completed_quantity: completedQuantity,
+    };
+  });
+  
+  const skuData = await Promise.all(skuDataPromises);
 
   // Get SKU names from item_master
-  const skus = Object.keys(skuMap);
   const { data: itemMasters, error: masterError } = await supabase
     .from("item_master")
     .select("sku, master_details")
     .eq("organization_id", organizationId)
-    .in("sku", skus);
+    .in("sku", uniqueSkus);
 
   if (masterError) {
     console.error("Error fetching SKU names:", masterError);
   }
 
   // Add SKU names to the results
-  itemMasters?.forEach((master) => {
-    if (skuMap[master.sku]) {
+  const skuDataWithNames = skuData.map(skuInfo => {
+    const master = itemMasters?.find(m => m.sku === skuInfo.sku);
+    if (master) {
       const details = master.master_details as any;
-      skuMap[master.sku].sku_name = details?.name || details?.item_name || master.sku;
+      skuInfo.sku_name = details?.name || details?.item_name || master.sku;
     }
+    return skuInfo;
   });
 
-  return Object.values(skuMap);
+  return skuDataWithNames;
 };
 
 export const useOrderSKUs = (

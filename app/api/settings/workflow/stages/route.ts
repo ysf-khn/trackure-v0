@@ -254,6 +254,26 @@ export async function POST(request: Request) {
       }
     }
 
+    // If this is the first stage for a SKU-specific workflow, ensure completed stage exists
+    if (selectedSKU) {
+      // Check if this is the first stage for this SKU
+      const { data: existingStages } = await supabase
+        .from("workflow_stages")
+        .select("id")
+        .eq("organization_id", organization_id)
+        .eq("sku", selectedSKU)
+        .neq("name", "Completed")
+        .limit(2);
+
+      // If this is the first or second non-completed stage, create the completed stage
+      if (!existingStages || existingStages.length <= 1) {
+        await supabase.rpc("create_completed_stage_for_sku", {
+          p_organization_id: organization_id,
+          p_sku: selectedSKU,
+        });
+      }
+    }
+
     return NextResponse.json(newStage, { status: 201 });
   } catch (error) {
     console.error("Error in POST /api/settings/workflow/stages:", error);

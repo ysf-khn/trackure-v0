@@ -53,26 +53,31 @@ export function SKUManagement() {
   const [sortBy, setSortBy] = useState<string>("sku");
 
   const { data: skuData, isLoading, error } = useSKUManagement();
-  const skus = skuData?.skus || [];
+  const skuOrders = skuData?.sku_orders || [];
   const stats = skuData?.stats;
 
-  // Filter and sort SKUs
-  const filteredSKUs = skus
+  // Filter and sort SKU-Order combinations
+  const filteredSKUOrders = skuOrders
     .filter(
-      (sku) =>
-        sku.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        sku.sku_name.toLowerCase().includes(searchQuery.toLowerCase())
+      (record) =>
+        record.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        record.sku_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        record.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (record.buyer_id && record.buyer_id.toLowerCase().includes(searchQuery.toLowerCase()))
     )
     .sort((a, b) => {
       switch (sortBy) {
         case "cost":
           return (
-            (b.final_calculated_cost || 0) - (a.final_calculated_cost || 0)
+            (b.estimated_workflow_cost || b.final_calculated_cost || 0) - 
+            (a.estimated_workflow_cost || a.final_calculated_cost || 0)
           );
         case "items":
-          return b.active_items_count - a.active_items_count;
+          return b.active_items_for_order - a.active_items_for_order;
         case "vendors":
           return b.vendors_count - a.vendors_count;
+        case "order":
+          return a.order_number.localeCompare(b.order_number);
         case "sku":
         default:
           return a.sku.localeCompare(b.sku);
@@ -121,13 +126,13 @@ export function SKUManagement() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total SKUs</CardTitle>
+            <CardTitle className="text-sm font-medium">SKU-Order Combinations</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_skus || 0}</div>
+            <div className="text-2xl font-bold">{stats?.total_sku_order_combinations || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +{stats?.active_skus || 0} active
+              {stats?.unique_skus || 0} unique SKUs, {stats?.unique_orders || 0} orders
             </p>
           </CardContent>
         </Card>
@@ -145,14 +150,14 @@ export function SKUManagement() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
+            <CardTitle className="text-sm font-medium">Estimated Workflow Cost</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats?.total_active_items || 0}
+              ₹{Math.round(stats?.total_estimated_workflow_cost || 0)}
             </div>
-            <p className="text-xs text-muted-foreground">In workflow</p>
+            <p className="text-xs text-muted-foreground">Total estimated</p>
           </CardContent>
         </Card>
         <Card>
@@ -175,7 +180,7 @@ export function SKUManagement() {
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search SKUs..."
+              placeholder="Search SKUs, orders, buyers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -187,7 +192,8 @@ export function SKUManagement() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="sku">SKU (A-Z)</SelectItem>
-              <SelectItem value="cost">Cost (High-Low)</SelectItem>
+              <SelectItem value="order">Order Number</SelectItem>
+              <SelectItem value="cost">Estimated Cost (High-Low)</SelectItem>
               <SelectItem value="items">Items Count</SelectItem>
               <SelectItem value="vendors">Vendors Count</SelectItem>
             </SelectContent>
@@ -195,19 +201,19 @@ export function SKUManagement() {
         </div>
       </div>
 
-      {/* SKUs Table */}
-      {filteredSKUs.length === 0 ? (
+      {/* SKU-Order Combinations Table */}
+      {filteredSKUOrders.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
             <Package className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">
-              {skus.length === 0
-                ? "No SKUs found"
-                : "No SKUs match your search"}
+              {skuOrders.length === 0
+                ? "No SKU-Order combinations found"
+                : "No combinations match your search"}
             </h3>
             <p className="text-muted-foreground">
-              {skus.length === 0
-                ? "SKUs will appear here as they are added to your system."
+              {skuOrders.length === 0
+                ? "SKU-Order combinations will appear here as orders are created."
                 : "Try adjusting your search criteria."}
             </p>
           </CardContent>
@@ -219,41 +225,102 @@ export function SKUManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>SKU</TableHead>
-                  <TableHead>Cost</TableHead>
-                  <TableHead>Active Items</TableHead>
-                  <TableHead>Completed</TableHead>
-                  <TableHead>Workflow Stages</TableHead>
+                  <TableHead>Order #</TableHead>
+                  <TableHead>Buyer</TableHead>
+                  <TableHead>Items (A/C)</TableHead>
+                  <TableHead>Template</TableHead>
+                  <TableHead>Est. Cost</TableHead>
                   <TableHead>Vendors</TableHead>
-                  <TableHead>Samples</TableHead>
-                  <TableHead>Last Activity</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="w-[120px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSKUs.map((sku) => (
+                {filteredSKUOrders.map((record) => (
                   <TableRow
-                    key={sku.sku}
+                    key={`${record.sku}-${record.order_id}`}
                     className="cursor-pointer hover:bg-muted/50"
                   >
                     <TableCell
                       className="font-mono text-sm font-medium"
-                      onClick={() => setSelectedSKU(sku.sku)}
+                      onClick={() => setSelectedSKU(record.sku)}
                     >
-                      {sku.sku}
+                      <div>
+                        {record.sku}
+                        {record.is_component_item && (
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            Component
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell onClick={() => setSelectedSKU(sku.sku)}>
-                      {sku.final_calculated_cost ? (
+                    <TableCell onClick={() => setSelectedSKU(record.sku)}>
+                      <div>
+                        <span className="font-medium">{record.order_number}</span>
+                        <p className="text-xs text-muted-foreground">
+                          {record.order_status}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell onClick={() => setSelectedSKU(record.sku)}>
+                      <span className="text-sm">
+                        {record.buyer_id || "N/A"}
+                      </span>
+                    </TableCell>
+                    <TableCell onClick={() => setSelectedSKU(record.sku)}>
+                      <div className="flex gap-1">
+                        <Badge
+                          variant={
+                            record.active_items_for_order > 0 ? "default" : "secondary"
+                          }
+                          className="bg-blue-500 text-white"
+                        >
+                          {record.active_items_for_order}
+                        </Badge>
+                        <Badge
+                          variant={
+                            record.completed_items_for_order > 0 ? "default" : "secondary"
+                          }
+                          className="bg-green-500 text-white"
+                        >
+                          {record.completed_items_for_order}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell onClick={() => setSelectedSKU(record.sku)}>
+                      {record.has_active_template && record.active_template_name ? (
                         <div>
-                          <span className="font-medium">
-                            ₹{Math.round(sku.final_calculated_cost)}
-                          </span>
-                          {sku.last_calculated_at && (
+                          <Badge variant="default" className="bg-purple-500 text-white">
+                            {record.active_template_name}
+                          </Badge>
+                          {record.template_usage_count && (
                             <p className="text-xs text-muted-foreground">
-                              {new Date(
-                                sku.last_calculated_at
-                              ).toLocaleDateString()}
+                              Used {record.template_usage_count} times
                             </p>
                           )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">No template</span>
+                      )}
+                    </TableCell>
+                    <TableCell onClick={() => setSelectedSKU(record.sku)}>
+                      {record.estimated_workflow_cost ? (
+                        <div>
+                          <span className="font-medium">
+                            ₹{Math.round(record.estimated_workflow_cost)}
+                          </span>
+                          <p className="text-xs text-muted-foreground">
+                            Workflow est.
+                          </p>
+                        </div>
+                      ) : record.final_calculated_cost ? (
+                        <div>
+                          <span className="font-medium">
+                            ₹{Math.round(record.final_calculated_cost)}
+                          </span>
+                          <p className="text-xs text-muted-foreground">
+                            Base cost
+                          </p>
                         </div>
                       ) : (
                         <Button
@@ -261,7 +328,7 @@ export function SKUManagement() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openCostModal(sku.sku);
+                            openCostModal(record.sku);
                           }}
                         >
                           <Calculator className="h-3 w-3 mr-1" />
@@ -269,76 +336,48 @@ export function SKUManagement() {
                         </Button>
                       )}
                     </TableCell>
-                    <TableCell onClick={() => setSelectedSKU(sku.sku)}>
-                      <Badge
-                        variant={
-                          sku.active_items_count > 0 ? "default" : "secondary"
-                        }
-                        className="bg-primary text-white"
-                      >
-                        {sku.active_items_count}
-                      </Badge>
-                    </TableCell>
-                    <TableCell onClick={() => setSelectedSKU(sku.sku)}>
-                      <Badge
-                        variant={
-                          sku.completed_items_count > 0
-                            ? "default"
-                            : "secondary"
-                        }
-                        className="bg-primary text-white"
-                      >
-                        {sku.completed_items_count}
-                      </Badge>
-                    </TableCell>
-                    <TableCell onClick={() => setSelectedSKU(sku.sku)}>
+                    <TableCell onClick={() => setSelectedSKU(record.sku)}>
                       <div className="flex items-center gap-2">
-                        <span>{sku.workflow_stages_count}</span>
-                        {sku.workflow_stages_count > 0 && (
-                          <Workflow className="h-3 w-3 text-muted-foreground" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell onClick={() => setSelectedSKU(sku.sku)}>
-                      <div className="flex items-center gap-2">
-                        <span>{sku.vendors_count}</span>
-                        {sku.vendors_count > 0 && (
+                        <span>{record.vendors_count}</span>
+                        {record.vendors_count > 0 && (
                           <Users className="h-3 w-3 text-muted-foreground" />
                         )}
+                        {record.avg_vendor_price && (
+                          <p className="text-xs text-muted-foreground">
+                            Avg: ₹{Math.round(record.avg_vendor_price)}
+                          </p>
+                        )}
                       </div>
                     </TableCell>
-                    <TableCell onClick={() => setSelectedSKU(sku.sku)}>
+                    <TableCell onClick={() => setSelectedSKU(record.sku)}>
                       <Badge
                         variant={
-                          sku.samples_count > 0 ? "default" : "secondary"
+                          record.sku_order_status === "All Completed" ? "default" :
+                          record.sku_order_status === "Partially Completed" ? "secondary" :
+                          record.sku_order_status === "In Progress" ? "outline" : "secondary"
                         }
-                        className="bg-primary text-white"
+                        className={
+                          record.sku_order_status === "All Completed" ? "bg-green-500 text-white" :
+                          record.sku_order_status === "Partially Completed" ? "bg-yellow-500 text-white" :
+                          record.sku_order_status === "In Progress" ? "bg-blue-500 text-white" : ""
+                        }
                       >
-                        {sku.samples_count}
+                        {record.sku_order_status}
                       </Badge>
-                    </TableCell>
-                    <TableCell onClick={() => setSelectedSKU(sku.sku)}>
-                      {sku.last_movement ? (
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(sku.last_movement).toLocaleDateString()}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setSelectedSKU(sku.sku)}
+                          onClick={() => setSelectedSKU(record.sku)}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openCostModal(sku.sku)}
+                          onClick={() => openCostModal(record.sku)}
                         >
                           <Calculator className="h-4 w-4" />
                         </Button>

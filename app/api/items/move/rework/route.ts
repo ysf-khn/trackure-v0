@@ -235,23 +235,62 @@ export async function POST(request: NextRequest) {
 
         try {
           // Start a transaction for each item
-          const { data: currentAllocation, error: allocationError } = await supabase
+          // Get all allocations for this item in the source stage to handle multiple allocation types
+          const { data: sourceAllocations, error: allocationError } = await supabase
             .from("item_stage_allocations")
-            .select("id, stage_id, quantity, organization_id")
+            .select("id, stage_id, quantity, organization_id, allocation_type")
             .eq("item_id", itemId)
             .eq("organization_id", organizationId)
             .eq("stage_id", source_stage_id)
-            .single();
+            .order("allocation_type", { ascending: true }); // 'normal' comes first (prefer reworking normal items)
+
+          // Select the best source allocation for reworking
+          let currentAllocation = null;
+          if (!allocationError && sourceAllocations && sourceAllocations.length > 0) {
+            console.log(`[Rework API] Found ${sourceAllocations.length} source allocations:`, 
+              sourceAllocations.map(a => ({ type: a.allocation_type, qty: a.quantity })));
+            
+            // Priority 1: Find normal allocation with sufficient quantity (prefer reworking normal items)
+            currentAllocation = sourceAllocations.find(alloc => 
+              alloc.allocation_type === 'normal' && alloc.quantity >= requestedQuantity
+            );
+            
+            // Priority 2: Find reworked allocation with sufficient quantity
+            if (!currentAllocation) {
+              currentAllocation = sourceAllocations.find(alloc => 
+                alloc.allocation_type === 'reworked' && alloc.quantity >= requestedQuantity
+              );
+            }
+            
+            // Priority 3: If no single allocation has enough, take the largest normal allocation first
+            if (!currentAllocation) {
+              const normalAllocations = sourceAllocations.filter(a => a.allocation_type === 'normal');
+              if (normalAllocations.length > 0) {
+                currentAllocation = normalAllocations.reduce((max, alloc) => 
+                  alloc.quantity > max.quantity ? alloc : max
+                );
+              }
+            }
+            
+            // Priority 4: Fall back to largest reworked allocation
+            if (!currentAllocation) {
+              currentAllocation = sourceAllocations.reduce((max, alloc) => 
+                alloc.quantity > max.quantity ? alloc : max
+              );
+            }
+          }
 
           if (allocationError || !currentAllocation) {
             console.error(`[Rework API] Allocation not found:`, {
               itemId,
               source_stage_id,
-              error: allocationError?.message
+              error: allocationError?.message,
+              allocationsFound: sourceAllocations?.length || 0,
+              allocationTypes: sourceAllocations?.map(a => a.allocation_type) || []
             });
             errors.push({
               itemId,
-              error: `Allocation for item not found in specified stage. ${allocationError?.message || ""}`,
+              error: `No suitable allocation found for item in specified stage. ${allocationError?.message || ""}`,
             });
             continue;
           }
@@ -274,20 +313,29 @@ export async function POST(request: NextRequest) {
             allocationId: currentAllocation.id,
             stageId: currentAllocation.stage_id,
             quantity: currentAllocation.quantity,
+            allocation_type: currentAllocation.allocation_type,
             requestedQuantity,
             moveType: requestedQuantity === currentAllocation.quantity ? "FULL_REWORK" : "PARTIAL_REWORK"
           });
 
           // First, check if target rework allocation exists
           // IMPORTANT: Rework ALWAYS goes to 'reworked' allocation type
-          const { data: targetAllocation, error: targetAllocationFetchError } = await supabase
+          const { data: targetAllocations, error: targetAllocationFetchError } = await supabase
             .from("item_stage_allocations")
             .select("id, quantity")
             .eq("item_id", itemId)
             .eq("organization_id", organizationId)
             .eq("stage_id", target_rework_stage_id)
-            .eq("allocation_type", "reworked") // Always target reworked allocation for rework moves
-            .maybeSingle();
+            .eq("allocation_type", "reworked"); // Always target reworked allocation for rework moves
+
+          let targetAllocation = null;
+          if (!targetAllocationFetchError && targetAllocations && targetAllocations.length > 0) {
+            // If there are multiple reworked allocations (shouldn't happen but handle it), use the first one
+            targetAllocation = targetAllocations[0];
+            if (targetAllocations.length > 1) {
+              console.warn(`[Rework API] Multiple reworked allocations found for item ${itemId} in stage ${target_rework_stage_id}, using first one`);
+            }
+          }
 
           if (targetAllocationFetchError) {
             errors.push({

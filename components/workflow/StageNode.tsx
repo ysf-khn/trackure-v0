@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Handle, Position } from "@xyflow/react";
-import { MapPin, Package, Dot } from "lucide-react";
+import { MapPin, Package, Dot, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -46,10 +46,26 @@ export function StageNode({ data }: StageNodeProps) {
   const hasReworked = detailedCount.reworkedQuantity > 0;
   const hasChildren = stage.children && stage.children.length > 0;
   const isLeafStage = stage.is_leaf_stage;
+  const isSystemStage = stage.is_system_stage || stageName.toLowerCase().includes("completed");
 
   // Determine node styling based on level and status
   const getNodeStyling = () => {
     const baseClasses = "relative transition-all duration-200 ease-in-out";
+
+    // System/Completion stage styling
+    if (isSystemStage) {
+      return {
+        className: cn(
+          baseClasses,
+          isCurrentStage 
+            ? "bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-400 shadow-lg shadow-green-200/50 ring-2 ring-green-300 ring-opacity-50"
+            : "bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 shadow-lg hover:shadow-xl hover:shadow-green-200/50"
+        ),
+        boxShadow: isCurrentStage
+          ? "0 8px 25px -5px rgba(34, 197, 94, 0.3), 0 4px 10px -6px rgba(34, 197, 94, 0.3)"
+          : "0 6px 20px -5px rgba(34, 197, 94, 0.2), 0 4px 8px -4px rgba(34, 197, 94, 0.2)",
+      };
+    }
 
     if (isCurrentStage) {
       return {
@@ -201,7 +217,7 @@ export function StageNode({ data }: StageNodeProps) {
                     : level === 1
                       ? "text-sm"
                       : "text-xs",
-                  isCurrentStage ? "text-blue-700" : "text-gray-900"
+                  isCurrentStage ? "text-blue-700" : isSystemStage ? "text-green-700" : "text-gray-900"
                 )}
               >
                 {stageName}
@@ -220,7 +236,9 @@ export function StageNode({ data }: StageNodeProps) {
 
             {/* Stage type indicator */}
             <div className="flex items-center gap-1 ml-2">
-              {isLeafStage ? (
+              {isSystemStage ? (
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              ) : isLeafStage ? (
                 <Dot className="h-4 w-4 text-green-500" />
               ) : hasChildren ? (
                 <Package className="h-4 w-4 text-blue-500" />

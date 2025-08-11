@@ -447,6 +447,11 @@ export async function POST(
             ...(component.instance_details || {}),
           };
 
+          // Clean merged instance details to avoid dual storage conflicts
+          const cleanedMergedDetails = { ...mergedInstanceDetails };
+          delete cleanedMergedDetails.buyer_id;
+          delete cleanedMergedDetails.total_quantity;
+
           // Create the component item
           const { data: componentItem, error: componentItemError } =
             await supabase
@@ -455,7 +460,7 @@ export async function POST(
                 order_id: orderId,
                 sku: component.component_sku,
                 buyer_id: instance_details?.buyer_id,
-                instance_details: mergedInstanceDetails,
+                instance_details: cleanedMergedDetails,
                 total_quantity: componentTotalQuantity,
                 remaining_quantity: componentTotalQuantity,
                 organization_id: orgId,
@@ -515,13 +520,18 @@ export async function POST(
     }
 
     // 4. INSERT into items table (for regular items only)
+    // Clean instance_details to avoid dual storage conflicts
+    const cleanedInstanceDetails = { ...instance_details };
+    delete cleanedInstanceDetails.buyer_id;
+    delete cleanedInstanceDetails.total_quantity;
+
     const { data: newItem, error: itemInsertError } = await supabase
       .from("items")
       .insert({
         order_id: orderId,
         organization_id: orgId,
         sku: sku,
-        instance_details: instance_details || {},
+        instance_details: cleanedInstanceDetails || {},
         buyer_id: instance_details?.buyer_id,
         total_quantity: instance_details?.total_quantity,
         remaining_quantity: instance_details?.total_quantity,

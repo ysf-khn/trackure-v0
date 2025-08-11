@@ -13,9 +13,15 @@ import {
   ExternalLink,
   History,
   Calculator,
-  Plus
+  Plus,
+  Clock,
+  CheckCircle,
+  Circle,
+  Star,
+  Save
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 
 import {
   Dialog,
@@ -38,6 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CreateTemplateModal } from "./create-template-modal";
 
 interface SKUDetailsModalProps {
   sku: string;
@@ -51,6 +58,7 @@ export function SKUDetailsModal({
   onOpenChange,
 }: SKUDetailsModalProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "workflow" | "vendors" | "samples" | "costs">("overview");
+  const [isCreateTemplateModalOpen, setIsCreateTemplateModalOpen] = useState(false);
 
   const { data: skuDetails, isLoading, error } = useQuery({
     queryKey: ["sku-details", sku],
@@ -63,6 +71,19 @@ export function SKUDetailsModal({
       return response.json();
     },
     enabled: open && !!sku,
+  });
+
+  const { data: templateData, isLoading: templateLoading } = useQuery({
+    queryKey: ["sku-templates", sku],
+    queryFn: async () => {
+      const response = await fetch(`/api/sku-management/${sku}/templates`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch template data");
+      }
+      return response.json();
+    },
+    enabled: open && !!sku && activeTab === "workflow",
   });
 
   if (isLoading) {
@@ -277,20 +298,291 @@ export function SKUDetailsModal({
         )}
 
         {activeTab === "workflow" && (
-          <div className="space-y-4">
-            <Card className="text-center py-12">
-              <CardContent>
-                <Workflow className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Workflow configuration</h3>
-                <p className="text-muted-foreground mb-4">
-                  SKU-specific workflow stages will be displayed here.
-                </p>
-                <Button>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Configure Workflow
-                </Button>
-              </CardContent>
-            </Card>
+          <div className="space-y-6">
+            {templateLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-48 w-full" />
+              </div>
+            ) : templateData?.templates?.length > 0 ? (
+              <div className="space-y-6">
+                {/* Current Active Template */}
+                {templateData.template_usage_stats.active_template && (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Star className="h-5 w-5 text-yellow-500" />
+                          Active Template
+                        </CardTitle>
+                        <Badge variant="default" className="bg-green-500 text-white">
+                          Current
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <h4 className="font-medium">{templateData.template_usage_stats.active_template.name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {templateData.template_usage_stats.active_template.description || "No description"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Performance</p>
+                          <p className="text-sm text-muted-foreground">
+                            {templateData.template_usage_stats.active_template.completed_count} completions
+                          </p>
+                          {templateData.template_usage_stats.active_template.avg_completion_days && (
+                            <p className="text-sm text-muted-foreground">
+                              Avg: {Math.round(templateData.template_usage_stats.active_template.avg_completion_days)} days
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Stages</p>
+                          <p className="text-sm text-muted-foreground">
+                            {templateData.template_usage_stats.active_template.stages?.length || 0} workflow stages
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Template History */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <History className="h-5 w-5" />
+                      Template History
+                    </CardTitle>
+                    <CardDescription>
+                      All workflow templates created for this SKU
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {templateData.templates.map((template: any) => (
+                        <div
+                          key={template.id}
+                          className={`border rounded-lg p-4 ${template.is_active ? 'border-green-300 bg-green-50/30' : 'border-gray-200'}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {template.is_active ? (
+                                <CheckCircle className="h-5 w-5 text-green-500" />
+                              ) : (
+                                <Circle className="h-5 w-5 text-gray-400" />
+                              )}
+                              <div>
+                                <h4 className="font-medium">{template.name}</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  Created {new Date(template.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <div className="text-center">
+                                <p className="font-medium">{template.completed_count}</p>
+                                <p>Uses</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="font-medium">{template.stages?.length || 0}</p>
+                                <p>Stages</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="font-medium">{template.performance_score}%</p>
+                                <p>Score</p>
+                              </div>
+                              {template.avg_completion_days && (
+                                <div className="text-center">
+                                  <p className="font-medium">{Math.round(template.avg_completion_days)}</p>
+                                  <p>Days</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {template.description && (
+                            <p className="text-sm text-muted-foreground mt-2">
+                              {template.description}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Current Workflow Stages */}
+                {templateData.current_workflow.stages.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Workflow className="h-5 w-5" />
+                          Current Workflow Stages
+                        </CardTitle>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsCreateTemplateModalOpen(true)}
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          Save as Template
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {templateData.current_workflow.stages.map((stage: any) => (
+                          <div
+                            key={stage.id}
+                            className="flex items-center justify-between p-3 border rounded-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
+                                stage.is_leaf_stage ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {stage.sequence_order}
+                              </div>
+                              <div>
+                                <p className="font-medium">{stage.name}</p>
+                                {stage.location && (
+                                  <p className="text-sm text-muted-foreground">{stage.location}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {stage.is_leaf_stage && (
+                                <Badge variant="outline">Leaf Stage</Badge>
+                              )}
+                              <Badge variant="secondary">
+                                Level {stage.depth_level}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Vendor Pricing Summary */}
+                {templateData.current_workflow.vendor_pricing.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Users className="h-5 w-5" />
+                        Configured Vendors ({templateData.current_workflow.vendor_pricing.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {templateData.current_workflow.vendor_pricing.map((pricing: any) => (
+                          <div
+                            key={pricing.id}
+                            className="flex items-center justify-between p-3 border rounded-lg"
+                          >
+                            <div>
+                              <p className="font-medium">{pricing.vendors.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {pricing.workflow_stages.name}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-medium">
+                                ₹{pricing.price} {pricing.currency || 'INR'}
+                              </p>
+                              {pricing.lead_time_days && (
+                                <p className="text-sm text-muted-foreground">
+                                  {pricing.lead_time_days} days lead time
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            ) : (
+              // Check if there's a current workflow even without templates
+              templateData?.current_workflow?.stages?.length > 0 ? (
+                <div className="space-y-6">
+                  {/* Show current workflow and save option */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Workflow className="h-5 w-5" />
+                          Current Workflow ({templateData.current_workflow.stages.length} stages)
+                        </CardTitle>
+                        <Button
+                          variant="default"
+                          onClick={() => setIsCreateTemplateModalOpen(true)}
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          Save as Template
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-muted-foreground mb-4">
+                        You have a configured workflow but no saved templates. Save your current workflow as a template for future use.
+                      </p>
+                      <div className="space-y-2">
+                        {templateData.current_workflow.stages.map((stage: any) => (
+                          <div
+                            key={stage.id}
+                            className="flex items-center justify-between p-3 border rounded-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
+                                stage.is_leaf_stage ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {stage.sequence_order}
+                              </div>
+                              <div>
+                                <p className="font-medium">{stage.name}</p>
+                                {stage.location && (
+                                  <p className="text-sm text-muted-foreground">{stage.location}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {stage.is_leaf_stage && (
+                                <Badge variant="outline">Leaf Stage</Badge>
+                              )}
+                              <Badge variant="secondary">
+                                Level {stage.depth_level}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <Card className="text-center py-12">
+                  <CardContent>
+                    <Workflow className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">No workflow configured</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Configure a workflow for this SKU to manage production stages and vendor assignments.
+                    </p>
+                    <Link href={`/settings?tab=workflow&sku=${encodeURIComponent(sku)}`}>
+                      <Button>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Configure Workflow
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              )
+            )}
           </div>
         )}
 
@@ -348,6 +640,13 @@ export function SKUDetailsModal({
           </div>
         )}
       </DialogContent>
+
+      {/* Create Template Modal */}
+      <CreateTemplateModal
+        sku={sku}
+        open={isCreateTemplateModalOpen}
+        onOpenChange={setIsCreateTemplateModalOpen}
+      />
     </Dialog>
   );
 }
