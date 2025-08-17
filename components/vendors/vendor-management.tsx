@@ -4,7 +4,13 @@ import { useState } from "react";
 import { Plus, Building, Phone, Mail, MapPin, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -64,7 +70,9 @@ export function VendorManagement() {
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-3 w-full max-w-4xl">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Vendors</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Total Vendors
+              </CardTitle>
               <Building className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -73,20 +81,28 @@ export function VendorManagement() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Vendors</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Active Vendors
+              </CardTitle>
               <Building className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{meta?.active_count || 0}</div>
+              <div className="text-2xl font-bold text-green-600">
+                {meta?.active_count || 0}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Inactive Vendors</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Inactive Vendors
+              </CardTitle>
               <Building className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-muted-foreground">{meta?.inactive_count || 0}</div>
+              <div className="text-2xl font-bold text-muted-foreground">
+                {meta?.inactive_count || 0}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -103,7 +119,8 @@ export function VendorManagement() {
             <Building className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">No vendors yet</h3>
             <p className="text-muted-foreground mb-4">
-              Get started by adding your first vendor to manage pricing for workflow stages.
+              Get started by adding your first vendor to manage pricing for
+              workflow stages.
             </p>
             <Button onClick={() => setIsAddModalOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -114,8 +131,8 @@ export function VendorManagement() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {vendors.map((vendor) => (
-            <Card 
-              key={vendor.id} 
+            <Card
+              key={vendor.id}
               className="cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => router.push(`/vendors/${vendor.id}`)}
             >
@@ -128,7 +145,10 @@ export function VendorManagement() {
                     )}
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Badge variant={vendor.is_active ? "default" : "secondary"}>
+                    <Badge
+                      variant={vendor.is_active ? "default" : "secondary"}
+                      className="text-white"
+                    >
                       {vendor.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </div>
@@ -148,26 +168,34 @@ export function VendorManagement() {
                       <span className="line-clamp-2">{vendor.address}</span>
                     </div>
                   )}
-                  
+
                   {/* Vendor stats */}
                   <div className="pt-2 border-t border-border">
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <span className="text-muted-foreground">Pricing:</span>
-                        <span className="ml-1 font-medium">{vendor.stats?.active_pricing_count || 0}</span>
+                        <span className="ml-1 font-medium">
+                          {vendor.stats?.active_pricing_count || 0}
+                        </span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">SKUs:</span>
-                        <span className="ml-1 font-medium">{vendor.stats?.supported_skus || 0}</span>
+                        <span className="ml-1 font-medium">
+                          {vendor.stats?.supported_skus || 0}
+                        </span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Stages:</span>
-                        <span className="ml-1 font-medium">{vendor.stats?.supported_stages || 0}</span>
+                        <span className="ml-1 font-medium">
+                          {vendor.stats?.supported_stages || 0}
+                        </span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Avg Lead:</span>
                         <span className="ml-1 font-medium">
-                          {vendor.stats?.avg_lead_time ? `${Math.round(vendor.stats.avg_lead_time)}d` : "-"}
+                          {vendor.stats?.avg_lead_time
+                            ? `${Math.round(vendor.stats.avg_lead_time)}d`
+                            : "-"}
                         </span>
                       </div>
                     </div>
@@ -180,10 +208,7 @@ export function VendorManagement() {
       )}
 
       {/* Modals */}
-      <AddVendorModal
-        open={isAddModalOpen}
-        onOpenChange={setIsAddModalOpen}
-      />
+      <AddVendorModal open={isAddModalOpen} onOpenChange={setIsAddModalOpen} />
     </div>
   );
 }

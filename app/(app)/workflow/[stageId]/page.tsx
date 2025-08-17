@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   MapPin,
   Terminal,
@@ -10,6 +11,7 @@ import {
   Building2,
   DollarSign,
   Clock,
+  AlertCircle,
 } from "lucide-react";
 
 import { ItemListTable } from "@/components/items/item-list-table";
@@ -21,8 +23,12 @@ import { useStage } from "@/hooks/queries/use-stage";
 import { useSingleStageItemCounts } from "@/hooks/queries/use-single-stage-item-counts";
 import { useStageVendorPricing } from "@/hooks/queries/use-stage-vendor-pricing";
 import { useOrderSelection } from "@/contexts/order-selection-context";
+import { useSKUSelection } from "@/contexts/sku-selection-context";
+import { useWorkflowStructure } from "@/hooks/queries/use-workflow-structure";
 import { Suspense } from "react";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { AssignVendorModal } from "@/components/workflow/assign-vendor-modal";
 
 // Define types for stage data with tree structure
 interface StageData {
@@ -40,6 +46,7 @@ interface StageData {
 // Component for stage view content
 function StageViewContent() {
   const params = useParams();
+  const router = useRouter();
 
   // --- Authentication ---
   const {
@@ -52,7 +59,11 @@ function StageViewContent() {
   const stageId = params.stageId as string | undefined;
 
   // --- Global selections ---
-  const { selectedOrderNumber } = useOrderSelection();
+  const { selectedOrderNumber, selectedOrderId } = useOrderSelection();
+  const { selectedSKU } = useSKUSelection();
+
+  // --- Vendor Assignment Modal State ---
+  const [isVendorModalOpen, setIsVendorModalOpen] = React.useState(false);
 
   // --- Fetch Stage Data ---
   const {
@@ -73,6 +84,43 @@ function StageViewContent() {
   const vendorPricing = vendorPricingData?.vendorPricing || [];
   const primaryVendor =
     vendorPricing.find((vp) => vp.vendor?.is_active) || vendorPricing[0];
+
+  // --- Fetch workflow structure for the selected SKU to find first stage ---
+  const { data: workflowData } = useWorkflowStructure(
+    organizationId,
+    selectedSKU
+  );
+
+  // Find first leaf stage for navigation
+  const getFirstWorkflowStage = React.useMemo(() => {
+    if (!workflowData || workflowData.length === 0) return null;
+
+    const findFirstLeafStage = (stages: typeof workflowData): string | null => {
+      for (const stage of stages) {
+        if (
+          stage.is_leaf_stage ||
+          !stage.children ||
+          stage.children.length === 0
+        ) {
+          return stage.id;
+        }
+        if (stage.children && stage.children.length > 0) {
+          const childResult = findFirstLeafStage(stage.children);
+          if (childResult) return childResult;
+        }
+      }
+      return null;
+    };
+
+    return findFirstLeafStage(workflowData);
+  }, [workflowData]);
+
+  // Check for SKU mismatch
+  const skuMismatch = React.useMemo(() => {
+    if (!stageData || !selectedSKU) return false;
+    // Check if the stage's SKU doesn't match the selected SKU
+    return stageData.sku && stageData.sku !== selectedSKU;
+  }, [stageData, selectedSKU]);
 
   // --- Loading and Error States ---
   if (isAuthLoading || isStageLoading) {
@@ -152,6 +200,32 @@ function StageViewContent() {
   // --- Main Content ---
   return (
     <div className="flex flex-col space-y-3">
+      {/* SKU Mismatch Warning */}
+      {skuMismatch && (
+        <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>SKU Mismatch</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>
+              This stage belongs to SKU <strong>{stageData?.sku}</strong> but
+              you have selected SKU <strong>{selectedSKU}</strong>.
+            </p>
+            {getFirstWorkflowStage && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  router.push(`/workflow/${getFirstWorkflowStage}`)
+                }
+                className="mt-2"
+              >
+                Go to {selectedSKU} workflow
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Current Stage Details */}
       <div className="space-y-3">
         {/* Stage Header */}
@@ -164,70 +238,119 @@ function StageViewContent() {
               </span>
             )}
           </h2>
-          <Badge variant="outline">
-            Sequence Order: {(stageData?.sequence_order ?? 0) + 1}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {stageData?.is_leaf_stage && selectedSKU && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsVendorModalOpen(true)}
+                disabled={!selectedSKU}
+              >
+                <Building2 className="h-4 w-4 mr-2" />
+                Assign Vendor
+              </Button>
+            )}
+            <Badge variant="outline">
+              Sequence Order: {(stageData?.sequence_order ?? 0) + 1}
+            </Badge>
+          </div>
         </div>
 
-        {/* Vendor and Cost Info */}
-        <div className="flex items-center gap-6 flex-wrap">
-          {stageData?.location && (
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <MapPin className="h-3 w-3" />
-              <span>{stageData.location}</span>
-            </div>
-          )}
+        {/* Location Info */}
+        {stageData?.location && (
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <MapPin className="h-3 w-3" />
+            <span>{stageData.location}</span>
+          </div>
+        )}
 
-          {isLoadingPricing ? (
-            <>
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-20" />
-            </>
-          ) : primaryVendor ? (
-            <>
+        {/* Vendor Details */}
+        {isLoadingPricing ? (
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-20 w-full max-w-md" />
+          </div>
+        ) : vendorPricing && vendorPricing.length > 0 ? (
+          <div className="bg-muted/50 rounded-lg p-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              {/* Vendor Name */}
               <div className="flex items-center gap-2">
-                <Building2 className="h-3 w-3 text-muted-foreground" />
-                <span className="text-sm">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                {vendorPricing[0].vendor?.id ? (
+                  <Link 
+                    href={`/vendors/${vendorPricing[0].vendor.id}`}
+                    className="font-medium hover:underline text-primary"
+                  >
+                    {vendorPricing[0].vendor?.name || "Unknown Vendor"}
+                    {vendorPricing[0].vendor?.firm_name && (
+                      <span className="text-muted-foreground ml-1">
+                        • {vendorPricing[0].vendor?.firm_name}
+                      </span>
+                    )}
+                  </Link>
+                ) : (
                   <span className="font-medium">
-                    {primaryVendor.vendor?.name}
+                    {vendorPricing[0].vendor?.name || "Unknown Vendor"}
+                    {vendorPricing[0].vendor?.firm_name && (
+                      <span className="text-muted-foreground ml-1">
+                        • {vendorPricing[0].vendor?.firm_name}
+                      </span>
+                    )}
                   </span>
-                  {primaryVendor.vendor?.firm_name && (
-                    <span className="text-muted-foreground">
-                      {" "}
-                      • {primaryVendor.vendor?.firm_name}
-                    </span>
-                  )}
-                </span>
+                )}
               </div>
 
-              {primaryVendor.price && (
-                <div className="flex items-center gap-1.5">
-                  <DollarSign className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-sm font-medium">
-                    {primaryVendor.currency} {primaryVendor.price.toFixed(2)}
+              {/* Pricing Info */}
+              <div className="flex items-center gap-6">
+                {/* Price per piece */}
+                <div className="text-sm">
+                  <span className="text-muted-foreground mr-2">
+                    Price per piece:
+                  </span>
+                  <span className="font-medium">
+                    {vendorPricing[0].latestOrder?.currency || vendorPricing[0].currency === "INR"
+                      ? "₹"
+                      : vendorPricing[0].latestOrder?.currency || vendorPricing[0].currency}{" "}
+                    {(vendorPricing[0].latestOrder?.unit_price || vendorPricing[0].price).toFixed(2)}
                   </span>
                 </div>
-              )}
 
-              {primaryVendor.lead_time_days && (
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  <span>{primaryVendor.lead_time_days} days</span>
-                </div>
-              )}
+                {/* Quantity from order */}
+                {vendorPricing[0].latestOrder?.quantity && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground mr-2">Quantity:</span>
+                    <span className="font-medium">
+                      {vendorPricing[0].latestOrder.quantity} pieces
+                    </span>
+                  </div>
+                )}
 
-              {vendorPricing && vendorPricing.length > 1 && (
+                {/* Total Price from order */}
+                {vendorPricing[0].latestOrder?.total_amount && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground mr-2">Total:</span>
+                    <span className="font-medium text-primary">
+                      {vendorPricing[0].latestOrder.currency === "INR"
+                        ? "₹"
+                        : vendorPricing[0].latestOrder.currency}{" "}
+                      {vendorPricing[0].latestOrder.total_amount.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Multiple vendors badge */}
+              {vendorPricing.length > 1 && (
                 <Badge variant="secondary" className="text-xs">
-                  +{vendorPricing.length - 1} vendors
+                  +{vendorPricing.length - 1} more
                 </Badge>
               )}
-            </>
-          ) : (
-            <span className="text-sm text-muted-foreground">
-              No vendor assigned
-            </span>
-          )}
-        </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">
+            No vendor assigned to this stage
+          </div>
+        )}
       </div>
 
       <Separator />
@@ -238,6 +361,18 @@ function StageViewContent() {
           <ItemListTable stageId={stageId} organizationId={organizationId} />
         )}
       </div>
+
+      {/* Vendor Assignment Modal */}
+      {stageData && selectedSKU && stageId && (
+        <AssignVendorModal
+          sku={selectedSKU}
+          stageId={stageId}
+          stageName={stageData.name || ""}
+          orderId={selectedOrderId}
+          open={isVendorModalOpen}
+          onOpenChange={setIsVendorModalOpen}
+        />
+      )}
     </div>
   );
 }

@@ -18,6 +18,8 @@ interface ItemDetails {
   order_id: string;
   composite_group_id?: string | null;
   parent_composite_sku?: string | null;
+  is_replacement?: boolean;
+  replaced_item_id?: string | null;
   orders: {
     order_number: string | null;
   };
@@ -28,6 +30,7 @@ interface ItemDetails {
 interface ItemAllocation {
   stage_id: string;
   quantity: number;
+  allocation_type: string;
   items: ItemDetails | ItemDetails[];
 }
 
@@ -42,13 +45,16 @@ export interface ItemInStage {
   current_stage_history_id: number | null; // ID of the item_history entry for entering the current stage
   quantity: number; // Add quantity field
   // Entry type information
-  entry_type: 'normal' | 'reworked'; // Whether this is a normal or reworked entry
+  entry_type: 'normal' | 'reworked' | 'replacement'; // Whether this is a normal, reworked, or replacement entry
   rework_reasons?: string[]; // Rework reasons for reworked entries
   // Source item information (for creating separate entries)
   source_item_id: string; // The actual item ID from the items table
   // Composite item fields
   composite_group_id?: string | null;
   parent_composite_sku?: string | null;
+  // Replacement tracking
+  is_replacement?: boolean;
+  replaced_item_id?: string | null;
   // Add other relevant item fields as needed
 }
 
@@ -64,13 +70,16 @@ const fetchItemsInStage = async (
     .select(
       `
       stage_id,
-      quantity, 
+      quantity,
+      allocation_type,
       items:items!inner (
         id,
         sku,
         order_id,
         composite_group_id,
         parent_composite_sku,
+        is_replacement,
+        replaced_item_id,
         orders:orders!inner (
           order_number
         ),
@@ -142,144 +151,51 @@ const fetchItemsInStage = async (
 
         const latestEntryForCurrentStage = currentStageMovement[0] ?? null;
 
-        // Simplified approach: Create separate entries for normal and reworked items
-        const entries: ItemInStage[] = [];
-        
-        // Get all rework movements TO this stage for this item
-        const reworkMovementsToStage = movementEntries.filter(
-          (h: HistoryMovementEntry) => 
-            h.to_stage_id === typedAlloc.stage_id && 
-            (h.rework_type === 'backward' || 
-             h.rework_type === 'rework' || 
-             (h.rework_reason !== null && h.rework_reason !== undefined))
-        );
-
-        // Get ALL movements FROM this stage for this item (any items leaving)
-        const allMovementsFromStage = movementEntries.filter(
-          (h: HistoryMovementEntry) => h.from_stage_id === typedAlloc.stage_id
-        );
-
-        // Get rework movements FROM this stage for this item (rework items leaving)
-        const reworkMovementsFromStage = allMovementsFromStage.filter(
-          (h: HistoryMovementEntry) => 
-            (h.rework_type === 'backward' || 
-             h.rework_type === 'rework' || 
-             (h.rework_reason !== null && h.rework_reason !== undefined))
-        );
-
-        // Get normal movements FROM this stage (forward movements of any items)
-        const normalMovementsFromStage = allMovementsFromStage.filter(
-          (h: HistoryMovementEntry) => 
-            !h.rework_type && 
-            (h.rework_reason === null || h.rework_reason === undefined)
-        );
-
-        // Calculate quantities
-        const totalReworkQuantityIn = reworkMovementsToStage.reduce(
-          (sum, movement) => sum + (movement.quantity || 0), 0
-        );
-        
-        const totalReworkQuantityOut = reworkMovementsFromStage.reduce(
-          (sum, movement) => sum + (movement.quantity || 0), 0
-        );
-
-        const totalNormalQuantityOut = normalMovementsFromStage.reduce(
-          (sum, movement) => sum + (movement.quantity || 0), 0
-        );
-
-        // Calculate the theoretical composition before any movements out
-        const grossReworkQuantity = totalReworkQuantityIn;
-        const currentAllocation = typedAlloc.quantity;
-        
-        // Smart allocation logic: when items move forward, prioritize reducing reworked items first
-        let currentReworkQuantity = grossReworkQuantity;
-        let currentNormalQuantity = 0;
-
-        // First, subtract rework movements (reworked items going back)
-        currentReworkQuantity = Math.max(0, currentReworkQuantity - totalReworkQuantityOut);
-
-        // Then, subtract normal movements from whichever type has available quantity
-        let remainingNormalMovements = totalNormalQuantityOut;
-        if (remainingNormalMovements > 0 && currentReworkQuantity > 0) {
-          // If we have reworked items, forward movements should reduce reworked items first
-          const reworkedItemsMovedForward = Math.min(remainingNormalMovements, currentReworkQuantity);
-          currentReworkQuantity -= reworkedItemsMovedForward;
-          remainingNormalMovements -= reworkedItemsMovedForward;
+        // Determine entry type based on item properties and allocation type
+        let entryType: 'normal' | 'reworked' | 'replacement' = 'normal';
+        if (itemDetails.is_replacement) {
+          entryType = 'replacement';
+        } else if (typedAlloc.allocation_type === 'reworked') {
+          entryType = 'reworked';
         }
 
-        // Calculate normal quantity as the remainder
-        const totalAccountedForRework = Math.max(0, grossReworkQuantity - totalReworkQuantityOut - Math.min(totalNormalQuantityOut, grossReworkQuantity));
-        currentNormalQuantity = currentAllocation - totalAccountedForRework;
+        const entry: ItemInStage = {
+          id: `${itemDetails.id}_${typedAlloc.allocation_type}`,
+          source_item_id: itemDetails.id,
+          sku: itemDetails.sku,
+          order_id: itemDetails.order_id,
+          order_number: itemDetails.orders?.order_number ?? null,
+          instance_details: itemDetails.instance_details,
+          current_stage_id: typedAlloc.stage_id,
+          current_stage_entered_at: latestEntryForCurrentStage?.moved_at ?? null,
+          current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
+          quantity: typedAlloc.quantity,
+          entry_type: entryType,
+          composite_group_id: itemDetails.composite_group_id,
+          parent_composite_sku: itemDetails.parent_composite_sku,
+          is_replacement: itemDetails.is_replacement,
+          replaced_item_id: itemDetails.replaced_item_id,
+        };
 
-        // Ensure quantities are non-negative and don't exceed allocation
-        currentReworkQuantity = Math.max(0, Math.min(currentReworkQuantity, currentAllocation));
-        currentNormalQuantity = Math.max(0, currentAllocation - currentReworkQuantity);
-
-        // Get unique rework reasons for display
-        const reworkReasons = reworkMovementsToStage
-          .map(m => m.rework_reason)
-          .filter((reason): reason is string => reason !== null && reason !== undefined)
-          .filter((reason, index, arr) => arr.indexOf(reason) === index);
-
-        // Create normal entry if there's normal quantity
-        if (currentNormalQuantity > 0) {
-          entries.push({
-            id: `${itemDetails.id}_normal`,
-            source_item_id: itemDetails.id,
-            sku: itemDetails.sku,
-            order_id: itemDetails.order_id,
-            order_number: itemDetails.orders?.order_number ?? null,
-            instance_details: itemDetails.instance_details,
-            current_stage_id: typedAlloc.stage_id,
-            current_stage_entered_at: latestEntryForCurrentStage?.moved_at ?? null,
-            current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
-            quantity: currentNormalQuantity,
-            entry_type: 'normal',
-            composite_group_id: itemDetails.composite_group_id,
-            parent_composite_sku: itemDetails.parent_composite_sku,
-          });
+        // Add rework reasons for reworked entries by analyzing movement history
+        if (typedAlloc.allocation_type === 'reworked') {
+          const reworkMovementsToStage = movementEntries.filter(
+            (h: HistoryMovementEntry) => 
+              h.to_stage_id === typedAlloc.stage_id && 
+              (h.rework_type === 'backward' || 
+               h.rework_type === 'rework' || 
+               (h.rework_reason !== null && h.rework_reason !== undefined))
+          );
+          
+          const reworkReasons = reworkMovementsToStage
+            .map(m => m.rework_reason)
+            .filter((reason): reason is string => reason !== null && reason !== undefined)
+            .filter((reason, index, arr) => arr.indexOf(reason) === index);
+          
+          entry.rework_reasons = reworkReasons;
         }
 
-        // Create reworked entry if there's reworked quantity
-        if (currentReworkQuantity > 0) {
-          entries.push({
-            id: `${itemDetails.id}_reworked`,
-            source_item_id: itemDetails.id,
-            sku: itemDetails.sku,
-            order_id: itemDetails.order_id,
-            order_number: itemDetails.orders?.order_number ?? null,
-            instance_details: itemDetails.instance_details,
-            current_stage_id: typedAlloc.stage_id,
-            current_stage_entered_at: latestEntryForCurrentStage?.moved_at ?? null,
-            current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
-            quantity: currentReworkQuantity,
-            entry_type: 'reworked',
-            rework_reasons: reworkReasons,
-            composite_group_id: itemDetails.composite_group_id,
-            parent_composite_sku: itemDetails.parent_composite_sku,
-          });
-        }
-
-        // If no entries were created (edge case), create a single normal entry
-        if (entries.length === 0) {
-          entries.push({
-            id: `${itemDetails.id}_normal`,
-            source_item_id: itemDetails.id,
-            sku: itemDetails.sku,
-            order_id: itemDetails.order_id,
-            order_number: itemDetails.orders?.order_number ?? null,
-            instance_details: itemDetails.instance_details,
-            current_stage_id: typedAlloc.stage_id,
-            current_stage_entered_at: latestEntryForCurrentStage?.moved_at ?? null,
-            current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
-            quantity: currentAllocation,
-            entry_type: 'normal',
-            composite_group_id: itemDetails.composite_group_id,
-            parent_composite_sku: itemDetails.parent_composite_sku,
-          });
-        }
-
-        return entries;
+        return [entry];
       })
       // Filter out any nulls that might have occurred
       .filter(Boolean) || [];

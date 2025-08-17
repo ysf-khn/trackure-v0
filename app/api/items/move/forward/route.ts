@@ -18,6 +18,7 @@ const moveForwardSchema = z.object({
       z.object({
         id: z.string().uuid(),
         quantity: z.number().positive("Quantity must be a positive number."),
+        allocation_id: z.string().uuid().optional(), // User can specify exact allocation to move from
       })
     )
     .min(1, "At least one item is required."),
@@ -201,51 +202,42 @@ export async function POST(request: Request) {
       return undefined;
     };
 
-    // Helper function to select the best allocation for forward movement
-    // Priority: reworked items first (clear rework backlog), then normal items
-    const selectBestAllocationForForward = (
-      allocations: any[], 
-      requestedQuantity: number, 
-      requireSufficientQuantity: boolean = true
+    // Helper function to select allocation without prioritization  
+    // Simply finds first allocation with sufficient quantity, or largest available
+    const selectAllocationForMovement = (
+      allocations: any[],
+      requestedQuantity: number,
+      specifiedAllocationId?: string
     ): any | null => {
       if (!allocations || allocations.length === 0) return null;
       
-      console.log(`[Forward Movement] Selecting from allocations:`, 
-        allocations.map(a => ({ type: a.allocation_type, qty: a.quantity })));
+      console.log(`[Movement] Selecting from allocations:`, 
+        allocations.map(a => ({ id: a.id, type: a.allocation_type, qty: a.quantity })));
       
-      // Priority 1: Find reworked allocation with sufficient quantity (clear rework backlog)
-      let selected = allocations.find(alloc => 
-        alloc.allocation_type === 'reworked' && 
-        (!requireSufficientQuantity || alloc.quantity >= requestedQuantity)
-      );
-      
-      // Priority 2: Find normal allocation with sufficient quantity
-      if (!selected) {
-        selected = allocations.find(alloc => 
-          alloc.allocation_type === 'normal' && 
-          (!requireSufficientQuantity || alloc.quantity >= requestedQuantity)
-        );
-      }
-      
-      // Priority 3: If no sufficient quantity found and not required, take largest reworked
-      if (!selected && !requireSufficientQuantity) {
-        const reworkedAllocations = allocations.filter(a => a.allocation_type === 'reworked');
-        if (reworkedAllocations.length > 0) {
-          selected = reworkedAllocations.reduce((max, alloc) => 
-            alloc.quantity > max.quantity ? alloc : max
-          );
+      // If user specified an allocation ID, use that one
+      if (specifiedAllocationId) {
+        const specified = allocations.find(alloc => alloc.id === specifiedAllocationId);
+        if (specified && specified.quantity >= requestedQuantity) {
+          console.log(`[Movement] Using user-specified allocation:`, { id: specified.id, type: specified.allocation_type, qty: specified.quantity });
+          return specified;
+        } else {
+          console.log(`[Movement] Specified allocation not found or insufficient quantity`);
+          return null;
         }
       }
       
-      // Priority 4: Fall back to largest allocation of any type
-      if (!selected && !requireSufficientQuantity) {
+      // Find first allocation with sufficient quantity (no prioritization)
+      let selected = allocations.find(alloc => alloc.quantity >= requestedQuantity);
+      
+      // If no allocation has enough quantity, take the largest one
+      if (!selected) {
         selected = allocations.reduce((max, alloc) => 
           alloc.quantity > max.quantity ? alloc : max
         );
       }
       
-      console.log(`[Forward Movement] Selected allocation:`, 
-        selected ? { type: selected.allocation_type, qty: selected.quantity } : null);
+      console.log(`[Movement] Selected allocation:`, 
+        selected ? { id: selected.id, type: selected.allocation_type, qty: selected.quantity } : null);
       
       return selected;
     };
@@ -337,6 +329,7 @@ export async function POST(request: Request) {
     for (const item of items) {
       const itemId = item.id;
       const requestedQuantity = item.quantity;
+      const specifiedAllocationId = item.allocation_id; // Get the user's specified allocation ID
 
       // Fetch current item allocation state - REVISED LOGIC
       let currentAllocation: {
@@ -441,58 +434,25 @@ export async function POST(request: Request) {
               };
             }
           } else {
-            // Apply allocation type priority logic after workflow validation
+            // Use simplified allocation selection without prioritization
             console.log(`[Move Forward API] Valid source allocations:`, 
               validSourceAllocations.map(a => ({ stage: a.stage?.name, type: a.allocation_type, qty: a.quantity })));
             
-            // If source_stage_id is provided, prioritize allocations from that stage
+            // If source_stage_id is provided, filter to that stage first
             if (source_stage_id) {
               const stageAllocations = validSourceAllocations.filter(
                 (alloc) => alloc.stage_id === source_stage_id
               );
               
               if (stageAllocations.length > 0) {
-                // Within the preferred stage, prioritize reworked items first (clear rework backlog)
-                currentAllocation = selectBestAllocationForForward(stageAllocations, requestedQuantity);
+                currentAllocation = selectAllocationForMovement(stageAllocations, requestedQuantity, specifiedAllocationId);
               } else {
-                // Fallback to closest to target if preferred source not found
-                validSourceAllocations.sort(
-                  (a, b) => b.stage!.sequence_order - a.stage!.sequence_order
-                );
-                currentAllocation = selectBestAllocationForForward(validSourceAllocations, requestedQuantity);
+                // No allocations in preferred stage
+                currentAllocation = null;
               }
             } else {
-              // Group by stage first, then apply allocation type priority within each stage
-              const stageGroups: { [stageId: string]: typeof validSourceAllocations } = {};
-              validSourceAllocations.forEach(alloc => {
-                if (!stageGroups[alloc.stage_id]) {
-                  stageGroups[alloc.stage_id] = [];
-                }
-                stageGroups[alloc.stage_id].push(alloc);
-              });
-              
-              // Sort stages by sequence_order (earliest first)
-              const sortedStageIds = Object.keys(stageGroups).sort((a, b) => {
-                const stageA = validSourceAllocations.find(alloc => alloc.stage_id === a)?.stage;
-                const stageB = validSourceAllocations.find(alloc => alloc.stage_id === b)?.stage;
-                return (stageA?.sequence_order || 0) - (stageB?.sequence_order || 0);
-              });
-              
-              // Find the best allocation from the earliest stage first
-              for (const stageId of sortedStageIds) {
-                const stageAllocations = stageGroups[stageId];
-                const bestInStage = selectBestAllocationForForward(stageAllocations, requestedQuantity);
-                if (bestInStage) {
-                  currentAllocation = bestInStage;
-                  break;
-                }
-              }
-              
-              // If no allocation found with enough quantity, take best from first stage
-              if (!currentAllocation && sortedStageIds.length > 0) {
-                const firstStageAllocations = stageGroups[sortedStageIds[0]];
-                currentAllocation = selectBestAllocationForForward(firstStageAllocations, requestedQuantity, false);
-              }
+              // No stage preference - select from any valid allocation
+              currentAllocation = selectAllocationForMovement(validSourceAllocations, requestedQuantity, specifiedAllocationId);
             }
           }
         }
@@ -506,13 +466,8 @@ export async function POST(request: Request) {
           .order("created_at", { ascending: false });
 
         if (!latestAllocError && allAllocations && allAllocations.length > 0) {
-          // Use allocation type priority even when no specific target is provided
-          currentAllocation = selectBestAllocationForForward(allAllocations, requestedQuantity);
-          
-          // If no allocation has sufficient quantity, take the largest one
-          if (!currentAllocation) {
-            currentAllocation = selectBestAllocationForForward(allAllocations, requestedQuantity, false);
-          }
+          // Use simplified selection without prioritization
+          currentAllocation = selectAllocationForMovement(allAllocations, requestedQuantity, specifiedAllocationId);
         }
         
         fetchError = latestAllocError;
@@ -730,8 +685,8 @@ export async function POST(request: Request) {
       }
 
       // --- Handle the target allocation (consolidate or create new) ---
-      // IMPORTANT: Forward movement ALWAYS goes to 'normal' allocation type
-      // This logic is now common for both full moves from a source and partial moves.
+      // Preserve the allocation type from source (no automatic conversion)
+      const sourceAllocationType = currentAllocation.allocation_type;
 
       let targetAllocationQuery = supabase
         .from("item_stage_allocations")
@@ -739,7 +694,7 @@ export async function POST(request: Request) {
         .eq("item_id", itemId)
         .eq("organization_id", organizationId)
         .eq("stage_id", nextLocation.stageId)
-        .eq("allocation_type", "normal"); // Always target normal allocation for forward moves
+        .eq("allocation_type", sourceAllocationType); // Preserve source allocation type
 
       // Tree structure doesn't use sub_stage_id
 
@@ -788,13 +743,13 @@ export async function POST(request: Request) {
         }
       } else {
         // No target allocation exists: Create a new one for the moved quantity
-        // IMPORTANT: Forward moves ALWAYS create 'normal' allocation type
+        // Preserve the allocation type from source (no automatic conversion)
         const newAllocationData = {
           item_id: itemId,
           organization_id: organizationId,
           stage_id: nextLocation.stageId,
           quantity: requestedQuantity,
-          allocation_type: "normal", // Forward moves always go to normal allocation
+          allocation_type: sourceAllocationType, // Preserve source allocation type
           created_at: timestamp,
           updated_at: timestamp,
           moved_by: user.id,

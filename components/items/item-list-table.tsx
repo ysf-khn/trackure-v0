@@ -122,7 +122,7 @@ interface ItemListTableMeta {
     itemName: string
   ) => void;
   handleMoveForward: (
-    itemsToMove: { id: string; quantity: number }[],
+    itemsToMove: { id: string; quantity: number; allocation_type?: 'normal' | 'reworked' }[],
     targetStageId?: string | null,
     sourceStageId?: string | null
   ) => void;
@@ -313,7 +313,38 @@ export const columns: ColumnDef<ItemInStage>[] = [
     cell: ({ row }) => {
       const item = row.original;
 
-      // Show entry type (normal/reworked) with appropriate styling
+      // Show entry type (normal/reworked/replacement) with appropriate styling
+      if (item.entry_type === "replacement") {
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 cursor-help">
+                  <span className="text-xs text-purple-800 bg-purple-100 px-2 py-1 rounded-md border border-purple-200 font-medium">
+                    Replacement
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="text-sm max-w-xs">
+                  <p>
+                    <strong>Entry Type:</strong> Replacement item
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    This item was created as a replacement for a scrapped item.
+                  </p>
+                  {item.replaced_item_id && (
+                    <p className="mt-2">
+                      <strong>Original Item ID:</strong> {item.replaced_item_id.slice(0, 8)}...
+                    </p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+      
       if (item.entry_type === "reworked") {
         return (
           <TooltipProvider>
@@ -864,7 +895,7 @@ export function ItemListTable({
   };
 
   const handleMoveForward = (
-    itemsToMove: { id: string; quantity: number }[], // Updated signature
+    itemsToMove: { id: string; quantity: number; allocation_type?: 'normal' | 'reworked' }[], // Updated signature
     targetStageId?: string | null, // Add optional targetStageId
     sourceStageId?: string | null // Add optional sourceStageId
   ) => {
@@ -984,7 +1015,7 @@ export function ItemListTable({
     if (!itemToMoveDetails) return; // Should not happen if modal was opened correctly
 
     handleMoveForward(
-      [{ id: itemId, quantity: quantity }],
+      [{ id: itemId, quantity: quantity, allocation_type: itemToMoveDetails.entryType }],
       itemToMoveDetails.targetStageId,
       stageId
     );

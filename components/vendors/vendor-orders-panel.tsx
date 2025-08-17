@@ -4,6 +4,12 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { Package, Calendar, DollarSign, AlertCircle, CheckCircle, Clock, XCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +40,8 @@ interface VendorOrdersPanelProps {
 interface VendorOrder {
   id: string;
   order_number: string;
+  customer_order_number: string;
+  customer_name: string;
   sku: string;
   quantity: number;
   unit_price: number;
@@ -58,6 +66,8 @@ interface VendorOrder {
     payment_status: "paid" | "partial" | "unpaid";
     payment_count: number;
     has_carryforward: boolean;
+    last_payment_type?: string | null;
+    last_payment_remarks?: string | null;
   };
 }
 
@@ -177,68 +187,15 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
   const orders = data?.orders || [];
   const summary = data?.summary || {};
 
+  // Calculate outstanding payment from orders if not available in summary
+  const outstandingPayment = summary.outstanding_payment || 
+    orders.reduce((total: number, order: VendorOrder) => {
+      return total + (order.payment_summary?.remaining_amount || 0);
+    }, 0);
+
   return (
     <>
       <div className="space-y-6">
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.total_orders || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                {summary.pending_orders || 0} pending
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatCurrency(summary.total_value || 0, "INR")}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                All orders combined
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
-              <AlertCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">
-                {formatCurrency(summary.outstanding_payment || 0, "INR")}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Pending payment
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.completed_orders || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                Orders delivered
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Orders Table */}
         <Card>
           <CardHeader>
@@ -270,16 +227,17 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
                 <p className="text-muted-foreground">No orders found</p>
               </div>
             ) : (
-              <Table>
+              <TooltipProvider>
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Order Number</TableHead>
                     <TableHead>SKU</TableHead>
-                    <TableHead>Stage</TableHead>
+                    <TableHead>Assigned Stage</TableHead>
                     <TableHead>Quantity</TableHead>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Price per Unit</TableHead>
+                    <TableHead>Total Amount</TableHead>
                     <TableHead>Payment Status</TableHead>
-                    <TableHead>Order Status</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
@@ -287,8 +245,11 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
                 <TableBody>
                   {orders.map((order: VendorOrder) => (
                     <TableRow key={order.id}>
-                      <TableCell className="font-medium">
-                        {order.order_number}
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{order.customer_order_number}</p>
+                          <p className="text-xs text-muted-foreground">{order.customer_name}</p>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div>
@@ -305,34 +266,51 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
                       </TableCell>
                       <TableCell>{order.quantity}</TableCell>
                       <TableCell>
-                        <div>
-                          <p className="font-medium">
-                            {formatCurrency(order.total_amount, order.currency)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            @ {formatCurrency(order.unit_price, order.currency)}/pc
-                          </p>
-                        </div>
+                        {formatCurrency(order.unit_price, order.currency)}
                       </TableCell>
                       <TableCell>
-                        <div className="space-y-1">
-                          <Badge variant={getPaymentStatusVariant(order.payment_summary.payment_status)}>
-                            {order.payment_summary.payment_status}
-                          </Badge>
-                          {order.payment_summary.remaining_amount > 0 && (
-                            <p className="text-xs text-muted-foreground">
-                              Due: {formatCurrency(order.payment_summary.remaining_amount, order.currency)}
-                            </p>
-                          )}
-                        </div>
+                        <p className="font-medium">
+                          {formatCurrency(order.total_amount, order.currency)}
+                        </p>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusVariant(order.status)}>
-                          <span className="flex items-center gap-1">
-                            {getStatusIcon(order.status)}
-                            {order.status.replace("_", " ")}
-                          </span>
-                        </Badge>
+                        {order.payment_summary.payment_status === "paid" ? (
+                          <div className="space-y-1">
+                            <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100">
+                              Paid
+                            </Badge>
+                            {order.payment_summary.last_payment_type && (
+                              <div className="text-xs space-y-0.5">
+                                <p className="text-muted-foreground">
+                                  Type: {order.payment_summary.last_payment_type}
+                                </p>
+                                {order.payment_summary.last_payment_remarks && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <p className="text-muted-foreground truncate max-w-[150px]">
+                                        {order.payment_summary.last_payment_remarks}
+                                      </p>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="max-w-xs">{order.payment_summary.last_payment_remarks}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <Badge variant={getPaymentStatusVariant(order.payment_summary.payment_status)}>
+                              {order.payment_summary.payment_status === "partial" ? "Partial" : "Unpaid"}
+                            </Badge>
+                            {order.payment_summary.remaining_amount > 0 && (
+                              <p className="text-xs text-destructive font-medium">
+                                Due: {formatCurrency(order.payment_summary.remaining_amount, order.currency)}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {format(new Date(order.created_at), "PP")}
@@ -352,6 +330,7 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
                   ))}
                 </TableBody>
               </Table>
+              </TooltipProvider>
             )}
           </CardContent>
         </Card>

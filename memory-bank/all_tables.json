@@ -104,6 +104,22 @@
     ]
   },
   {
+    "table_name": "item_quantity_diagnostics",
+    "columns": [
+      "id",
+      "sku",
+      "status",
+      "total_quantity",
+      "working_quantity",
+      "allocated_quantity",
+      "remaining_quantity",
+      "actual_allocated_sum",
+      "calculated_unallocated",
+      "actual_unallocated",
+      "issue_type"
+    ]
+  },
+  {
     "table_name": "item_stage_allocations",
     "columns": [
       "id",
@@ -165,7 +181,9 @@
       "gross_weight_kg",
       "size_inches",
       "weight_unit",
-      "size_unit"
+      "size_unit",
+      "working_quantity",
+      "allocated_quantity"
     ]
   },
   {
@@ -202,7 +220,8 @@
       "status",
       "replacement_count",
       "total_replacement_quantity",
-      "original_total_before_scraps"
+      "original_total_before_scraps",
+      "working_quantity_total"
     ]
   },
   {

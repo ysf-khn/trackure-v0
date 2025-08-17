@@ -44,6 +44,7 @@ import {
   RemarkWithProfile,
   useItemRemarks,
 } from "@/hooks/queries/use-item-remarks";
+import { S3Image } from "@/components/ui/s3-image";
 import { PdfDownloadModal } from "./pdf-download-modal";
 import {
   Select,
@@ -101,18 +102,23 @@ export function ItemHistoryModal({
     error: imagesError,
   } = useItemImages(itemId);
 
-  // Function to get proxy URL to avoid CORS issues
-  const getImageUrl = (storagePath: string): string | null => {
-    if (!storagePath) {
-      return null;
+  // Function to get image URL (S3 or legacy)
+  const getImageUrl = (img: ItemImage): string | null => {
+    // Prefer S3 URL if available (for new S3 images)
+    if (img.s3_url) {
+      return img.s3_url;
     }
-
-    try {
-      const proxyUrl = `/api/images/${storagePath}?bucket=item-images`;
-      return proxyUrl;
-    } catch (error) {
-      return null;
+    
+    // Fall back to legacy storage path if needed
+    if (img.storage_path) {
+      try {
+        return `/api/images/${img.storage_path}?bucket=item-images`;
+      } catch (error) {
+        return null;
+      }
     }
+    
+    return null;
   };
 
   // Create image map for remarks
@@ -269,56 +275,19 @@ export function ItemHistoryModal({
 
     return (
       <ScrollArea className="h-[60vh]">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[150px]">Timestamp</TableHead>
-              <TableHead>User</TableHead>
-              <TableHead>Remark</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {remarks.map((remark) => {
-              const attachedImages = imagesByRemarkId.get(remark.id) || [];
+        <div className="p-4 space-y-4">
+          {remarks.map((remark) => {
+            const attachedImages = imagesByRemarkId.get(remark.id) || [];
 
-              return (
-                <TableRow key={`remark-${remark.id}`} className="align-top">
-                  <TableCell className="pt-2">
-                    <div className="flex flex-col">
-                      <span>
-                        {format(new Date(remark.timestamp), "MMM d, yyyy")}
-                      </span>
-                      <span className="text-muted-foreground text-sm">
-                        {format(new Date(remark.timestamp), "h:mm a")}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="pt-2">
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className="border-blue-500 text-blue-700"
-                      >
-                        <MessageSquareText className="h-3 w-3 mr-1" />
-                        {remark.created_by || "Unknown"}
-                      </Badge>
-                      {attachedImages.length > 0 && (
-                        <div
-                          title={`${attachedImages.length} image(s) attached`}
-                        >
-                          <Camera className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="whitespace-normal break-words pt-2">
-                    <p className="mb-2">{remark.text}</p>
-
-                    {/* Image Thumbnails */}
-                    {attachedImages.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
+            return (
+              <div key={`remark-${remark.id}`} className="bg-card border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
+                <div className="flex items-start gap-4">
+                  {/* Images First (if any) */}
+                  {attachedImages.length > 0 && (
+                    <div className="flex-shrink-0">
+                      <div className="flex flex-wrap gap-2">
                         {attachedImages.map((img) => {
-                          const imageUrl = getImageUrl(img.storage_path);
+                          const imageUrl = getImageUrl(img);
 
                           return imageUrl ? (
                             <button
@@ -330,30 +299,31 @@ export function ItemHistoryModal({
                                   remark.text
                                 )
                               }
-                              className="relative w-16 h-16 rounded border overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:opacity-80 transition-opacity group"
+                              className="relative w-16 h-16 rounded-lg border-2 overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 hover:scale-105 transition-all duration-200 group"
                               title="Click to view full image"
                             >
-                              <img
+                              <S3Image
                                 src={imageUrl}
                                 alt={img.file_name || "Uploaded image"}
+                                width={64}
+                                height={64}
                                 className="w-full h-full object-cover"
-                                loading="lazy"
-                                onError={(e) => {
+                                objectFit="cover"
+                                onError={() => {
                                   console.error(
                                     "Image failed to load:",
                                     imageUrl
                                   );
-                                  e.currentTarget.style.display = "none";
                                 }}
                               />
-                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-25 transition-all duration-200 flex items-center justify-center rounded">
                                 <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                               </div>
                             </button>
                           ) : (
                             <div
                               key={img.id}
-                              className="w-16 h-16 rounded border flex items-center justify-center bg-secondary"
+                              className="w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center bg-muted"
                               title="Image not available"
                             >
                               <ImageIcon className="w-6 h-6 text-muted-foreground" />
@@ -361,13 +331,56 @@ export function ItemHistoryModal({
                           );
                         })}
                       </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                    </div>
+                  )}
+
+                  {/* Content Section - Remark, User, Timestamp */}
+                  <div className="flex-1 min-w-0">
+                    {/* Remark Text Second */}
+                    <div className="mb-3">
+                      <p className="text-foreground leading-relaxed whitespace-pre-wrap text-sm">
+                        {remark.text}
+                      </p>
+                    </div>
+
+                    {/* User and Timestamp in same row */}
+                    <div className="flex items-center justify-between gap-4">
+                      {/* User Third */}
+                      <div className="flex-shrink-0">
+                        <Badge
+                          variant="outline"
+                          className="border-blue-500 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                        >
+                          <MessageSquareText className="h-3 w-3 mr-1.5" />
+                          {remark.full_name || remark.created_by || "Unknown"}
+                        </Badge>
+                      </div>
+
+                      {/* Timestamp Fourth */}
+                      <div className="text-xs text-muted-foreground text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="font-medium">
+                            {format(new Date(remark.timestamp), "MMM d, yyyy 'at' h:mm a")}
+                          </span>
+                          <span className="text-muted-foreground/70">
+                            {formatDistanceToNow(new Date(remark.timestamp))} ago
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          
+          {remarks.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              <MessageSquareText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No remarks found for this item.</p>
+            </div>
+          )}
+        </div>
       </ScrollArea>
     );
   };
@@ -534,12 +547,12 @@ export function ItemHistoryModal({
             {viewingImage && (
               <div className="flex flex-col h-full">
                 <div className="relative bg-black flex items-center justify-center flex-1 overflow-hidden">
-                  <img
+                  <S3Image
                     src={viewingImage.imageUrl}
                     alt={viewingImage.fileName}
                     className="max-w-full max-h-full w-auto h-auto object-contain"
-                    style={{ maxHeight: "calc(90vh - 120px)" }} // Account for remark section height
-                    onError={(e) => {
+                    objectFit="contain"
+                    onError={() => {
                       console.error(
                         "Full image failed to load:",
                         viewingImage.imageUrl

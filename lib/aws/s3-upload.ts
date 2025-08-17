@@ -7,7 +7,7 @@ export interface UploadOptions {
   contentType: string;
   organizationId: string;
   entityId: string;
-  type: "item" | "sample" | "profile";
+  type: "item" | "sample" | "profile" | "vendor-payment";
   maxSizeMB?: number;
   compress?: boolean;
 }

@@ -686,7 +686,7 @@ export default function OrderItemsDisplay({
   userRole,
 }: OrderItemsDisplayProps) {
   const {
-    data: items,
+    data: rawItems,
     isLoading: itemsLoading,
     error: itemsError,
   } = useOrderItems(organizationId, orderId);
@@ -697,6 +697,8 @@ export default function OrderItemsDisplay({
     error: compositeError,
   } = useOrderCompositeItems(organizationId, orderId);
 
+  // Filter out replacement items to avoid double-counting
+  const items = rawItems?.filter(item => !item.is_replacement) || [];
   const compositeItems = compositeData?.composite_statuses || [];
 
   const isLoading = itemsLoading || compositeLoading;

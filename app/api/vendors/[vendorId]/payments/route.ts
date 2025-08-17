@@ -14,15 +14,16 @@ const vendorPaymentSchema = z.object({
 // GET - Get payments for a vendor
 export async function GET(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
   const supabase = await createClient();
-  const { vendorId } = params;
+  const { vendorId } = await params;
   const { searchParams } = new URL(request.url);
-  
+
   const orderId = searchParams.get("order_id");
   const paymentType = searchParams.get("payment_type");
-  const includeCarriedForward = searchParams.get("include_carried_forward") === "true";
+  const includeCarriedForward =
+    searchParams.get("include_carried_forward") === "true";
 
   // Get the authenticated user
   const {
@@ -37,7 +38,8 @@ export async function GET(
   try {
     let query = supabase
       .from("vendor_payments")
-      .select(`
+      .select(
+        `
         id,
         vendor_id,
         vendor_order_id,
@@ -50,15 +52,15 @@ export async function GET(
         is_carried_forward,
         carried_from_payment_id,
         carried_to_order_id,
-        created_at,
-        order:vendor_orders(
+        order:vendor_orders!vendor_payments_vendor_order_id_fkey(
           order_number,
           sku,
           quantity,
           status
         ),
-        creator:profiles!vendor_payments_created_by_fkey(full_name)
-      `)
+        created_by
+      `
+      )
       .eq("vendor_id", vendorId)
       .order("payment_date", { ascending: false });
 
@@ -66,11 +68,11 @@ export async function GET(
     if (orderId) {
       query = query.eq("vendor_order_id", orderId);
     }
-    
+
     if (paymentType) {
       query = query.eq("payment_type", paymentType);
     }
-    
+
     if (!includeCarriedForward) {
       query = query.eq("is_carried_forward", false);
     }
@@ -86,31 +88,42 @@ export async function GET(
     }
 
     // Get outstanding payments summary
-    const { data: outstandingData } = await supabase
-      .rpc('get_vendor_outstanding_payments', {
+    const { data: outstandingData } = await supabase.rpc(
+      "get_vendor_outstanding_payments",
+      {
         p_vendor_id: vendorId,
-        p_organization_id: payments[0]?.organization_id
-      });
+        p_organization_id: payments[0]?.organization_id,
+      }
+    );
 
     // Calculate payment statistics
     const stats = {
       total_payments: payments.length,
-      total_amount_paid: payments.reduce((sum, p) => sum + Number(p.amount_paid), 0),
+      total_amount_paid: payments.reduce(
+        (sum, p) => sum + Number(p.amount_paid),
+        0
+      ),
       payment_types: {
-        advance: payments.filter(p => p.payment_type === 'advance').length,
-        part_payment: payments.filter(p => p.payment_type === 'part_payment').length,
-        force_closure: payments.filter(p => p.payment_type === 'force_closure').length,
-        closure: payments.filter(p => p.payment_type === 'closure').length,
+        advance: payments.filter((p) => p.payment_type === "advance").length,
+        part_payment: payments.filter((p) => p.payment_type === "part_payment")
+          .length,
+        force_closure: payments.filter(
+          (p) => p.payment_type === "force_closure"
+        ).length,
+        closure: payments.filter((p) => p.payment_type === "closure").length,
       },
-      carried_forward_count: payments.filter(p => p.is_carried_forward).length,
-      outstanding_summary: outstandingData?.[0] || { total_outstanding: 0, outstanding_orders: [] }
+      carried_forward_count: payments.filter((p) => p.is_carried_forward)
+        .length,
+      outstanding_summary: outstandingData?.[0] || {
+        total_outstanding: 0,
+        outstanding_orders: [],
+      },
     };
 
     return NextResponse.json({
       payments,
-      statistics: stats
+      statistics: stats,
     });
-
   } catch (error) {
     console.error("Vendor payments GET error:", error);
     return NextResponse.json(
@@ -123,10 +136,10 @@ export async function GET(
 // POST - Create a new payment for a vendor order
 export async function POST(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
   const supabase = await createClient();
-  const { vendorId } = params;
+  const { vendorId } = await params;
 
   // Get the authenticated user
   const {
@@ -154,12 +167,17 @@ export async function POST(
 
   // Check permissions
   if (profile.role !== "Owner") {
-    const { data: hasPermission } = await supabase
-      .rpc('worker_has_permission', { permission_key: 'vendors.manage_payments' });
-    
+    const { data: hasPermission } = await supabase.rpc(
+      "worker_has_permission",
+      { permission_key: "vendors.manage_payments" }
+    );
+
     if (!hasPermission) {
       return NextResponse.json(
-        { error: "Forbidden: Insufficient permissions to manage vendor payments" },
+        {
+          error:
+            "Forbidden: Insufficient permissions to manage vendor payments",
+        },
         { status: 403 }
       );
     }
@@ -205,10 +223,7 @@ export async function POST(
     }
 
     if (order.organization_id !== profile.organization_id) {
-      return NextResponse.json(
-        { error: "Access denied" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     // Get existing payments for this order
@@ -226,31 +241,52 @@ export async function POST(
     }
 
     // Calculate total already paid
-    const totalPaid = existingPayments.reduce((sum, p) => sum + Number(p.amount_paid), 0);
+    const totalPaid = existingPayments.reduce(
+      (sum, p) => sum + Number(p.amount_paid),
+      0
+    );
     const remainingAmount = Number(order.total_amount) - totalPaid;
 
     // Validate payment amount
-    if (paymentData.payment_type === 'closure' && paymentData.amount_paid !== remainingAmount) {
+    if (
+      paymentData.payment_type === "closure" &&
+      paymentData.amount_paid !== remainingAmount
+    ) {
       return NextResponse.json(
-        { 
-          error: "Invalid payment amount", 
-          details: `Closure payment must be exactly ${remainingAmount} to settle the order` 
+        {
+          error: "Invalid payment amount",
+          details: `Closure payment must be exactly ${remainingAmount} to settle the order`,
         },
         { status: 400 }
       );
     }
 
-    if (paymentData.amount_paid > remainingAmount && paymentData.payment_type !== 'advance') {
+    if (
+      paymentData.amount_paid > remainingAmount &&
+      paymentData.payment_type !== "advance"
+    ) {
       return NextResponse.json(
-        { 
+        {
           error: "Payment amount exceeds remaining balance",
-          details: `Remaining amount is ${remainingAmount}` 
+          details: `Remaining amount is ${remainingAmount}`,
         },
         { status: 400 }
       );
     }
 
     // Create the payment
+    // If payment_date is provided, use that date but with current time for proper ordering
+    let paymentDate = new Date().toISOString();
+    if (paymentData.payment_date) {
+      const providedDate = new Date(paymentData.payment_date);
+      const currentTime = new Date();
+      providedDate.setHours(currentTime.getHours());
+      providedDate.setMinutes(currentTime.getMinutes());
+      providedDate.setSeconds(currentTime.getSeconds());
+      providedDate.setMilliseconds(currentTime.getMilliseconds());
+      paymentDate = providedDate.toISOString();
+    }
+
     const { data: newPayment, error: insertError } = await supabase
       .from("vendor_payments")
       .insert({
@@ -261,7 +297,7 @@ export async function POST(
         amount_paid: paymentData.amount_paid,
         total_order_amount: order.total_amount,
         remarks: paymentData.remarks,
-        payment_date: paymentData.payment_date || new Date().toISOString(),
+        payment_date: paymentDate,
         created_by: user.id,
         is_carried_forward: false,
       })
@@ -277,28 +313,37 @@ export async function POST(
     }
 
     // If this is a closure or force_closure, update the order status
-    if (paymentData.payment_type === 'closure' || paymentData.payment_type === 'force_closure') {
+    if (
+      paymentData.payment_type === "closure" ||
+      paymentData.payment_type === "force_closure"
+    ) {
       await supabase
         .from("vendor_orders")
-        .update({ 
-          status: 'completed',
-          actual_completion: new Date().toISOString()
+        .update({
+          status: "completed",
+          actual_completion: new Date().toISOString(),
         })
         .eq("id", paymentData.vendor_order_id);
     }
 
-    return NextResponse.json({
-      message: "Payment recorded successfully",
-      payment: newPayment,
-      order_summary: {
-        order_number: order.order_number,
-        total_amount: order.total_amount,
-        total_paid: totalPaid + paymentData.amount_paid,
-        remaining: Math.max(0, Number(order.total_amount) - (totalPaid + paymentData.amount_paid)),
-        payment_complete: (totalPaid + paymentData.amount_paid) >= Number(order.total_amount)
-      }
-    }, { status: 201 });
-
+    return NextResponse.json(
+      {
+        message: "Payment recorded successfully",
+        payment: newPayment,
+        order_summary: {
+          order_number: order.order_number,
+          total_amount: order.total_amount,
+          total_paid: totalPaid + paymentData.amount_paid,
+          remaining: Math.max(
+            0,
+            Number(order.total_amount) - (totalPaid + paymentData.amount_paid)
+          ),
+          payment_complete:
+            totalPaid + paymentData.amount_paid >= Number(order.total_amount),
+        },
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Vendor payment creation error:", error);
     return NextResponse.json(
@@ -311,10 +356,10 @@ export async function POST(
 // GET - Get payment summary for vendor
 export async function GET_SUMMARY(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
   const supabase = await createClient();
-  const { vendorId } = params;
+  const { vendorId } = await params;
 
   // Get the authenticated user
   const {
@@ -343,19 +388,20 @@ export async function GET_SUMMARY(
     }
 
     // Get detailed outstanding orders
-    const { data: outstandingData } = await supabase
-      .rpc('get_vendor_outstanding_payments', {
+    const { data: outstandingData } = await supabase.rpc(
+      "get_vendor_outstanding_payments",
+      {
         p_vendor_id: vendorId,
-        p_organization_id: summary.organization_id
-      });
+        p_organization_id: summary.organization_id,
+      }
+    );
 
     return NextResponse.json({
       summary: {
         ...summary,
-        outstanding_orders: outstandingData?.[0]?.outstanding_orders || []
-      }
+        outstanding_orders: outstandingData?.[0]?.outstanding_orders || [],
+      },
     });
-
   } catch (error) {
     console.error("Payment summary error:", error);
     return NextResponse.json(

@@ -169,3 +169,6 @@ Check README or search for test scripts - no standard testing framework detected
 ## Additional Notes
 
 - Use all_tables.json to check the table schemas
+- DO NOT MAKE CHANGES TO EXISTING DB MIGRATIONS. ALWAYS CREATE NEW ONES FOR CHANGES.
+- the org-level workflow doesnt exist naymore. it's sku level now
+- the workflow logics related to move forward, rework, scrap and scrap & replace have been perfectly implemented. Set in stone. DO NOT TOUCH THEM UNTIL ABSOLUTELY NECESSARY. IF REQUIRED, ALWAYS ASK FOR PERMISSION

@@ -11,6 +11,7 @@ export interface RemarkWithProfile {
   item_id: string;
   user_id: string;
   created_by: string;
+  full_name?: string; // Added to store actual user name from profiles table
 }
 
 // Type for the raw data returned by Supabase
@@ -26,6 +27,7 @@ async function fetchItemRemarks(
   supabase: SupabaseClient,
   itemId: string
 ): Promise<RemarkWithProfile[]> {
+  // First, get the remarks
   const { data, error } = await supabase
     .from("remarks")
     .select(
@@ -45,14 +47,42 @@ async function fetchItemRemarks(
     throw new Error("Could not fetch item remarks");
   }
 
-  // Process the data
-  const processedData = (data || []).map((remark: RawRemarkData) => ({
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // Get unique user IDs from remarks
+  const userIds = [...new Set(data.map((remark) => remark.user_id))].filter(
+    (id): id is string => id !== null && id !== undefined
+  );
+
+  // Fetch profiles for those user IDs
+  let profilesMap: Record<string, string> = {};
+
+  if (userIds.length > 0) {
+    const { data: profilesData, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", userIds);
+
+    if (profilesError) {
+      console.error("Error fetching profiles:", profilesError);
+    } else if (profilesData) {
+      profilesMap = Object.fromEntries(
+        profilesData.map((profile) => [profile.id, profile.full_name])
+      );
+    }
+  }
+
+  // Process and combine the data
+  const processedData = data.map((remark: RawRemarkData) => ({
     id: remark.id,
     timestamp: remark.timestamp,
     text: remark.text,
     item_id: remark.item_id,
     user_id: remark.user_id,
     created_by: remark.user_id,
+    full_name: profilesMap[remark.user_id] || undefined, // Add full name from profiles
   }));
 
   return processedData;

@@ -46,6 +46,7 @@ export async function GET(
         email,
         remarks,
         is_active,
+        organization_id,
         created_at,
         updated_at,
         pricing:vendor_stage_pricing(
@@ -60,6 +61,7 @@ export async function GET(
           is_active,
           notes,
           created_at,
+          organization_id,
           stage:workflow_stages(id, name, full_path),
           sku_details:item_master(master_details)
         ),
@@ -71,6 +73,7 @@ export async function GET(
           total_price,
           assigned_at,
           completed_at,
+          organization_id,
           item:items(sku, total_quantity)
         )
       `
@@ -92,6 +95,78 @@ export async function GET(
       );
     }
 
+    // Get vendor's organization ID from the vendor record itself
+    const organizationId = vendor.organization_id;
+    
+    console.log('Vendor ID:', vendorId);
+    console.log('Organization ID:', organizationId);
+
+    // Get total payments made to vendor
+    const { data: totalPaymentsData, error: paymentsError } = await supabase
+      .from("vendor_payments")
+      .select("amount_paid")
+      .eq("vendor_id", vendorId)
+      .eq("organization_id", organizationId);
+
+    if (paymentsError) {
+      console.error('Error fetching vendor payments:', paymentsError);
+    }
+
+    console.log('Total payments data:', totalPaymentsData);
+
+    const totalPaymentTillDate = totalPaymentsData?.reduce(
+      (sum, payment) => sum + Number(payment.amount_paid),
+      0
+    ) || 0;
+
+    console.log('Total payment till date:', totalPaymentTillDate);
+
+    // Get outstanding payments
+    const { data: outstandingData, error: outstandingError } = await supabase.rpc(
+      "get_vendor_outstanding_payments",
+      {
+        p_vendor_id: vendorId,
+        p_organization_id: organizationId,
+      }
+    );
+
+    if (outstandingError) {
+      console.error('Error fetching outstanding payments:', outstandingError);
+    }
+
+    console.log('Outstanding data:', outstandingData);
+
+    const outstandingPayment = outstandingData?.[0]?.total_outstanding || 0;
+
+    console.log('Outstanding payment:', outstandingPayment);
+
+    // Get all vendor orders to calculate SKU metrics
+    const { data: vendorOrders, error: ordersError } = await supabase
+      .from("vendor_orders")
+      .select("sku, status")
+      .eq("vendor_id", vendorId)
+      .eq("organization_id", organizationId)
+      .neq("status", "cancelled");
+
+    if (ordersError) {
+      console.error('Error fetching vendor orders:', ordersError);
+    }
+
+    console.log('Vendor orders data:', vendorOrders);
+
+    // Calculate unique SKUs metrics
+    const activeSKUs = new Set(
+      vendorOrders?.filter(o => o.status === "in_progress" || o.status === "pending")
+                   .map(o => o.sku)
+    ).size;
+
+    const totalAssignedSKUs = new Set(
+      vendorOrders?.map(o => o.sku)
+    ).size;
+
+    console.log('Active SKUs:', activeSKUs);
+    console.log('Total assigned SKUs:', totalAssignedSKUs);
+
     // Calculate vendor performance metrics
     const activePricing = vendor.pricing.filter((p) => p.is_active);
     const completedAssignments = vendor.assignments.filter(
@@ -102,6 +177,13 @@ export async function GET(
     const vendorWithMetrics = {
       ...vendor,
       metrics: {
+        // New metrics for header
+        total_payment_till_date: totalPaymentTillDate,
+        outstanding_payment: outstandingPayment,
+        active_skus: activeSKUs,
+        total_assigned_skus: totalAssignedSKUs,
+        
+        // Existing metrics (kept for compatibility)
         total_pricing_entries: vendor.pricing.length,
         active_pricing_entries: activePricing.length,
         supported_skus: new Set(activePricing.map((p) => p.sku)).size,
@@ -135,6 +217,8 @@ export async function GET(
             : null,
       },
     };
+
+    console.log('Final vendor metrics:', vendorWithMetrics.metrics);
 
     return NextResponse.json({ vendor: vendorWithMetrics });
   } catch (error) {

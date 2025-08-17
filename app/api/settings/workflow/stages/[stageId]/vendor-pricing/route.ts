@@ -47,7 +47,7 @@ export async function GET(
       .select(
         `
         *,
-        vendors!inner(id, name, firm_name, is_active)
+        vendor:vendors!inner(id, name, firm_name, is_active)
       `
       )
       .eq("stage_id", stageId)
@@ -62,7 +62,39 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ vendorPricing });
+    // Also fetch vendor orders for this stage to get actual order amounts
+    const { data: vendorOrders, error: ordersError } = await supabase
+      .from("vendor_orders")
+      .select(
+        `
+        id,
+        vendor_id,
+        quantity,
+        unit_price,
+        total_amount,
+        currency,
+        status
+      `
+      )
+      .eq("stage_id", stageId)
+      .eq("organization_id", organization_id)
+      .in("status", ["pending", "in_progress", "completed"])
+      .order("created_at", { ascending: false });
+
+    if (ordersError) {
+      console.error("Error fetching vendor orders:", ordersError);
+    }
+
+    // Merge vendor order data with pricing data
+    const vendorPricingWithOrders = vendorPricing?.map(pricing => {
+      const latestOrder = vendorOrders?.find(order => order.vendor_id === pricing.vendor_id);
+      return {
+        ...pricing,
+        latestOrder: latestOrder || null
+      };
+    });
+
+    return NextResponse.json({ vendorPricing: vendorPricingWithOrders || vendorPricing });
   } catch (error) {
     console.error("Error in GET vendor pricing:", error);
     return NextResponse.json(

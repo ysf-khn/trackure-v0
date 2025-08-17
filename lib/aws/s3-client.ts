@@ -117,7 +117,7 @@ export async function listS3Objects(
 
 // Generate S3 key for different types of uploads
 export function generateS3Key(
-  type: "item" | "sample" | "profile",
+  type: "item" | "sample" | "profile" | "vendor-payment",
   organizationId: string,
   entityId: string,
   fileName: string
@@ -132,6 +132,8 @@ export function generateS3Key(
       return `samples/${organizationId}/${entityId}/${timestamp}_${sanitizedFileName}`;
     case "profile":
       return `profiles/${organizationId}/${entityId}/${timestamp}_${sanitizedFileName}`;
+    case "vendor-payment":
+      return `vendor-payments/${organizationId}/${entityId}/${timestamp}_${sanitizedFileName}`;
     default:
       throw new Error(`Unknown upload type: ${type}`);
   }

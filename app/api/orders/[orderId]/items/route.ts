@@ -462,11 +462,12 @@ export async function POST(
                 buyer_id: instance_details?.buyer_id,
                 instance_details: cleanedMergedDetails,
                 total_quantity: componentTotalQuantity,
+                working_quantity: componentTotalQuantity, // Set working_quantity equal to total_quantity
                 remaining_quantity: componentTotalQuantity,
                 organization_id: orgId,
                 composite_group_id: compositeGroupId,
                 parent_composite_sku: sku,
-                status: "New",
+                status: "New", // Explicitly set status to 'New' for composite component items
               })
               .select("id")
               .single();
@@ -534,8 +535,9 @@ export async function POST(
         instance_details: cleanedInstanceDetails || {},
         buyer_id: instance_details?.buyer_id,
         total_quantity: instance_details?.total_quantity,
+        working_quantity: instance_details?.total_quantity, // Set working_quantity equal to total_quantity
         remaining_quantity: instance_details?.total_quantity,
-        // status defaults to 'New' and will be updated when allocated from New Order Items
+        status: "New", // Explicitly set status to 'New' for new items
       })
       .select("id, total_quantity") // Select the ID and total_quantity of the newly created item
       .single();

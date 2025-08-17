@@ -30,22 +30,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlusIcon, TrashIcon, InfoIcon } from "lucide-react";
 import { getWorkflowQueryKey } from "@/hooks/queries/use-workflow-structure";
 import { getSidebarWorkflowKey } from "@/hooks/queries/use-workflow";
-import { VendorPricingSection, type VendorPricingData } from "./vendor-pricing-section";
+// VendorPricingSection removed - vendor assignment now handled by AssignVendorModal
 
 const subStageSchema = z.object({
   name: z.string().min(1, "Sub-stage name is required"),
   location: z.string().optional(),
 });
 
-const vendorPricingSchema = z.object({
-  vendor_id: z.string().min(1, "Vendor is required"),
-  price: z.number().min(0, "Price must be non-negative"),
-  currency: z.string().min(1, "Currency is required"),
-  price_unit: z.string().min(1, "Price unit is required"),
-  minimum_quantity: z.number().int().min(1, "Minimum quantity must be at least 1"),
-  lead_time_days: z.number().int().min(0, "Lead time cannot be negative"),
-  notes: z.string().optional(),
-});
+// vendorPricingSchema removed - vendor assignment now handled by AssignVendorModal
 
 const formSchema = z
   .object({
@@ -53,7 +45,6 @@ const formSchema = z
     location: z.string().optional(),
     hasSubStages: z.boolean(),
     subStages: z.array(subStageSchema).optional(),
-    vendorPricing: z.array(vendorPricingSchema).optional(),
   })
   .refine(
     (data) => {
@@ -76,6 +67,7 @@ interface AddStageModalProps {
   selectedSKU: string | null;
   isOpen: boolean;
   onClose: () => void;
+  parentStage?: { id: string; name: string } | null;
 }
 
 interface CreatedStageResponse {
@@ -85,12 +77,13 @@ interface CreatedStageResponse {
 
 async function createStageWithSubStages(
   values: FormData,
-  selectedSKU: string | null
+  selectedSKU: string | null,
+  parentStageId?: string | null
 ): Promise<CreatedStageResponse> {
   const response = await fetch(`/api/settings/workflow/stages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...values, selectedSKU }),
+    body: JSON.stringify({ ...values, selectedSKU, parent_stage_id: parentStageId }),
   });
   if (!response.ok) {
     const errorData = await response
@@ -106,6 +99,7 @@ export function AddStageModal({
   selectedSKU,
   isOpen,
   onClose,
+  parentStage,
 }: AddStageModalProps) {
   const queryClient = useQueryClient();
   const form = useForm<FormData>({
@@ -115,7 +109,6 @@ export function AddStageModal({
       location: "",
       hasSubStages: false,
       subStages: [],
-      vendorPricing: [],
     },
   });
 
@@ -127,7 +120,7 @@ export function AddStageModal({
   const hasSubStages = form.watch("hasSubStages");
 
   const mutation = useMutation<CreatedStageResponse, Error, FormData>({
-    mutationFn: (values) => createStageWithSubStages(values, selectedSKU),
+    mutationFn: (values) => createStageWithSubStages(values, selectedSKU, parentStage?.id),
     onSuccess: (data) => {
       toast.success(`Stage "${data.name}" created successfully!`);
       queryClient.invalidateQueries({
@@ -149,7 +142,6 @@ export function AddStageModal({
     const submitData = {
       ...values,
       subStages: values.hasSubStages ? values.subStages : undefined,
-      vendorPricing: values.vendorPricing && values.vendorPricing.length > 0 ? values.vendorPricing : undefined,
     };
     mutation.mutate(submitData);
   };
@@ -172,10 +164,14 @@ export function AddStageModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Workflow Stage</DialogTitle>
+          <DialogTitle>
+            {parentStage ? `Add Child Stage to "${parentStage.name}"` : "Add New Workflow Stage"}
+          </DialogTitle>
           <DialogDescription>
-            Create a new stage in your workflow. You can optionally add
-            sub-stages during creation.
+            {parentStage 
+              ? `Create a new child stage under "${parentStage.name}". Child stages allow for more granular workflow control within the parent stage.`
+              : "Create a new stage in your workflow. You can optionally add sub-stages during creation."
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -337,13 +333,14 @@ export function AddStageModal({
               </Card>
             )}
 
-            {/* Vendor Pricing Section - Only show for leaf stages (no sub-stages) */}
+            {/* Vendor Assignment Note */}
             {!hasSubStages && selectedSKU && (
-              <VendorPricingSection
-                control={form.control}
-                selectedSKU={selectedSKU}
-                isLeafStage={!hasSubStages}
-              />
+              <Alert>
+                <InfoIcon className="h-4 w-4" />
+                <AlertDescription>
+                  You can assign vendors to this stage after creation using the "Assign Vendor" button.
+                </AlertDescription>
+              </Alert>
             )}
 
             <DialogFooter>

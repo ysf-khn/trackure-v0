@@ -21,6 +21,15 @@ export interface StageVendorPricing {
     firm_name: string | null;
     is_active: boolean;
   };
+  latestOrder?: {
+    id: string;
+    vendor_id: string;
+    quantity: number;
+    unit_price: number;
+    total_amount: number;
+    currency: string;
+    status: string;
+  } | null;
 }
 
 export interface StageVendorPricingResult {

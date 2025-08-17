@@ -16,7 +16,6 @@ import {
   Beaker,
 } from "lucide-react";
 
-import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
 import {
   Sidebar,
@@ -52,27 +51,6 @@ import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { useSKUs } from "@/hooks/queries/use-skus";
 import { OrderContextSection } from "@/components/sidebar/order-context-section";
 
-
-const data = {
-  navSecondary: [
-    {
-      title: "Guides",
-      url: "/guides",
-      icon: BookOpen,
-    },
-    // {
-    //   title: "Feature Requests",
-    //   url: "/feature-requests",
-    //   icon: Lightbulb,
-    // },
-    {
-      title: "Settings",
-      url: "/settings",
-      icon: SettingsIcon,
-    },
-  ],
-};
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -80,19 +58,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Get organization ID for proper query key synchronization
   const { organizationId } = useProfileAndOrg();
 
-
   const {
     data: newItemsCount,
     isLoading: isLoadingNewItemsCount,
     // isError: isErrorNewItemsCount, // Optional: handle specific error display for count
     // error: errorNewItemsCount
   } = useNewItemsCount(); // Use the new hook
-
-
-
-
-
-
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -160,8 +131,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* Unified Order Context Section */}
         <OrderContextSection />
 
-        {/* Management Modules Section */}
-        <div className="px-3 py-3 border-t border-sidebar-border space-y-1">
+        {/* Management Section */}
+        <div className="px-3 py-3 space-y-1 mt-auto">
           <h3 className="mb-2 text-sm font-semibold tracking-wider text-muted-foreground">
             Management
           </h3>
@@ -200,12 +171,29 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <span className="flex-grow text-left truncate">Samples</span>
             </Button>
           </Link>
-        </div>
 
-        <NavSecondary
-          items={data.navSecondary}
-          className="mt-auto border-t border-sidebar-border"
-        />
+          <Link href="/guides" passHref>
+            <Button
+              variant={pathname === "/guides" ? "secondary" : "ghost"}
+              size="sm"
+              className="w-full justify-start pl-3"
+            >
+              <BookOpen className="mr-2 h-4 w-4" />
+              <span className="flex-grow text-left truncate">Guides</span>
+            </Button>
+          </Link>
+
+          <Link href="/settings" passHref>
+            <Button
+              variant={pathname === "/settings" ? "secondary" : "ghost"}
+              size="sm"
+              className="w-full justify-start pl-3"
+            >
+              <SettingsIcon className="mr-2 h-4 w-4" />
+              <span className="flex-grow text-left truncate">Settings</span>
+            </Button>
+          </Link>
+        </div>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <NavUser />

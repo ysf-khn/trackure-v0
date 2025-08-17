@@ -60,7 +60,15 @@ export async function GET(
         created_at,
         stage:workflow_stages(name, full_path),
         sku_details:item_master(master_details),
-        item:items(order_id, remaining_quantity),
+        item:items(
+          order_id, 
+          remaining_quantity,
+          order:orders(
+            id,
+            order_number,
+            customer_name
+          )
+        ),
         ${
           includePayments
             ? `
@@ -98,7 +106,7 @@ export async function GET(
       );
     }
 
-    // Calculate payment summary for each order
+    // Calculate payment summary for each order and add customer order details
     const ordersWithPaymentSummary = orders.map((order) => {
       const payments = order.payments || [];
       const totalPaid = payments.reduce(
@@ -106,9 +114,17 @@ export async function GET(
         0
       );
       const remainingAmount = Number(order.total_amount) - totalPaid;
+      
+      // Get the most recent payment details for display
+      const lastPayment = payments.length > 0 
+        ? payments[payments.length - 1]
+        : null;
 
       return {
         ...order,
+        // Add actual customer order details
+        customer_order_number: order.item?.order?.order_number || "-",
+        customer_name: order.item?.order?.customer_name || "-",
         payment_summary: {
           total_paid: totalPaid,
           remaining_amount: remainingAmount,
@@ -120,6 +136,8 @@ export async function GET(
                 : "unpaid",
           payment_count: payments.length,
           has_carryforward: payments.some((p: any) => p.is_carried_forward),
+          last_payment_type: lastPayment?.payment_type || null,
+          last_payment_remarks: lastPayment?.remarks || null,
         },
       };
     });
@@ -303,6 +321,33 @@ export async function POST(
         assigned_by: user.id,
         organization_id: profile.organization_id,
       });
+    }
+
+    // Create or update vendor_stage_pricing to ensure vendor appears in workflow
+    // This maintains the pricing configuration for this vendor-stage-SKU combination
+    const { error: pricingError } = await supabase
+      .from("vendor_stage_pricing")
+      .upsert({
+        vendor_id: vendorId,
+        stage_id: orderData.stage_id,
+        sku: orderData.sku,
+        organization_id: profile.organization_id,
+        price: orderData.unit_price,
+        currency: orderData.currency,
+        price_unit: "per_piece",
+        is_active: true,
+        notes: orderData.notes || `Created from order ${orderNumber}`,
+        created_by: user.id,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: "vendor_id,stage_id,sku",
+        ignoreDuplicates: false,
+      });
+
+    if (pricingError) {
+      console.warn("Failed to update vendor_stage_pricing:", pricingError);
+      // Don't fail the entire request, just log the warning
+      // The vendor order is already created successfully
     }
 
     return NextResponse.json(

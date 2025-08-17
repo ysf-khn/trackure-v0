@@ -1,9 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/utils/supabase/server";
-import { AddItemForm } from "@/components/items/add-item-form";
-import OrderDetailsDisplay from "@/components/orders/order-details-display";
-import PaymentStatusEditor from "@/components/orders/payment-status-editor";
+import { AddItemSheet } from "@/components/orders/add-item-sheet";
 import OrderItemsDisplay from "@/components/orders/order-items-display";
+import { OrderHeader } from "@/components/orders/order-header";
+import { OrderStatsContainer } from "@/components/orders/order-stats-container";
+import { OrderTimeline } from "@/components/orders/order-timeline";
 import { PaymentStatus } from "@/types";
 import { getUserWithProfile } from "@/utils/supabase/queries";
 
@@ -117,52 +118,63 @@ export default async function OrderDetailPage({
   }
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold">Order: {order.order_number}</h1>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-4 space-y-6">
+        {/* Header Section */}
+        <OrderHeader 
+          order={order} 
+          canExport={isOwner || userRole === "Owner"}
+          canEditPaymentStatus={canEditPaymentStatus}
+        />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <OrderDetailsDisplay order={order} />
-          <div className="mt-4 pt-4 border-t">
-            <h3 className="text-md font-semibold mb-2">Payment Status</h3>
-            {canEditPaymentStatus ? (
-              <PaymentStatusEditor
-                orderId={order.id}
-                initialStatus={order.payment_status ?? undefined}
-              />
-            ) : (
-              <p className="text-sm">{order.payment_status ?? "Not Set"}</p>
-            )}
+        {/* Stats Overview */}
+        <OrderStatsContainer 
+          orderId={order.id} 
+          organizationId={organizationId}
+        />
+
+        {/* Action Bar */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center bg-gradient-to-r from-primary/5 to-transparent p-4 rounded-lg border border-primary/10">
+          <div>
+            <h2 className="font-semibold text-foreground">Order Management</h2>
+            <p className="text-sm text-muted-foreground">
+              Add items, track progress, and manage this order
+            </p>
           </div>
-        </CardContent>
-      </Card>
+          <AddItemSheet orderId={order.id} canAddItem={canAddItem} />
+        </div>
 
-      {canAddItem && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Add New Item</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AddItemForm orderId={order.id} />
-          </CardContent>
-        </Card>
-      )}
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Main Content Column */}
+          <div className="xl:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="p-1.5 bg-primary/10 rounded">
+                    <svg className="h-4 w-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  </div>
+                  Items
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <OrderItemsDisplay
+                  orderId={order.id}
+                  organizationId={organizationId}
+                  userRole={userRole}
+                />
+              </CardContent>
+            </Card>
+          </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Items</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <OrderItemsDisplay
-            orderId={order.id}
-            organizationId={organizationId}
-            userRole={userRole}
-          />
-        </CardContent>
-      </Card>
+          {/* Sidebar Column - Activity Timeline Only */}
+          <div className="space-y-6">
+            <OrderTimeline orderId={order.id} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

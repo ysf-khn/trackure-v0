@@ -64,17 +64,15 @@ type WorkflowStage = FetchedWorkflowStage;
 
 // Type for the unified allocatable options in the dropdown
 type AllocatableOption = {
-  id: string; // Composite ID for dropdown value, e.g., "stageId" or "stageId_subStageId"
-  label: string; // Display label, e.g., "Stage A" or "Stage X - Sub Y"
+  id: string; // Stage ID for dropdown value
+  label: string; // Display label with breadcrumb path
   stageId: string;
-  subStageId: string | null;
   depth: number; // For visual indentation
   isLeaf: boolean; // Only leaf stages can receive items
 };
 
 type AllocationPayload = {
   stage_id: string;
-  sub_stage_id: string | null;
   quantity: number;
 };
 
@@ -112,9 +110,6 @@ export default function NewOrdersPage() {
   const [isAllocationDialogOpen, setIsAllocationDialogOpen] =
     React.useState(false);
   const [allocationStageId, setAllocationStageId] = React.useState<string>("");
-  const [allocationSubStageId, setAllocationSubStageId] = React.useState<
-    string | null
-  >(null);
   const [allocationQuantity, setAllocationQuantity] = React.useState<number>(1);
   const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>(null);
 
@@ -173,8 +168,18 @@ export default function NewOrdersPage() {
 
   // Get allocation strategy based on workflow state
   const allocationStrategy = React.useMemo(() => {
+    // Don't determine strategy while still loading workflow state
+    if (isLoadingWorkflowState) {
+      return {
+        strategy: 'loading',
+        message: 'Checking workflow configuration...',
+        canAllocate: false,
+        needsTemplate: false,
+        needsConfiguration: false
+      };
+    }
     return getAllocationStrategy(workflowState);
-  }, [workflowState]);
+  }, [workflowState, isLoadingWorkflowState]);
 
   // Fetch templates for the SKU
   const {
@@ -210,7 +215,6 @@ export default function NewOrdersPage() {
               id: stage.id,
               label: breadcrumbLabel,
               stageId: stage.id,
-              subStageId: null, // In tree structure, we don't use subStageId
               depth,
               isLeaf: stage.is_leaf_stage || !stage.children || stage.children.length === 0,
             });
@@ -243,7 +247,6 @@ export default function NewOrdersPage() {
       const { error } = await supabase.rpc("allocate_item_to_workflow", {
         p_item_id: itemId,
         p_stage_id: payload.stage_id,
-        p_sub_stage_id: payload.sub_stage_id,
         p_quantity: payload.quantity,
         p_allocated_by: user.id,
       });
@@ -272,7 +275,6 @@ export default function NewOrdersPage() {
     setSelectedItem(item);
     setAllocationQuantity(item.quantity_in_new_pool); // Default to max allocatable from new pool
     setAllocationStageId("");
-    setAllocationSubStageId(null);
     setSelectedTemplateId(null);
     setIsAllocationDialogOpen(true);
   };
@@ -330,7 +332,6 @@ export default function NewOrdersPage() {
       itemId: selectedItem.item_id,
       payload: {
         stage_id: allocationStageId,
-        sub_stage_id: allocationSubStageId,
         quantity: allocationQuantity,
       },
     });
@@ -482,11 +483,7 @@ export default function NewOrdersPage() {
               <div className="space-y-4">
                 {/* Workflow State Alert */}
                 {allocationStrategy.strategy && (
-                  <Alert className={
-                    allocationStrategy.strategy === 'add-to-existing' ? 'border-blue-200 bg-blue-50' :
-                    allocationStrategy.strategy === 'configure' ? 'border-orange-200 bg-orange-50' :
-                    'border-green-200 bg-green-50'
-                  }>
+                  <Alert>
                     <InfoIcon className="h-4 w-4" />
                     <AlertDescription className="text-sm">
                       {allocationStrategy.message}
@@ -496,11 +493,11 @@ export default function NewOrdersPage() {
 
                 {/* Show active items in workflow if any */}
                 {workflowState?.active_items_in_workflow > 0 && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                    <p className="text-sm font-medium text-blue-900">
+                  <div className="rounded-lg border p-3">
+                    <p className="text-sm font-medium">
                       Active Items in Workflow
                     </p>
-                    <p className="text-sm text-blue-700 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       {workflowState.active_items_in_workflow} item(s) of this SKU are currently being processed.
                       New items will join the existing workflow.
                     </p>
@@ -541,11 +538,11 @@ export default function NewOrdersPage() {
 
                 {/* Configure Workflow Button (if needed) */}
                 {allocationStrategy.needsConfiguration && (
-                  <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
-                    <p className="text-sm font-medium text-orange-900 mb-3">
+                  <div className="rounded-lg border p-4">
+                    <p className="text-sm font-medium mb-3">
                       Workflow Configuration Required
                     </p>
-                    <p className="text-sm text-orange-700 mb-4">
+                    <p className="text-sm text-muted-foreground mb-4">
                       No workflow has been configured for SKU "{selectedItem.sku}". 
                       Please set up the workflow stages before allocating items.
                     </p>
@@ -596,12 +593,10 @@ export default function NewOrdersPage() {
                     onValueChange={(selectedValue) => {
                       if (!selectedValue) {
                         setAllocationStageId("");
-                        setAllocationSubStageId(null);
-                        return;
+                                            return;
                       }
                       // In tree structure, the selectedValue is just the stage ID
                       setAllocationStageId(selectedValue);
-                      setAllocationSubStageId(null); // Not used in tree structure
                     }}
                   >
                     <SelectTrigger className="col-span-3">

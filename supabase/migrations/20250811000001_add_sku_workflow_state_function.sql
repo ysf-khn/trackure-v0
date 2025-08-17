@@ -33,25 +33,15 @@ BEGIN
           AND NOT i.is_scrapped
     ),
     workflow_stages AS (
-        -- Check if SKU-specific or organization workflow stages exist
+        -- Check if SKU-specific workflow stages exist
         SELECT 
             COUNT(*) as stage_count,
             MIN(CASE WHEN ws.parent_stage_id IS NULL THEN ws.id END) as first_stage_id,
             MIN(CASE WHEN ws.parent_stage_id IS NULL THEN ws.name END) as first_stage_name,
-            CASE 
-                WHEN EXISTS (SELECT 1 FROM workflow_stages WHERE sku = p_sku AND organization_id = p_organization_id LIMIT 1) 
-                THEN 'sku'
-                ELSE 'organization'
-            END as workflow_type
+            'sku' as workflow_type
         FROM workflow_stages ws
         WHERE ws.organization_id = p_organization_id
-          AND (
-              ws.sku = p_sku  -- SKU-specific stages
-              OR (ws.sku IS NULL AND NOT EXISTS (  -- Organization stages only if no SKU-specific exist
-                  SELECT 1 FROM workflow_stages 
-                  WHERE sku = p_sku AND organization_id = p_organization_id
-              ))
-          )
+          AND ws.sku = p_sku  -- Only SKU-specific stages
     ),
     templates AS (
         -- Check for available workflow templates

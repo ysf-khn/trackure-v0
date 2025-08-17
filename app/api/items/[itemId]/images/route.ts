@@ -1,12 +1,12 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { deleteFromS3, generatePresignedDownloadUrl } from "@/lib/aws/s3-client";
+import { deleteFromS3, generatePresignedDownloadUrl, getS3PublicUrl } from "@/lib/aws/s3-client";
 
 // Schema for the request body when associating an image
 const createImageAssociationSchema = z.object({
   s3Key: z.string().min(1, "S3 key is required"),
-  s3Url: z.string().url("Invalid S3 URL").optional(), // Made optional since presigned URL is generated server-side
+  s3Url: z.union([z.string().url(), z.literal(""), z.undefined()]).optional(), // Made optional since presigned URL is generated server-side
   fileName: z.string().optional(),
   fileSizeBytes: z.number().int().positive().optional(),
   contentType: z.string().optional(),
@@ -133,6 +133,8 @@ export async function POST(
   }
 
   // 4. Insert Image Metadata into `item_images` table
+  // Generate the S3 URL server-side to ensure it has correct environment variables
+  const s3Url = requestData.s3Url || getS3PublicUrl(requestData.s3Key);
 
   const { error: insertError, data: insertedImage } = await supabase
     .from("item_images")
@@ -140,7 +142,7 @@ export async function POST(
       item_id: itemId,
       organization_id: organizationId, // Store org ID for RLS
       s3_key: requestData.s3Key,
-      s3_url: requestData.s3Url,
+      s3_url: s3Url,
       file_name: requestData.fileName,
       file_size_bytes: requestData.fileSizeBytes,
       content_type: requestData.contentType,

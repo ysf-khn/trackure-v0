@@ -17,7 +17,7 @@ export const plans = [
     limits: {
       maxUsers: 3,
       maxActiveOrdersPerMonth: 3,
-      maxActiveItemsPerMonth: 100,
+      maxActiveItemsPerMonth: 10000,
     },
   },
   {
@@ -39,7 +39,7 @@ export const plans = [
     limits: {
       maxUsers: 10,
       maxActiveOrdersPerMonth: 20,
-      maxActiveItemsPerMonth: 500,
+      maxActiveItemsPerMonth: 10000,
     },
   },
   {
@@ -60,7 +60,7 @@ export const plans = [
     limits: {
       maxUsers: 25,
       maxActiveOrdersPerMonth: 75,
-      maxActiveItemsPerMonth: 2000,
+      maxActiveItemsPerMonth: 10000,
     },
   },
 ];

@@ -26,9 +26,10 @@ import { Terminal, InfoIcon } from "lucide-react";
 import { AddStageModal } from "./add-stage-modal";
 import { EditStageModal } from "./edit-stage-modal";
 import { DeleteStageDialog } from "./delete-stage-dialog";
-import { VendorPricingModal } from "./vendor-pricing-modal";
+import { AssignVendorModal } from "@/components/workflow/assign-vendor-modal";
 import { VendorPricingBadge } from "./vendor-pricing-badge";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useOrderSelection } from "@/contexts/order-selection-context";
 import { toast } from "sonner";
 import { getWorkflowQueryKey } from "@/hooks/queries/use-workflow-structure";
 import { getSidebarWorkflowKey } from "@/hooks/queries/use-workflow";
@@ -221,6 +222,9 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
   // Check if user has permission to edit workflow
   const canEditWorkflow = usePermissionCheck("workflow.edit");
 
+  // Get order context
+  const { selectedOrderId } = useOrderSelection();
+
   // --- State for Stage Modals/Dialogs ---
   const [isAddStageModalOpen, setIsAddStageModalOpen] = useState(false);
   const [editingStage, setEditingStage] = useState<FetchedWorkflowStage | null>(
@@ -237,9 +241,10 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
   const [deletingSubStage, setDeletingSubStage] =
     useState<FetchedWorkflowStage | null>(null);
 
-  // --- State for Vendor Pricing Modal ---
+  // --- State for Vendor Assignment Modal ---
   const [vendorPricingStage, setVendorPricingStage] =
     useState<FetchedWorkflowStage | null>(null);
+  const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
 
   // --- Fetch Workflow Structure ---
   const {
@@ -400,8 +405,10 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
     setDeletingStage(stage);
   };
 
-  const handleVendorPricing = (stage: FetchedWorkflowStage) =>
+  const handleVendorPricing = (stage: FetchedWorkflowStage) => {
     setVendorPricingStage(stage);
+    setIsVendorModalOpen(true);
+  };
 
 
   // --- Calculations ---
@@ -653,6 +660,15 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
         isOpen={isAddStageModalOpen}
         onClose={() => setIsAddStageModalOpen(false)}
       />
+      
+      {/* Child Stage Modal */}
+      <AddStageModal
+        organizationId={organizationId}
+        selectedSKU={selectedSKU}
+        isOpen={!!addingSubStageTo}
+        onClose={() => setAddingSubStageTo(null)}
+        parentStage={addingSubStageTo ? { id: addingSubStageTo.id, name: addingSubStageTo.name } : null}
+      />
       <EditStageModal
         organizationId={organizationId}
         selectedSKU={selectedSKU}
@@ -667,13 +683,24 @@ export function WorkflowEditor({ organizationId, selectedSKU }: WorkflowEditorPr
         onClose={() => setDeletingStage(null)}
         stage={deletingStage}
       />
-      <VendorPricingModal
-        organizationId={organizationId}
-        selectedSKU={selectedSKU}
-        isOpen={!!vendorPricingStage}
-        onClose={() => setVendorPricingStage(null)}
-        stage={vendorPricingStage}
-      />
+      {vendorPricingStage && selectedSKU && (
+        <AssignVendorModal
+          itemId="" // Optional - not available in settings context
+          allocationId="" // Optional - not available in settings context
+          sku={selectedSKU}
+          stageId={vendorPricingStage.id}
+          stageName={vendorPricingStage.name || ""}
+          availableQuantity={0} // Will be fetched from order context
+          orderId={selectedOrderId}
+          open={isVendorModalOpen}
+          onOpenChange={(open) => {
+            setIsVendorModalOpen(open);
+            if (!open) {
+              setVendorPricingStage(null);
+            }
+          }}
+        />
+      )}
 
       {/* Child stage modals would go here - using AddStageModal with parent_stage_id */}
     </div>

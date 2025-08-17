@@ -21,7 +21,7 @@ type MoveForwardErrorResponse = {
 
 // Define the type for the mutation variables
 interface MoveItemsForwardVariables {
-  items: { id: string; quantity: number }[]; // Updated from itemIds
+  items: { id: string; quantity: number; allocation_type?: 'normal' | 'reworked' }[]; // Add allocation_type to items
   organizationId: string;
   targetStageId?: string | null; // Add optional target stage ID
   targetSubStageId?: string | null; // Add optional target sub-stage ID
@@ -33,7 +33,7 @@ async function moveItemsForwardAPI(
 ): Promise<MoveForwardSuccessResponse> {
   // Construct the body, including target_stage_id, target_sub_stage_id and source_stage_id if present
   const body: {
-    items: { id: string; quantity: number }[];
+    items: { id: string; quantity: number; allocation_type?: 'normal' | 'reworked' }[];
     target_stage_id?: string | null;
     target_sub_stage_id?: string | null;
     source_stage_id?: string | null;
@@ -139,6 +139,11 @@ export function useMoveItemsForward() {
       // 5. Invalidate stage item counts for sidebar badges
       queryClient.invalidateQueries({
         queryKey: ["stage-item-counts", organizationId],
+      });
+
+      // 6. Invalidate orderSKUs query to update sidebar completed counts
+      queryClient.invalidateQueries({
+        queryKey: ["orderSKUs"],
       });
 
       // Optional: More precise invalidation if needed later

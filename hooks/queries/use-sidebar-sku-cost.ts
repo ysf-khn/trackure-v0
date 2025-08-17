@@ -67,13 +67,16 @@ async function fetchSidebarSkuCost(
     throw new Error(pricingError.message);
   }
 
-  // Get total quantity for this SKU in the selected order
+  // Get working quantity for display and total quantity for cost calculation
+  // DEFENSIVE FIX: Exclude both scrapped AND replacement items to prevent double-counting
   const { data: orderItems, error: itemsError } = await supabase
     .from("items")
-    .select("total_quantity")
+    .select("total_quantity, working_quantity, is_replacement")
     .eq("order_id", selectedOrderId)
     .eq("sku", selectedSKU)
-    .eq("organization_id", organizationId);
+    .eq("organization_id", organizationId)
+    .neq("is_scrapped", true) // Exclude scrapped items
+    .neq("is_replacement", true); // Exclude replacement items from quantity calculation
 
   console.log(`[COST DEBUG] Order items data:`, orderItems || []);
   
@@ -82,15 +85,17 @@ async function fetchSidebarSkuCost(
     throw new Error(itemsError.message);
   }
 
-  // Calculate total quantity from all items with this SKU in the order
-  const totalQuantity = orderItems?.reduce((sum, item) => sum + item.total_quantity, 0) || 0;
+  // Calculate quantities: working_quantity for display, total_quantity for cost calculation
+  const workingQuantity = orderItems?.reduce((sum, item) => sum + (item.working_quantity || 0), 0) || 0;
+  const totalQuantityForCost = orderItems?.reduce((sum, item) => sum + item.total_quantity, 0) || 0;
   
-  console.log(`[COST DEBUG] Total quantity calculation: ${orderItems?.map(item => item.total_quantity).join(' + ') || '0'} = ${totalQuantity}`);
+  console.log(`[COST DEBUG] Working quantity calculation: ${orderItems?.map(item => item.working_quantity).join(' + ') || '0'} = ${workingQuantity}`);
+  console.log(`[COST DEBUG] Total quantity for cost: ${orderItems?.map(item => item.total_quantity).join(' + ') || '0'} = ${totalQuantityForCost}`);
 
   if (!vendorPricing || vendorPricing.length === 0) {
     return {
       totalCost: 0,
-      totalQuantity,
+      totalQuantity: workingQuantity, // Show working quantity in UI
       currency: "INR",
       hasMultipleCurrencies: false,
       leafStagesWithPricing: 0,
@@ -141,9 +146,9 @@ async function fetchSidebarSkuCost(
   
   console.log(`[COST DEBUG] Price per item calculation: ${stageBreakdown.map(s => `₹${s.price}`).join(' + ')} = ₹${totalPricePerItem}`);
   
-  const totalCost = totalQuantity * totalPricePerItem;
+  const totalCost = totalQuantityForCost * totalPricePerItem;
   
-  console.log(`[COST DEBUG] Final calculation: ${totalQuantity} items × ₹${totalPricePerItem} = ₹${totalCost}`);
+  console.log(`[COST DEBUG] Final calculation: ${totalQuantityForCost} items × ₹${totalPricePerItem} = ₹${totalCost} (cost uses total_quantity)`);
   
   // Use most common currency, or "Mixed" if multiple
   const currency = currencies.size === 1 
@@ -152,7 +157,7 @@ async function fetchSidebarSkuCost(
 
   return {
     totalCost,
-    totalQuantity,
+    totalQuantity: workingQuantity, // Show working quantity in UI
     currency,
     hasMultipleCurrencies: currencies.size > 1,
     leafStagesWithPricing: stageMinPricing.size,

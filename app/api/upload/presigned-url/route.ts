@@ -7,7 +7,7 @@ import { generatePresignedUploadUrl, generateS3Key } from "@/lib/aws/s3-client";
 const presignedUrlSchema = z.object({
   fileName: z.string().min(1, "File name is required"),
   contentType: z.string().min(1, "Content type is required"),
-  type: z.enum(["item", "sample", "profile"]),
+  type: z.enum(["item", "sample", "profile", "vendor-payment"]),
   entityId: z.string().uuid("Invalid entity ID"),
 });
 
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
       "image/gif",
       "image/webp",
       "image/svg+xml",
+      "application/pdf",
     ];
 
     if (!allowedTypes.includes(requestData.contentType)) {
@@ -76,7 +77,14 @@ export async function POST(request: NextRequest) {
 
     // Check permissions for workers
     if (userRole === "Worker") {
-      const permissionKey = `${requestData.type}s.images`;
+      let permissionKey: string;
+      
+      if (requestData.type === "vendor-payment") {
+        permissionKey = "vendors.manage_payments";
+      } else {
+        permissionKey = `${requestData.type}s.images`;
+      }
+      
       const { data: hasPermission, error: permissionError } = await supabase.rpc(
         "worker_has_permission",
         { permission_key: permissionKey }
@@ -84,7 +92,7 @@ export async function POST(request: NextRequest) {
 
       if (permissionError || !hasPermission) {
         return NextResponse.json(
-          { error: "You don't have permission to upload images" },
+          { error: "You don't have permission to upload files for this type" },
           { status: 403 }
         );
       }
@@ -132,6 +140,21 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         );
       }
+    } else if (requestData.type === "vendor-payment") {
+      // Verify payment exists and belongs to organization
+      const { data: payment, error: paymentError } = await supabase
+        .from("vendor_payments")
+        .select("id, organization_id")
+        .eq("id", requestData.entityId)
+        .eq("organization_id", organizationId)
+        .single();
+
+      if (paymentError || !payment) {
+        return NextResponse.json(
+          { error: "Payment not found or access denied" },
+          { status: 404 }
+        );
+      }
     }
 
     // Generate S3 key
@@ -151,7 +174,7 @@ export async function POST(request: NextRequest) {
 
     // Return presigned URL and S3 key
     return NextResponse.json({
-      presignedUrl,
+      uploadUrl: presignedUrl,
       s3Key,
       expiresIn: 3600,
     });

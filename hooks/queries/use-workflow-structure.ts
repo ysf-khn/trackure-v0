@@ -74,7 +74,7 @@ const fetchWorkflowStructure = async (
     .eq("organization_id", organizationId)
     .eq("vendor_stage_pricing.is_active", true);
 
-  // Filter by SKU if selected
+  // Filter by SKU - only look for SKU-specific stages
   if (selectedSKU) {
     query = query.eq("sku", selectedSKU);
   } else {

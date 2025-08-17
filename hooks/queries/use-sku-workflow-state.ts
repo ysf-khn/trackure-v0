@@ -42,8 +42,14 @@ const fetchSKUWorkflowState = async (
     throw new Error(error.message || "Failed to fetch SKU workflow state");
   }
 
+  // DEBUG: Log the raw response
+  console.log("DEBUG - SKU Workflow State for", sku, ":", data);
+
   // The RPC returns an array with one row
-  return data && data.length > 0 ? data[0] : null;
+  const result = data && data.length > 0 ? data[0] : null;
+  console.log("DEBUG - Processed result:", result);
+  
+  return result;
 };
 
 // Hook to use SKU workflow state
@@ -67,7 +73,10 @@ export const useSKUWorkflowState = (
 
 // Helper function to determine allocation strategy
 export const getAllocationStrategy = (state: SKUWorkflowState | null) => {
+  console.log("DEBUG - getAllocationStrategy called with state:", state);
+  
   if (!state) {
+    console.log("DEBUG - No state, returning configure strategy");
     return {
       strategy: 'configure',
       message: 'Unable to determine workflow state',

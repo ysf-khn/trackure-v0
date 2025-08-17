@@ -210,23 +210,18 @@ export async function POST(request: NextRequest) {
     const errors = [];
     const timestamp = new Date().toISOString();
 
-    // Process all items in a single transaction for data consistency
-    const { data: transactionResult, error: transactionError } = await supabase.rpc(
-      'process_rework_items_batch',
-      {
-        p_items: JSON.stringify(itemsToRework),
-        p_rework_reason: rework_reason,
-        p_target_stage_id: target_rework_stage_id,
-        p_organization_id: organizationId,
-        p_user_id: user.id
-      }
-    );
+    // Process all items using the enhanced_rework_items function
+    const reworkItemsPayload = itemsToRework.map(item => ({
+      id: item.id,
+      quantity: item.quantity,
+      rework_type: 'backward',
+      target_stage_id: target_rework_stage_id
+    }));
 
-    if (transactionError) {
-      console.error("[Rework API] Transaction Error:", transactionError);
-      
-      // Fallback to individual processing if batch function doesn't exist
-      for (const itemInput of itemsToRework) {
+    console.log("[Rework API] Processing items using direct client operations (like forward API)");
+
+    // Process items directly using Supabase client operations (no RPC)
+    for (const itemInput of itemsToRework) {
         const {
           id: itemId,
           quantity: requestedQuantity,
@@ -242,37 +237,18 @@ export async function POST(request: NextRequest) {
             .eq("item_id", itemId)
             .eq("organization_id", organizationId)
             .eq("stage_id", source_stage_id)
-            .order("allocation_type", { ascending: true }); // 'normal' comes first (prefer reworking normal items)
+            .order("created_at", { ascending: true }); // Order by creation time instead of type
 
-          // Select the best source allocation for reworking
+          // Select source allocation without prioritization
           let currentAllocation = null;
           if (!allocationError && sourceAllocations && sourceAllocations.length > 0) {
             console.log(`[Rework API] Found ${sourceAllocations.length} source allocations:`, 
-              sourceAllocations.map(a => ({ type: a.allocation_type, qty: a.quantity })));
+              sourceAllocations.map(a => ({ id: a.id, type: a.allocation_type, qty: a.quantity })));
             
-            // Priority 1: Find normal allocation with sufficient quantity (prefer reworking normal items)
-            currentAllocation = sourceAllocations.find(alloc => 
-              alloc.allocation_type === 'normal' && alloc.quantity >= requestedQuantity
-            );
+            // Find first allocation with sufficient quantity (no type prioritization)
+            currentAllocation = sourceAllocations.find(alloc => alloc.quantity >= requestedQuantity);
             
-            // Priority 2: Find reworked allocation with sufficient quantity
-            if (!currentAllocation) {
-              currentAllocation = sourceAllocations.find(alloc => 
-                alloc.allocation_type === 'reworked' && alloc.quantity >= requestedQuantity
-              );
-            }
-            
-            // Priority 3: If no single allocation has enough, take the largest normal allocation first
-            if (!currentAllocation) {
-              const normalAllocations = sourceAllocations.filter(a => a.allocation_type === 'normal');
-              if (normalAllocations.length > 0) {
-                currentAllocation = normalAllocations.reduce((max, alloc) => 
-                  alloc.quantity > max.quantity ? alloc : max
-                );
-              }
-            }
-            
-            // Priority 4: Fall back to largest reworked allocation
+            // If no allocation has enough quantity, take the largest one
             if (!currentAllocation) {
               currentAllocation = sourceAllocations.reduce((max, alloc) => 
                 alloc.quantity > max.quantity ? alloc : max
@@ -318,22 +294,23 @@ export async function POST(request: NextRequest) {
             moveType: requestedQuantity === currentAllocation.quantity ? "FULL_REWORK" : "PARTIAL_REWORK"
           });
 
-          // First, check if target rework allocation exists
-          // IMPORTANT: Rework ALWAYS goes to 'reworked' allocation type
+          // First, check if target allocation exists with same type as source
+          // Preserve allocation type from source (no automatic conversion)
+          const sourceAllocationType = currentAllocation.allocation_type;
           const { data: targetAllocations, error: targetAllocationFetchError } = await supabase
             .from("item_stage_allocations")
             .select("id, quantity")
             .eq("item_id", itemId)
             .eq("organization_id", organizationId)
             .eq("stage_id", target_rework_stage_id)
-            .eq("allocation_type", "reworked"); // Always target reworked allocation for rework moves
+            .eq("allocation_type", sourceAllocationType); // Preserve source allocation type
 
           let targetAllocation = null;
           if (!targetAllocationFetchError && targetAllocations && targetAllocations.length > 0) {
-            // If there are multiple reworked allocations (shouldn't happen but handle it), use the first one
+            // If there are multiple allocations of the same type (shouldn't happen but handle it), use the first one
             targetAllocation = targetAllocations[0];
             if (targetAllocations.length > 1) {
-              console.warn(`[Rework API] Multiple reworked allocations found for item ${itemId} in stage ${target_rework_stage_id}, using first one`);
+              console.warn(`[Rework API] Multiple allocations of type ${sourceAllocationType} found for item ${itemId} in stage ${target_rework_stage_id}, using first one`);
             }
           }
 
@@ -345,53 +322,8 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          // Handle target allocation first to ensure data consistency
-          if (targetAllocation) {
-            // Target allocation exists: Update its quantity
-            const { error: targetUpdateError } = await supabase
-              .from("item_stage_allocations")
-              .update({
-                quantity: targetAllocation.quantity + requestedQuantity,
-                updated_at: timestamp,
-                moved_by: user.id,
-              })
-              .eq("id", targetAllocation.id);
-
-            if (targetUpdateError) {
-              console.error("Target update error:", targetUpdateError);
-              errors.push({
-                itemId,
-                error: `Failed to update target rework allocation. ${targetUpdateError.message}`,
-              });
-              continue;
-            }
-          } else {
-            // No target allocation exists: Create a new one
-            // IMPORTANT: Rework moves ALWAYS create 'reworked' allocation type
-            const { error: newInsertError } = await supabase
-              .from("item_stage_allocations")
-              .insert({
-                item_id: itemId,
-                organization_id: organizationId,
-                stage_id: target_rework_stage_id,
-                quantity: requestedQuantity,
-                allocation_type: "reworked", // Rework moves always go to reworked allocation
-                created_at: timestamp,
-                updated_at: timestamp,
-                moved_by: user.id,
-              });
-
-            if (newInsertError) {
-              console.error("Target insert error:", newInsertError);
-              errors.push({
-                itemId,
-                error: `Failed to create new allocation for reworked part. ${newInsertError.message}`,
-              });
-              continue;
-            }
-          }
-
-          // Now handle the source allocation
+          // CRITICAL: Handle source allocation FIRST to prevent over-allocation
+          // This prevents the temporary state where total allocations exceed item total_quantity
           if (requestedQuantity === currentAllocation.quantity) {
             console.log(`[Rework API] Processing full rework for item ${itemId}`);
             // FULL REWORK from source: Delete the source allocation
@@ -424,6 +356,52 @@ export async function POST(request: NextRequest) {
               errors.push({
                 itemId,
                 error: `Failed to update existing allocation (partial rework). ${existingUpdateError.message}`,
+              });
+              continue;
+            }
+          }
+
+          // NOW handle the target allocation (after source is successfully reduced)
+          if (targetAllocation) {
+            // Target allocation exists: Update its quantity
+            const { error: targetUpdateError } = await supabase
+              .from("item_stage_allocations")
+              .update({
+                quantity: targetAllocation.quantity + requestedQuantity,
+                updated_at: timestamp,
+                moved_by: user.id,
+              })
+              .eq("id", targetAllocation.id);
+
+            if (targetUpdateError) {
+              console.error("Target update error:", targetUpdateError);
+              errors.push({
+                itemId,
+                error: `Failed to update target rework allocation. ${targetUpdateError.message}`,
+              });
+              continue;
+            }
+          } else {
+            // No target allocation exists: Create a new one
+            // Preserve allocation type from source (no automatic conversion)
+            const { error: newInsertError } = await supabase
+              .from("item_stage_allocations")
+              .insert({
+                item_id: itemId,
+                organization_id: organizationId,
+                stage_id: target_rework_stage_id,
+                quantity: requestedQuantity,
+                allocation_type: sourceAllocationType, // Preserve source allocation type
+                created_at: timestamp,
+                updated_at: timestamp,
+                moved_by: user.id,
+              });
+
+            if (newInsertError) {
+              console.error("Target insert error:", newInsertError);
+              errors.push({
+                itemId,
+                error: `Failed to create new allocation for reworked part. ${newInsertError.message}`,
               });
               continue;
             }
@@ -474,26 +452,6 @@ export async function POST(request: NextRequest) {
           });
         }
       }
-    } else {
-      // Process batch transaction result
-      if (transactionResult && Array.isArray(transactionResult)) {
-        for (const result of transactionResult) {
-          if (result.success) {
-            results.push({
-              itemId: result.item_id,
-              status: "success",
-              reworkedToStageId: target_rework_stage_id,
-              quantity: result.quantity,
-            });
-          } else {
-            errors.push({
-              itemId: result.item_id,
-              error: result.error_message || "Unknown error",
-            });
-          }
-        }
-      }
-    }
 
     if (errors.length > 0) {
       return NextResponse.json(
