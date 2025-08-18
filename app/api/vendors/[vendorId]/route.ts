@@ -233,10 +233,10 @@ export async function GET(
 // PUT - Update a vendor
 export async function PUT(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
   const supabase = await createClient();
-  const { vendorId } = params;
+  const { vendorId } = await params;
 
   // Get the authenticated user
   const {
@@ -336,10 +336,10 @@ export async function PUT(
 // DELETE - Delete a vendor
 export async function DELETE(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
   const supabase = await createClient();
-  const { vendorId } = params;
+  const { vendorId } = await params;
 
   // Get the authenticated user
   const {

@@ -20,10 +20,10 @@ const vendorPricingUpdateSchema = vendorPricingSchema.partial();
 // GET - Get all pricing for a vendor
 export async function GET(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
   const supabase = await createClient();
-  const { vendorId } = params;
+  const { vendorId } = await params;
   const { searchParams } = new URL(request.url);
   const sku = searchParams.get('sku');
   const stageId = searchParams.get('stage_id');
@@ -138,10 +138,10 @@ export async function GET(
 // POST - Add new pricing for a vendor
 export async function POST(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
   const supabase = await createClient();
-  const { vendorId } = params;
+  const { vendorId } = await params;
 
   // Get the authenticated user
   const {

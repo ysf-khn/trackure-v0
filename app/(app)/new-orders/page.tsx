@@ -34,10 +34,25 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, TriangleAlertIcon, RefreshCw, InfoIcon, Settings2Icon } from "lucide-react";
-import { useWorkflowStructure, type FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
-import { useSKUWorkflowState, getAllocationStrategy } from "@/hooks/queries/use-sku-workflow-state";
-import { useSKUTemplates, useApplyTemplate } from "@/hooks/queries/use-sku-templates";
+import {
+  Loader2,
+  TriangleAlertIcon,
+  RefreshCw,
+  InfoIcon,
+  Settings2Icon,
+} from "lucide-react";
+import {
+  useWorkflowStructure,
+  type FetchedWorkflowStage,
+} from "@/hooks/queries/use-workflow-structure";
+import {
+  useSKUWorkflowState,
+  getAllocationStrategy,
+} from "@/hooks/queries/use-sku-workflow-state";
+import {
+  useSKUTemplates,
+  useApplyTemplate,
+} from "@/hooks/queries/use-sku-templates";
 import { useRouter } from "next/navigation";
 
 // Types based on new_order_items_consolidated view and workflow structure
@@ -111,7 +126,9 @@ export default function NewOrdersPage() {
     React.useState(false);
   const [allocationStageId, setAllocationStageId] = React.useState<string>("");
   const [allocationQuantity, setAllocationQuantity] = React.useState<number>(1);
-  const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState<
+    string | null
+  >(null);
 
   React.useEffect(() => {
     const getOrgId = async () => {
@@ -161,32 +178,31 @@ export default function NewOrdersPage() {
   const workflowStages: WorkflowStage[] | undefined = workflowStagesData;
 
   // Check SKU workflow state
-  const {
-    data: workflowState,
-    isLoading: isLoadingWorkflowState,
-  } = useSKUWorkflowState(selectedItem?.sku, organizationId, isAllocationDialogOpen);
+  const { data: workflowState, isLoading: isLoadingWorkflowState } =
+    useSKUWorkflowState(
+      selectedItem?.sku ?? null,
+      organizationId,
+      isAllocationDialogOpen
+    );
 
   // Get allocation strategy based on workflow state
   const allocationStrategy = React.useMemo(() => {
     // Don't determine strategy while still loading workflow state
     if (isLoadingWorkflowState) {
       return {
-        strategy: 'loading',
-        message: 'Checking workflow configuration...',
+        strategy: "loading",
+        message: "Checking workflow configuration...",
         canAllocate: false,
         needsTemplate: false,
-        needsConfiguration: false
+        needsConfiguration: false,
       };
     }
-    return getAllocationStrategy(workflowState);
+    return getAllocationStrategy(workflowState ?? null);
   }, [workflowState, isLoadingWorkflowState]);
 
   // Fetch templates for the SKU
-  const {
-    data: templates,
-    isLoading: isLoadingTemplates,
-  } = useSKUTemplates(
-    selectedItem?.sku, 
+  const { data: templates, isLoading: isLoadingTemplates } = useSKUTemplates(
+    selectedItem?.sku ?? null,
     organizationId,
     isAllocationDialogOpen && allocationStrategy.needsTemplate
   );
@@ -197,39 +213,52 @@ export default function NewOrdersPage() {
   // Create a flat list of allocatable options for the dropdown (recursive for tree structure)
   const allocatableOptions: AllocatableOption[] = React.useMemo(() => {
     if (!workflowStages) return [];
-    
-    const flattenStages = (stages: WorkflowStage[], depth = 0, parentPath: string[] = []): AllocatableOption[] => {
+
+    const flattenStages = (
+      stages: WorkflowStage[],
+      depth = 0,
+      parentPath: string[] = []
+    ): AllocatableOption[] => {
       const options: AllocatableOption[] = [];
-      
+
       stages.forEach((stage) => {
         if (stage && stage.id && stage.name) {
           const currentPath = [...parentPath, stage.name];
-          
+
           // Only add leaf stages (stages without children) as allocatable options
           // OR stages that explicitly allow item allocation
-          if (stage.is_leaf_stage || !stage.children || stage.children.length === 0) {
+          if (
+            stage.is_leaf_stage ||
+            !stage.children ||
+            stage.children.length === 0
+          ) {
             // Create breadcrumb-style label
-            const breadcrumbLabel = currentPath.join(' → ');
-            
+            const breadcrumbLabel = currentPath.join(" → ");
+
             options.push({
               id: stage.id,
               label: breadcrumbLabel,
               stageId: stage.id,
               depth,
-              isLeaf: stage.is_leaf_stage || !stage.children || stage.children.length === 0,
+              isLeaf:
+                stage.is_leaf_stage ||
+                !stage.children ||
+                stage.children.length === 0,
             });
           }
-          
+
           // Recursively process child stages
           if (stage.children && stage.children.length > 0) {
-            options.push(...flattenStages(stage.children, depth + 1, currentPath));
+            options.push(
+              ...flattenStages(stage.children, depth + 1, currentPath)
+            );
           }
         }
       });
-      
+
       return options;
     };
-    
+
     return flattenStages(workflowStages);
   }, [workflowStages]);
 
@@ -281,10 +310,14 @@ export default function NewOrdersPage() {
 
   // Set default stage when workflow state loads
   React.useEffect(() => {
-    if (allocationStrategy.defaultStageId && !allocationStageId) {
+    if (
+      "defaultStageId" in allocationStrategy &&
+      allocationStrategy.defaultStageId &&
+      !allocationStageId
+    ) {
       setAllocationStageId(allocationStrategy.defaultStageId);
     }
-  }, [allocationStrategy.defaultStageId, allocationStageId]);
+  }, [allocationStrategy, allocationStageId]);
 
   const handleAllocateItem = async () => {
     if (!selectedItem) {
@@ -304,12 +337,12 @@ export default function NewOrdersPage() {
         await applyTemplateMutation.mutateAsync({
           templateId: selectedTemplateId,
           sku: selectedItem.sku,
-          organizationId: organizationId!
+          organizationId: organizationId!,
         });
         // After template is applied, the workflow will be created
         // Refresh the workflow structure
         await queryClient.invalidateQueries({
-          queryKey: ["workflow", "structure", organizationId, selectedItem.sku]
+          queryKey: ["workflow", "structure", organizationId, selectedItem.sku],
         });
       } catch (error) {
         console.error("Failed to apply template:", error);
@@ -338,7 +371,12 @@ export default function NewOrdersPage() {
   };
 
   // Show consistent loading state for hydration
-  if (isLoadingOrg || (!organizationId && !isLoadingOrg) || isLoadingItems || isLoadingWorkflow) {
+  if (
+    isLoadingOrg ||
+    (!organizationId && !isLoadingOrg) ||
+    isLoadingItems ||
+    isLoadingWorkflow
+  ) {
     return (
       <div className="container mx-auto p-4 space-y-6">
         <Card>
@@ -421,7 +459,9 @@ export default function NewOrdersPage() {
                       <TableCell>{item.customer_name || "-"}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium">{item.quantity_in_new_pool}</span>
+                          <span className="font-medium">
+                            {item.quantity_in_new_pool}
+                          </span>
                           {item.replacement_count > 0 && (
                             <span className="text-xs text-muted-foreground">
                               (from {item.total_replacement_quantity} replaced)
@@ -431,8 +471,11 @@ export default function NewOrdersPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium">{item.original_item_total_quantity}</span>
-                          {item.original_total_before_scraps !== item.original_item_total_quantity && (
+                          <span className="font-medium">
+                            {item.original_item_total_quantity}
+                          </span>
+                          {item.original_total_before_scraps !==
+                            item.original_item_total_quantity && (
                             <span className="text-xs text-muted-foreground line-through">
                               (was {item.original_total_before_scraps})
                             </span>
@@ -492,49 +535,61 @@ export default function NewOrdersPage() {
                 )}
 
                 {/* Show active items in workflow if any */}
-                {workflowState?.active_items_in_workflow > 0 && (
-                  <div className="rounded-lg border p-3">
-                    <p className="text-sm font-medium">
-                      Active Items in Workflow
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {workflowState.active_items_in_workflow} item(s) of this SKU are currently being processed.
-                      New items will join the existing workflow.
-                    </p>
-                  </div>
-                )}
+                {workflowState &&
+                  workflowState.active_items_in_workflow > 0 && (
+                    <div className="rounded-lg border p-3">
+                      <p className="text-sm font-medium">
+                        Active Items in Workflow
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {workflowState.active_items_in_workflow} item(s) of this
+                        SKU are currently being processed. New items will join
+                        the existing workflow.
+                      </p>
+                    </div>
+                  )}
 
                 {/* Template Selection (only if needed) */}
-                {allocationStrategy.needsTemplate && templates && templates.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Select Workflow Template</Label>
-                    <Select
-                      value={selectedTemplateId || allocationStrategy.activeTemplateId || ""}
-                      onValueChange={setSelectedTemplateId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose a template to apply" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templates.map((template) => (
-                          <SelectItem key={template.id} value={template.id}>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{template.name}</span>
-                              {template.is_active && (
-                                <span className="text-xs text-green-600">Active</span>
-                              )}
-                              {template.description && (
-                                <span className="text-xs text-muted-foreground">
-                                  {template.description}
+                {allocationStrategy.needsTemplate &&
+                  templates &&
+                  templates.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Select Workflow Template</Label>
+                      <Select
+                        value={
+                          selectedTemplateId ||
+                          ('activeTemplateId' in allocationStrategy ? allocationStrategy.activeTemplateId : null) ||
+                          ""
+                        }
+                        onValueChange={setSelectedTemplateId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose a template to apply" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {templates.map((template) => (
+                            <SelectItem key={template.id} value={template.id}>
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {template.name}
                                 </span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                                {template.is_active && (
+                                  <span className="text-xs text-green-600">
+                                    Active
+                                  </span>
+                                )}
+                                {template.description && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {template.description}
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                 {/* Configure Workflow Button (if needed) */}
                 {allocationStrategy.needsConfiguration && (
@@ -543,13 +598,16 @@ export default function NewOrdersPage() {
                       Workflow Configuration Required
                     </p>
                     <p className="text-sm text-muted-foreground mb-4">
-                      No workflow has been configured for SKU "{selectedItem.sku}". 
-                      Please set up the workflow stages before allocating items.
+                      No workflow has been configured for SKU "
+                      {selectedItem.sku}". Please set up the workflow stages
+                      before allocating items.
                     </p>
                     <Button
                       onClick={() => {
                         setIsAllocationDialogOpen(false);
-                        router.push(`/settings?tab=workflow&sku=${selectedItem.sku}`);
+                        router.push(
+                          `/settings?tab=workflow&sku=${selectedItem.sku}`
+                        );
                       }}
                       className="w-full"
                       variant="default"
@@ -563,79 +621,80 @@ export default function NewOrdersPage() {
             )}
 
             {/* Only show allocation controls if we can allocate */}
-            {allocationStrategy.canAllocate && !allocationStrategy.needsConfiguration && (
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="quantity" className="text-right">
-                    Quantity
-                  </Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    value={allocationQuantity}
-                    onChange={(e) =>
-                      setAllocationQuantity(
-                        Math.max(1, parseInt(e.target.value, 10))
-                      )
-                    }
-                    max={selectedItem.quantity_in_new_pool}
-                    min={1}
-                    className="col-span-3"
-                  />
-                </div>
-                {/* Single Select for Stage/Sub-stage */}
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="target" className="text-right">
-                    Target Stage
-                  </Label>
-                  <Select
-                    value={allocationStageId || ""}
-                    onValueChange={(selectedValue) => {
-                      if (!selectedValue) {
-                        setAllocationStageId("");
-                                            return;
+            {allocationStrategy.canAllocate &&
+              !allocationStrategy.needsConfiguration && (
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="quantity" className="text-right">
+                      Quantity
+                    </Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      value={allocationQuantity}
+                      onChange={(e) =>
+                        setAllocationQuantity(
+                          Math.max(1, parseInt(e.target.value, 10))
+                        )
                       }
-                      // In tree structure, the selectedValue is just the stage ID
-                      setAllocationStageId(selectedValue);
-                    }}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select target stage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isLoadingWorkflow && (
-                        <SelectItem value="loading" disabled>
-                          Loading targets...
-                        </SelectItem>
-                      )}
-                      {allocatableOptions.map((option) => (
-                        <SelectItem 
-                          key={option.id} 
-                          value={option.id}
-                          className="py-2"
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <span className="text-sm">{option.label}</span>
-                            {option.depth > 0 && (
-                              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded ml-2 flex-shrink-0">
-                                Level {option.depth + 1}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                      {!isLoadingWorkflow &&
-                        allocatableOptions.length === 0 &&
-                        !isErrorWorkflow && (
-                          <SelectItem value="no-targets" disabled>
-                            No targets configured.
+                      max={selectedItem.quantity_in_new_pool}
+                      min={1}
+                      className="col-span-3"
+                    />
+                  </div>
+                  {/* Single Select for Stage/Sub-stage */}
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="target" className="text-right">
+                      Target Stage
+                    </Label>
+                    <Select
+                      value={allocationStageId || ""}
+                      onValueChange={(selectedValue) => {
+                        if (!selectedValue) {
+                          setAllocationStageId("");
+                          return;
+                        }
+                        // In tree structure, the selectedValue is just the stage ID
+                        setAllocationStageId(selectedValue);
+                      }}
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select target stage" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {isLoadingWorkflow && (
+                          <SelectItem value="loading" disabled>
+                            Loading targets...
                           </SelectItem>
                         )}
-                    </SelectContent>
-                  </Select>
+                        {allocatableOptions.map((option) => (
+                          <SelectItem
+                            key={option.id}
+                            value={option.id}
+                            className="py-2"
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className="text-sm">{option.label}</span>
+                              {option.depth > 0 && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded ml-2 flex-shrink-0">
+                                  Level {option.depth + 1}
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                        {!isLoadingWorkflow &&
+                          allocatableOptions.length === 0 &&
+                          !isErrorWorkflow && (
+                            <SelectItem value="no-targets" disabled>
+                              No targets configured.
+                            </SelectItem>
+                          )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
             <DialogFooter>
               <Button
                 variant="outline"
@@ -643,24 +702,30 @@ export default function NewOrdersPage() {
               >
                 Cancel
               </Button>
-              {allocationStrategy.canAllocate && !allocationStrategy.needsConfiguration && (
-                <Button
-                  onClick={handleAllocateItem}
-                  disabled={
-                    allocationMutation.isPending || 
-                    isLoadingWorkflow || 
-                    isLoadingWorkflowState ||
-                    applyTemplateMutation.isPending ||
-                    (allocationStrategy.needsTemplate && !selectedTemplateId && !allocationStrategy.activeTemplateId)
-                  }
-                  className="bg-primary text-white"
-                >
-                  {(allocationMutation.isPending || applyTemplateMutation.isPending) ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  {allocationStrategy.needsTemplate ? 'Apply Template & Allocate' : 'Allocate Item'}
-                </Button>
-              )}
+              {allocationStrategy.canAllocate &&
+                !allocationStrategy.needsConfiguration && (
+                  <Button
+                    onClick={handleAllocateItem}
+                    disabled={
+                      allocationMutation.isPending ||
+                      isLoadingWorkflow ||
+                      isLoadingWorkflowState ||
+                      applyTemplateMutation.isPending ||
+                      (allocationStrategy.needsTemplate &&
+                        !selectedTemplateId &&
+                        !('activeTemplateId' in allocationStrategy ? allocationStrategy.activeTemplateId : null))
+                    }
+                    className="bg-primary text-white"
+                  >
+                    {allocationMutation.isPending ||
+                    applyTemplateMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    {allocationStrategy.needsTemplate
+                      ? "Apply Template & Allocate"
+                      : "Allocate Item"}
+                  </Button>
+                )}
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -62,7 +62,7 @@ export async function GET(
     }
 
     // Get unique user IDs from history
-    const userIds = [...new Set(history.map(h => h.changed_by).filter(Boolean))];
+    const userIds = Array.from(new Set(history.map(h => h.changed_by).filter(Boolean)));
     
     // Fetch user profiles if there are any user IDs
     let userProfiles: Record<string, string> = {};

@@ -173,3 +173,4 @@ Check README or search for test scripts - no standard testing framework detected
 - DO NOT USE GRADIENTS.
 - the org-level workflow doesnt exist naymore. it's sku level now
 - the workflow logics related to move forward, rework, scrap and scrap & replace have been perfectly implemented. Set in stone. DO NOT TOUCH THEM UNTIL ABSOLUTELY NECESSARY. IF REQUIRED, ALWAYS ASK FOR PERMISSION
+- Risky fixes have //CHECK FIX comment near them

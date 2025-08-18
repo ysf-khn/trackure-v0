@@ -145,10 +145,10 @@ export async function GET(
 // POST - Add a new price (updates vendor_stage_pricing and creates history)
 export async function POST(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
   const supabase = await createClient();
-  const { vendorId } = params;
+  const { vendorId } = await params;
 
   // Get the authenticated user
   const {

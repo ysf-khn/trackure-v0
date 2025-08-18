@@ -368,7 +368,7 @@ function StageViewContent() {
           sku={selectedSKU}
           stageId={stageId}
           stageName={stageData.name || ""}
-          orderId={selectedOrderId}
+          orderId={selectedOrderId ?? undefined}
           open={isVendorModalOpen}
           onOpenChange={setIsVendorModalOpen}
         />

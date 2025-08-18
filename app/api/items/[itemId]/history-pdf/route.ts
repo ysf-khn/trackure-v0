@@ -470,14 +470,14 @@ export async function GET(
         let detailY = currentY + 35;
         if (entry.from_stage_name) {
           doc.text(
-            `From: ${entry.from_stage_name}${entry.from_sub_stage_name ? ` > ${entry.from_sub_stage_name}` : ""}`,
+            `From: ${entry.from_stage_name}`,
             65,
             detailY
           );
           detailY += 12;
         }
         doc.text(
-          `To: ${entry.to_stage_name}${entry.to_sub_stage_name ? ` > ${entry.to_sub_stage_name}` : ""}`,
+          `To: ${entry.to_stage_name}`,
           65,
           detailY
         );
