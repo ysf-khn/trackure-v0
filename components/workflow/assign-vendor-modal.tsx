@@ -110,7 +110,9 @@ export function AssignVendorModal({
     queryKey: ["vendors-sku-context", sku, stageId, organizationId],
     queryFn: async () => {
       if (!organizationId) throw new Error("Organization not found");
-      const response = await fetch(`/api/vendors/sku-context?sku=${sku}&stage_id=${stageId}`);
+      const response = await fetch(
+        `/api/vendors/sku-context?sku=${sku}&stage_id=${stageId}`
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to fetch vendors");
@@ -128,7 +130,7 @@ export function AssignVendorModal({
     queryKey: ["order-context", sku, stageId, orderId],
     queryFn: async () => {
       if (!orderId) return null;
-      
+
       const params = new URLSearchParams({
         sku: sku,
         stage_id: stageId,
@@ -166,7 +168,9 @@ export function AssignVendorModal({
   });
 
   // Get selected vendor context for displaying history
-  const selectedVendorContext = vendorsData?.find((v: any) => v.id === selectedVendor)?.context;
+  const selectedVendorContext = vendorsData?.find(
+    (v: any) => v.id === selectedVendor
+  )?.context;
 
   // Calculate display quantity first
   const displayQuantity =
@@ -216,6 +220,7 @@ export function AssignVendorModal({
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["vendor-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["stage-vendor-pricing", stageId] });
       toast.success(
         `Vendor assigned successfully. Order: ${data.order_number}`
       );
@@ -253,7 +258,9 @@ export function AssignVendorModal({
           <DialogTitle>Assign Vendor to {stageName}</DialogTitle>
           <DialogDescription>
             Configure vendor assignment for{" "}
-            {orderContext?.sku_name || vendorContext?.order_context?.sku_name || sku}
+            {orderContext?.sku_name ||
+              vendorContext?.order_context?.sku_name ||
+              sku}
           </DialogDescription>
         </DialogHeader>
 
@@ -263,7 +270,9 @@ export function AssignVendorModal({
               <div>
                 <p className="text-sm text-muted-foreground">SKU</p>
                 <p className="font-semibold">
-                  {orderContext?.sku_name || vendorContext?.order_context?.sku_name || sku}
+                  {orderContext?.sku_name ||
+                    vendorContext?.order_context?.sku_name ||
+                    sku}
                 </p>
               </div>
               <div>
@@ -273,9 +282,11 @@ export function AssignVendorModal({
               <div>
                 <p className="text-sm text-muted-foreground">Order Quantity</p>
                 <p className="font-semibold">{displayQuantity} pieces</p>
-                {(orderContext?.customer_name || vendorContext?.order_context?.customer_name) && (
+                {(orderContext?.customer_name ||
+                  vendorContext?.order_context?.customer_name) && (
                   <p className="text-xs text-muted-foreground">
-                    {orderContext?.customer_name || vendorContext?.order_context?.customer_name}
+                    {orderContext?.customer_name ||
+                      vendorContext?.order_context?.customer_name}
                   </p>
                 )}
               </div>
@@ -320,30 +331,44 @@ export function AssignVendorModal({
                         </SelectItem>
                       ) : (
                         vendorsData?.map((vendor: any) => {
-                          const lastPrice = vendor.context?.current_pricing?.price || 
-                                          vendor.context?.price_history?.[0]?.price;
-                          const lastCurrency = vendor.context?.current_pricing?.currency || 
-                                             vendor.context?.price_history?.[0]?.currency || "INR";
-                          const hasWorkedBefore = vendor.context?.has_worked_before;
-                          const outstandingAmount = vendor.context?.outstanding_amount || 0;
+                          const lastPrice =
+                            vendor.context?.current_pricing?.price ||
+                            vendor.context?.price_history?.[0]?.price;
+                          const lastCurrency =
+                            vendor.context?.current_pricing?.currency ||
+                            vendor.context?.price_history?.[0]?.currency ||
+                            "INR";
+                          const hasWorkedBefore =
+                            vendor.context?.has_worked_before;
+                          const outstandingAmount =
+                            vendor.context?.outstanding_amount || 0;
 
                           return (
-                            <SelectItem
-                              key={vendor.id}
-                              value={vendor.id}
-                            >
+                            <SelectItem key={vendor.id} value={vendor.id}>
                               <div className="flex items-center justify-between w-full">
                                 <div className="flex flex-col text-left">
                                   <div className="flex items-center gap-2">
-                                    <span className="font-medium">{vendor.name}</span>
+                                    <span className="font-medium">
+                                      {vendor.name}
+                                    </span>
                                     {hasWorkedBefore && (
-                                      <Badge variant="secondary" className="text-xs">
+                                      <Badge
+                                        variant="secondary"
+                                        className="text-xs"
+                                      >
                                         Worked before
                                       </Badge>
                                     )}
                                     {outstandingAmount > 0 && (
-                                      <Badge variant="destructive" className="text-xs">
-                                        Outstanding: {formatCurrency(outstandingAmount, "INR")}
+                                      <Badge
+                                        variant="destructive"
+                                        className="text-xs"
+                                      >
+                                        Outstanding:{" "}
+                                        {formatCurrency(
+                                          outstandingAmount,
+                                          "INR"
+                                        )}
                                       </Badge>
                                     )}
                                   </div>
@@ -354,7 +379,9 @@ export function AssignVendorModal({
                                   )}
                                   {lastPrice && (
                                     <span className="text-xs text-muted-foreground">
-                                      Last price: {formatCurrency(lastPrice, lastCurrency)}/piece
+                                      Last price:{" "}
+                                      {formatCurrency(lastPrice, lastCurrency)}
+                                      /piece
                                     </span>
                                   )}
                                 </div>
@@ -372,12 +399,12 @@ export function AssignVendorModal({
 
             {/* Outstanding Amount Alert */}
             {selectedVendor && outstandingAmount > 0 && (
-              <Alert className="border-orange-200 bg-orange-50">
-                <AlertTriangle className="h-4 w-4 text-orange-600" />
-                <AlertDescription className="text-orange-900">
+              <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <AlertDescription>
                   This vendor has an outstanding balance of{" "}
-                  {formatCurrency(outstandingAmount, "INR")}
-                  which will be added to this order.
+                  {formatCurrency(outstandingAmount, "INR")} which will be added
+                  to this order.
                 </AlertDescription>
               </Alert>
             )}

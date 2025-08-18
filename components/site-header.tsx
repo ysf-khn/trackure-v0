@@ -2,7 +2,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { GalleryVerticalEnd, Home, PlusCircle } from "lucide-react";
+import { GalleryVerticalEnd, Home, PlusCircle, Wrench } from "lucide-react";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 
@@ -43,6 +43,13 @@ export function SiteHeader() {
           <Button variant="ghost" size="sm" className="px-2 sm:px-3">
             <GalleryVerticalEnd className="h-4 w-4" />
             <span className="ml-2 hidden lg:inline">All Orders</span>
+          </Button>
+        </Link>
+        <Separator orientation="vertical" className="h-4 hidden sm:block" />
+        <Link href="/tools">
+          <Button variant="ghost" size="sm" className="px-2 sm:px-3">
+            <Wrench className="h-4 w-4" />
+            <span className="ml-2 hidden lg:inline">Tools</span>
           </Button>
         </Link>
       </div>

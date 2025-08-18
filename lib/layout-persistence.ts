@@ -12,6 +12,7 @@ export interface SavedLayout {
   organizationId: string;
   sku: string | null;
   positions: Record<string, { x: number; y: number }>;
+  viewport?: { x: number; y: number; zoom: number }; // Save zoom and pan state
   timestamp: number;
   version: number; // For future migration compatibility
   layoutType: 'custom' | 'auto'; // Track if user has customized
@@ -39,7 +40,8 @@ function getStorageKey(organizationId: string, sku: string | null): string {
 export function saveWorkflowLayout(
   organizationId: string,
   sku: string | null,
-  nodes: Node[]
+  nodes: Node[],
+  viewport?: { x: number; y: number; zoom: number }
 ): boolean {
   try {
     const positions: Record<string, { x: number; y: number }> = {};
@@ -56,6 +58,7 @@ export function saveWorkflowLayout(
       organizationId,
       sku,
       positions,
+      viewport,
       timestamp: Date.now(),
       version: 1,
       layoutType: 'custom',

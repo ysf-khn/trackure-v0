@@ -139,17 +139,34 @@ const fetchItemsInStage = async (
 
         const movementEntries = itemDetails.item_movement_history || [];
 
-        const currentStageMovement = movementEntries
-          .filter(
-            (h: HistoryMovementEntry) =>
-              h.to_stage_id === typedAlloc.stage_id // Compare with alloc's stage_id
-          )
-          .sort(
-            (a: HistoryMovementEntry, b: HistoryMovementEntry) =>
-              new Date(b.moved_at).getTime() - new Date(a.moved_at).getTime()
-          );
-
-        const latestEntryForCurrentStage = currentStageMovement[0] ?? null;
+        // Get movement specific to this allocation type
+        let relevantMovement: HistoryMovementEntry | null = null;
+        if (typedAlloc.allocation_type === 'reworked') {
+          // For reworked allocations, find the latest rework movement that brought items to this stage
+          const reworkMovements = movementEntries
+            .filter(
+              (h: HistoryMovementEntry) =>
+                h.to_stage_id === typedAlloc.stage_id && h.rework_type === 'backward'
+            )
+            .sort(
+              (a: HistoryMovementEntry, b: HistoryMovementEntry) =>
+                new Date(b.moved_at).getTime() - new Date(a.moved_at).getTime()
+            );
+          relevantMovement = reworkMovements[0] ?? null;
+        } else {
+          // For normal allocations, find the latest forward movement that brought items to this stage
+          const forwardMovements = movementEntries
+            .filter(
+              (h: HistoryMovementEntry) =>
+                h.to_stage_id === typedAlloc.stage_id && 
+                (h.rework_type === 'forward' || !h.rework_type)
+            )
+            .sort(
+              (a: HistoryMovementEntry, b: HistoryMovementEntry) =>
+                new Date(b.moved_at).getTime() - new Date(a.moved_at).getTime()
+            );
+          relevantMovement = forwardMovements[0] ?? null;
+        }
 
         // Determine entry type based on item properties and allocation type
         let entryType: 'normal' | 'reworked' | 'replacement' = 'normal';
@@ -157,6 +174,18 @@ const fetchItemsInStage = async (
           entryType = 'replacement';
         } else if (typedAlloc.allocation_type === 'reworked') {
           entryType = 'reworked';
+        }
+        
+        // Debug logging for reworked allocations
+        if (typedAlloc.allocation_type === 'reworked') {
+          console.log('[DEBUG useItemsInStage] Reworked allocation found:', {
+            item_id: itemDetails.id,
+            sku: itemDetails.sku,
+            stage_id: typedAlloc.stage_id,
+            allocation_type: typedAlloc.allocation_type,
+            quantity: typedAlloc.quantity,
+            entryType: entryType
+          });
         }
 
         const entry: ItemInStage = {
@@ -167,8 +196,8 @@ const fetchItemsInStage = async (
           order_number: itemDetails.orders?.order_number ?? null,
           instance_details: itemDetails.instance_details,
           current_stage_id: typedAlloc.stage_id,
-          current_stage_entered_at: latestEntryForCurrentStage?.moved_at ?? null,
-          current_stage_history_id: latestEntryForCurrentStage?.id ?? null,
+          current_stage_entered_at: relevantMovement?.moved_at ?? null,
+          current_stage_history_id: relevantMovement?.id ?? null,
           quantity: typedAlloc.quantity,
           entry_type: entryType,
           composite_group_id: itemDetails.composite_group_id,

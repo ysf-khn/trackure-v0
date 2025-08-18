@@ -175,10 +175,10 @@ export async function GET(
 // POST - Create a new vendor order
 export async function POST(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
   const supabase = await createClient();
-  const { vendorId } = params;
+  const { vendorId } = await params;
 
   // Get the authenticated user
   const {
@@ -370,8 +370,9 @@ export async function POST(
 // PATCH - Update vendor order status
 export async function PATCH(
   request: Request,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
+  const { vendorId } = await params;
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const orderId = searchParams.get("order_id");

@@ -316,7 +316,7 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
                         {format(new Date(order.created_at), "PP")}
                       </TableCell>
                       <TableCell>
-                        {order.payment_summary.payment_status !== "paid" && (
+                        {order.payment_summary.payment_status !== "paid" && order.payment_summary.payment_count === 0 && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -324,6 +324,11 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
                           >
                             Add Payment
                           </Button>
+                        )}
+                        {order.payment_summary.payment_count > 0 && order.payment_summary.payment_status !== "paid" && (
+                          <div className="text-sm text-muted-foreground">
+                            Payment recorded
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>

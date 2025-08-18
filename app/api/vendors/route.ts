@@ -75,6 +75,29 @@ export async function GET(request: Request) {
       );
     }
 
+    // Get outstanding amounts for all vendors
+    const { data: outstandingPayments } = await supabase
+      .from("vendor_payments")
+      .select("vendor_id, remaining_amount, vendor_order_id, payment_date")
+      .order("payment_date", { ascending: false });
+
+    // Calculate outstanding amounts per vendor
+    const vendorOutstandingMap = new Map();
+    const processedOrders = new Set();
+
+    outstandingPayments?.forEach(payment => {
+      // Only process each order once (get the latest payment)
+      if (!processedOrders.has(payment.vendor_order_id)) {
+        processedOrders.add(payment.vendor_order_id);
+        const remainingAmount = Number(payment.remaining_amount) || 0;
+        
+        if (remainingAmount > 0) {
+          const currentOutstanding = vendorOutstandingMap.get(payment.vendor_id) || 0;
+          vendorOutstandingMap.set(payment.vendor_id, currentOutstanding + remainingAmount);
+        }
+      }
+    });
+
     // Calculate vendor statistics
     const vendorsWithStats = vendors.map(vendor => {
       const activePricing = vendor.pricing.filter(p => p.is_active);
@@ -93,6 +116,7 @@ export async function GET(request: Request) {
           avg_lead_time: activePricing.length > 0
             ? activePricing.reduce((sum, p) => sum + p.lead_time_days, 0) / activePricing.length
             : 0,
+          outstanding_amount: vendorOutstandingMap.get(vendor.id) || 0,
         }
       };
     });

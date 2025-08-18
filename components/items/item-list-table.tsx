@@ -16,7 +16,6 @@ import { DateRange } from "react-day-picker";
 import Link from "next/link"; // Add this import
 
 import {
-  ChevronRight,
   History,
   Download,
   ChevronsRight, // Icon for submenu
@@ -30,7 +29,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { DatePickerWithRange } from "@/components/ui/date-picker-with-range";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -86,7 +84,6 @@ import {
   determineNextStage,
   determinePreviousStage,
 } from "@/lib/workflow-utils"; // Assuming this utility function exists or will be created
-import { useDebounce } from "@/hooks/queries/use-debounce";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import { useMultiplePermissions } from "@/hooks/queries/use-permission-check";
 
@@ -122,7 +119,11 @@ interface ItemListTableMeta {
     itemName: string
   ) => void;
   handleMoveForward: (
-    itemsToMove: { id: string; quantity: number; allocation_type?: 'normal' | 'reworked' }[],
+    itemsToMove: {
+      id: string;
+      quantity: number;
+      allocation_type?: "normal" | "reworked";
+    }[],
     targetStageId?: string | null,
     sourceStageId?: string | null
   ) => void;
@@ -203,139 +204,107 @@ export const columns: ColumnDef<ItemInStage>[] = [
   },
   {
     accessorKey: "sku",
-    header: "SKU",
+    header: "SKU / Order",
     cell: ({ row, table }) => {
       const item = row.original;
       const meta = table.options.meta as ItemListTableMeta | undefined;
 
-      // Extract necessary info from meta
-      const { workflowData, currentStageId } = meta || {};
-
-      // Determine if there are previous steps
-      const hasPreviousStep =
-        workflowData && currentStageId
-          ? determinePreviousStage(currentStageId, null, workflowData) !== null
-          : false;
-
-      const handleOpenSingleItemRework = () => {
-        if (meta?.handleOpenSingleReworkQuantityModal && meta.currentStageId) {
-          meta.handleOpenSingleReworkQuantityModal({
-            id: item.source_item_id,
-            sku: item.sku,
-            currentQuantity: item.quantity,
-            currentStageId: meta.currentStageId,
-            entryType: item.entry_type,
-          });
-        }
-      };
-
-      const canRework = meta?.hasPermission("items.move") ?? false;
-      const canAddRemark = meta?.hasPermission("items.view") ?? false;
-      const canDelete = meta?.hasPermission("items.delete") ?? false;
-
       return (
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-foreground">
-            {row.getValue("sku")}
-          </span>
-          <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-foreground">
+              {row.getValue("sku")}
+            </span>
             <Button
               variant="ghost"
               size="sm"
               asChild
-              className="h-6 w-6 p-0 hover:bg-primary/10"
+              className="h-5 w-5 p-0 hover:bg-primary/10"
             >
               <Link href={`/items/${item.source_item_id}`}>
                 <ExternalLink className="h-3 w-3" />
                 <span className="sr-only">View item details</span>
               </Link>
             </Button>
-            {canRework && hasPreviousStep && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleOpenSingleItemRework}
-                disabled={
-                  meta?.isMovingItems ||
-                  meta?.isReworkingItems ||
-                  !hasPreviousStep
-                }
-                className="h-6 w-6 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-md"
-              >
-                <RotateCcw className="h-3 w-3" />
-                <span className="sr-only">Rework item</span>
-              </Button>
-            )}
-            {canAddRemark && (
-              <AddRemarkModal itemId={item.source_item_id}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={meta?.isMovingItems || meta?.isReworkingItems}
-                  className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md"
-                >
-                  <FileText className="h-3 w-3" />
-                  <span className="sr-only">Add remark</span>
-                </Button>
-              </AddRemarkModal>
-            )}
-            {canDelete && (
-              <>
-                <div className="w-px h-4 bg-border mx-1.5" />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (
-                      confirm(
-                        `Are you sure you want to delete item ${item.sku}? This action cannot be undone.`
-                      )
-                    ) {
-                      meta?.handleDeleteItem?.(item.source_item_id);
-                    }
-                  }}
-                  disabled={meta?.isMovingItems || meta?.isReworkingItems}
-                  className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  <span className="sr-only">Delete item</span>
-                </Button>
-              </>
-            )}
           </div>
+          <span className="text-xs text-muted-foreground">
+            {item.order_number || "-"}
+          </span>
         </div>
       );
     },
   },
   {
-    id: "entry_type",
+    id: "type",
     header: "Type",
     cell: ({ row }) => {
       const item = row.original;
 
-      // Show entry type (normal/reworked/replacement) with appropriate styling
+      // Debug logging for reworked items
+      if (item.entry_type === "reworked") {
+        console.log("[DEBUG] Reworked item detected:", {
+          id: item.source_item_id,
+          sku: item.sku,
+          entry_type: item.entry_type,
+          quantity: item.quantity,
+          rework_reasons: item.rework_reasons,
+        });
+      }
+
+      // Determine product type badge
+      const productTypeBadge = item.parent_composite_sku ? (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1 cursor-help">
+                <Layers className="h-3 w-3 text-primary" />
+                <span className="text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded font-medium">
+                  Component
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="text-sm">
+                <p>
+                  <strong>Component of:</strong> {item.parent_composite_sku}
+                </p>
+                <p>
+                  <strong>Group ID:</strong>{" "}
+                  {item.composite_group_id?.slice(0, 8)}...
+                </p>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : (
+        <span className="text-xs text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-medium">
+          Single
+        </span>
+      );
+
+      // Determine movement type badge
+      let movementTypeBadge;
       if (item.entry_type === "replacement") {
-        return (
+        movementTypeBadge = (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1 cursor-help">
-                  <span className="text-xs text-purple-800 bg-purple-100 px-2 py-1 rounded-md border border-purple-200 font-medium">
-                    Replacement
-                  </span>
-                </div>
+                <span className="text-xs text-purple-800 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200 font-medium cursor-help">
+                  Replacement
+                </span>
               </TooltipTrigger>
               <TooltipContent>
                 <div className="text-sm max-w-xs">
                   <p>
-                    <strong>Entry Type:</strong> Replacement item
+                    <strong>Movement Type:</strong> Replacement item
                   </p>
                   <p className="mt-1 text-muted-foreground">
                     This item was created as a replacement for a scrapped item.
                   </p>
                   {item.replaced_item_id && (
                     <p className="mt-2">
-                      <strong>Original Item ID:</strong> {item.replaced_item_id.slice(0, 8)}...
+                      <strong>Original Item ID:</strong>{" "}
+                      {item.replaced_item_id.slice(0, 8)}...
                     </p>
                   )}
                 </div>
@@ -343,23 +312,19 @@ export const columns: ColumnDef<ItemInStage>[] = [
             </Tooltip>
           </TooltipProvider>
         );
-      }
-      
-      if (item.entry_type === "reworked") {
-        return (
+      } else if (item.entry_type === "reworked") {
+        movementTypeBadge = (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1 cursor-help">
-                  <span className="text-xs text-amber-800 bg-amber-100 px-2 py-1 rounded-md border border-amber-200 font-medium">
-                    Reworked
-                  </span>
-                </div>
+                <span className="text-xs text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 font-medium cursor-help">
+                  Reworked
+                </span>
               </TooltipTrigger>
               <TooltipContent>
                 <div className="text-sm max-w-xs">
                   <p>
-                    <strong>Entry Type:</strong> Reworked quantities
+                    <strong>Movement Type:</strong> Reworked quantities
                   </p>
                   {item.rework_reasons && item.rework_reasons.length > 0 && (
                     <>
@@ -378,53 +343,22 @@ export const columns: ColumnDef<ItemInStage>[] = [
             </Tooltip>
           </TooltipProvider>
         );
-      }
-
-      // Show composite info for normal entries if applicable
-      if (item.parent_composite_sku) {
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1 cursor-help">
-                  <Layers className="h-3 w-3 text-primary" />
-                  <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded-md font-medium">
-                    Component
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="text-sm">
-                  <p>
-                    <strong>Component of:</strong> {item.parent_composite_sku}
-                  </p>
-                  <p>
-                    <strong>Group ID:</strong>{" "}
-                    {item.composite_group_id?.slice(0, 8)}...
-                  </p>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+      } else {
+        movementTypeBadge = (
+          <span className="text-xs text-green-700 bg-green-50 px-1.5 py-0.5 rounded font-medium">
+            Normal
+          </span>
         );
       }
 
       return (
-        <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md font-medium">
-          Normal
-        </span>
+        <div className="flex flex-col gap-1 items-start">
+          {productTypeBadge}
+          {movementTypeBadge}
+        </div>
       );
     },
     enableSorting: false,
-  },
-  {
-    accessorKey: "order_number",
-    header: "Order Number",
-    cell: ({ row }) => (
-      <div className="font-medium text-muted-foreground">
-        {row.getValue("order_number")}
-      </div>
-    ),
   },
   {
     accessorKey: "quantity",
@@ -435,49 +369,8 @@ export const columns: ColumnDef<ItemInStage>[] = [
     },
   },
   {
-    accessorKey: "instance_details",
-    header: "Details",
-    cell: ({ row, table }) => {
-      const details = row.getValue("instance_details") as Record<
-        string,
-        unknown
-      >;
-      const meta = table.options.meta as ItemListTableMeta | undefined;
-      const itemName = row.original.sku; // Or any other display name
-
-      if (!meta?.onViewDetails) {
-        return <div className="truncate w-32">{JSON.stringify(details)}</div>; // Fallback or null
-      }
-
-      return (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() =>
-            meta.onViewDetails?.(
-              {
-                id: row.original.source_item_id,
-                sku: row.original.sku,
-                instance_details: details,
-                composite_group_id: row.original.composite_group_id,
-                parent_composite_sku: row.original.parent_composite_sku,
-              },
-              itemName
-            )
-          }
-          disabled={meta.isMovingItems || meta.isReworkingItems}
-          aria-label="View Item Details"
-          className="h-8 px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-        >
-          <Info className="h-3 w-3 mr-2" />
-          Details
-        </Button>
-      );
-    },
-  },
-  {
     accessorKey: "current_stage_entered_at",
-    header: "Time in Stage",
+    header: "Latest Movement",
     cell: ({ row }) => {
       const enteredAt = row.getValue("current_stage_entered_at") as
         | string
@@ -485,8 +378,8 @@ export const columns: ColumnDef<ItemInStage>[] = [
       if (!enteredAt) return <div>-</div>;
       try {
         return (
-          <div>
-            {formatDistanceToNow(new Date(enteredAt), { addSuffix: false })}
+          <div className="text-sm">
+            {formatDistanceToNow(new Date(enteredAt), { addSuffix: true })}
           </div>
         );
       } catch (error) {
@@ -497,29 +390,56 @@ export const columns: ColumnDef<ItemInStage>[] = [
     sortingFn: "datetime", // Enable sorting by date
   },
   {
-    id: "history",
-    header: "History",
+    id: "info",
+    header: "Info",
     cell: ({ row, table }) => {
       const item = row.original;
+      const details = item.instance_details;
       const meta = table.options.meta as ItemListTableMeta | undefined;
-      const canViewHistory = !!meta?.onViewHistory; // Button enabled if handler exists
-
-      if (!canViewHistory) {
-        return null; // Or potentially a disabled placeholder
-      }
+      const itemName = row.original.sku;
 
       return (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => meta.onViewHistory?.(item.source_item_id, item.sku)}
-          disabled={meta.isMovingItems || meta.isReworkingItems}
-          aria-label="View Item History"
-          className="h-8 px-3 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
-        >
-          <History className="h-3 w-3 mr-2" />
-          History
-        </Button>
+        <div className="flex flex-col gap-1">
+          {meta?.onViewDetails && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                meta.onViewDetails?.(
+                  {
+                    id: row.original.source_item_id,
+                    sku: row.original.sku,
+                    instance_details: details,
+                    composite_group_id: row.original.composite_group_id,
+                    parent_composite_sku: row.original.parent_composite_sku,
+                  },
+                  itemName
+                )
+              }
+              disabled={meta.isMovingItems || meta.isReworkingItems}
+              aria-label="View Item Details"
+              className="h-7 px-2 text-xs"
+            >
+              <Info className="h-3 w-3 mr-1.5" />
+              Details
+            </Button>
+          )}
+          {meta?.onViewHistory && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                meta.onViewHistory?.(item.source_item_id, item.sku)
+              }
+              disabled={meta.isMovingItems || meta.isReworkingItems}
+              aria-label="View Item History"
+              className="h-7 px-2 text-xs"
+            >
+              <History className="h-3 w-3 mr-1.5" />
+              History
+            </Button>
+          )}
+        </div>
       );
     },
     enableSorting: false,
@@ -584,8 +504,8 @@ export const columns: ColumnDef<ItemInStage>[] = [
     enableSorting: false,
   },
   {
-    id: "move_forward",
-    header: "Move Forward",
+    id: "actions",
+    header: "Actions",
     cell: ({ row, table }) => {
       const item = row.original;
       const meta = table.options.meta as ItemListTableMeta | undefined;
@@ -598,43 +518,31 @@ export const columns: ColumnDef<ItemInStage>[] = [
         currentStageId,
       } = meta || {};
 
-      // Determine if there are next steps
+      // Determine if there are next/previous steps
       const nextStage =
         workflowData && currentStageId
           ? determineNextStage(currentStageId, null, workflowData)
           : null;
-
       const hasNextStep = nextStage !== null;
 
-      // Debug logging
-      if (workflowData && currentStageId) {
-        console.log(
-          `[MoveForward] Stage ${currentStageId}, workflow stages:`,
-          workflowData.length,
-          "nextStage:",
-          nextStage,
-          "hasNextStep:",
-          hasNextStep
-        );
-      }
+      const hasPreviousStep =
+        workflowData && currentStageId
+          ? determinePreviousStage(currentStageId, null, workflowData) !== null
+          : false;
 
       const handleOpenMoveModal = (targetId?: string | null) => {
         let targetStageId: string | null = null;
         let targetStageName: string;
 
         if (!targetId) {
-          // Immediate next stage
           targetStageName = "Immediate Next Stage";
         } else {
-          // Find the target in subsequent stages
           const targetStage = subsequentStages?.find((s) => s.id === targetId);
-
           if (targetStage) {
             targetStageId = targetId;
             targetStageName =
               targetStage.name || `Stage ${targetId.substring(0, 6)}`;
           } else {
-            // Fallback
             targetStageId = targetId;
             targetStageName = `Stage ${targetId.substring(0, 6)}`;
           }
@@ -647,80 +555,147 @@ export const columns: ColumnDef<ItemInStage>[] = [
             currentQuantity: item.quantity,
             targetStageId: targetStageId,
             targetStageName: targetStageName,
-            entryType: item.entry_type, // Pass the entry type (normal/reworked)
+            entryType: item.entry_type,
+          });
+        }
+      };
+
+      const handleOpenSingleItemRework = () => {
+        if (meta?.handleOpenSingleReworkQuantityModal && meta.currentStageId) {
+          meta.handleOpenSingleReworkQuantityModal({
+            id: item.source_item_id,
+            sku: item.sku,
+            currentQuantity: item.quantity,
+            currentStageId: meta.currentStageId,
+            entryType: item.entry_type,
           });
         }
       };
 
       const canMove = meta?.hasPermission("items.move") ?? false;
+      const canRework = meta?.hasPermission("items.move") ?? false;
+      const canAddRemark = meta?.hasPermission("items.view") ?? false;
+      const canDelete = meta?.hasPermission("items.delete") ?? false;
 
-      // If user can't move items or there's no next step, don't show anything
-      if (!canMove || !hasNextStep) {
-        if (!hasNextStep) {
-          return (
-            <span className="text-xs text-muted-foreground font-medium px-2 py-1 bg-muted/30 rounded-md">
-              End of workflow
-            </span>
-          );
+      // Debug logging for permissions and states
+      console.log(`[Actions Debug] Item ${item.sku}:`, {
+        canMove,
+        canRework,
+        canAddRemark,
+        canDelete,
+        hasNextStep,
+        hasPreviousStep,
+        isMovingItems: meta?.isMovingItems,
+        isReworkingItems: meta?.isReworkingItems,
+      });
+
+      // Move Forward button (top)
+      const moveForwardButton = () => {
+        if (!canMove || !hasNextStep) {
+          if (!hasNextStep) {
+            return (
+              <span className="text-xs text-muted-foreground font-medium px-2 py-1 bg-muted/30 rounded-md">
+                End of workflow
+              </span>
+            );
+          }
+          return null;
         }
-        return null;
-      }
 
-      // If there's only immediate next stage or no subsequent stages, show simple button
-      if (!subsequentStages || subsequentStages.length === 0) {
-        return (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleOpenMoveModal()}
-            disabled={meta?.isMovingItems || meta?.isReworkingItems}
-            className="h-7 px-2.5 text-xs font-medium text-primary hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
-          >
-            <ChevronsRight className="mr-1.5 h-3 w-3" />
-            Move Forward
-          </Button>
-        );
-      }
-
-      // If there are multiple subsequent stages, show dropdown
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        if (!subsequentStages || subsequentStages.length === 0) {
+          return (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
+              onClick={() => handleOpenMoveModal()}
               disabled={meta?.isMovingItems || meta?.isReworkingItems}
-              className="h-7 px-2.5 text-xs font-medium text-primary hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+              className="h-7 w-full text-xs font-medium"
             >
               <ChevronsRight className="mr-1.5 h-3 w-3" />
               Move Forward
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => handleOpenMoveModal()} // No targetStageId means immediate next
-              disabled={meta?.isMovingItems || meta?.isReworkingItems}
-            >
-              Immediate Next Stage
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {isWorkflowLoading ? (
-              <DropdownMenuItem disabled>Loading stages...</DropdownMenuItem>
-            ) : (
-              subsequentStages?.map(
-                (stage: { id: string; name: string | null }) => (
-                  <DropdownMenuItem
-                    key={stage.id}
-                    onClick={() => handleOpenMoveModal(stage.id)} // Pass targetStageId
-                    disabled={meta?.isMovingItems || meta?.isReworkingItems}
-                  >
-                    {stage.name || `Stage ${stage.id.substring(0, 6)}`}
-                  </DropdownMenuItem>
+          );
+        }
+
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={meta?.isMovingItems || meta?.isReworkingItems}
+                className="h-7 w-full text-xs font-medium"
+              >
+                <ChevronsRight className="mr-1.5 h-3 w-3" />
+                Move Forward
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => handleOpenMoveModal()}
+                disabled={meta?.isMovingItems || meta?.isReworkingItems}
+              >
+                Immediate Next Stage
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {isWorkflowLoading ? (
+                <DropdownMenuItem disabled>Loading stages...</DropdownMenuItem>
+              ) : (
+                subsequentStages?.map(
+                  (stage: { id: string; name: string | null }) => (
+                    <DropdownMenuItem
+                      key={stage.id}
+                      onClick={() => handleOpenMoveModal(stage.id)}
+                      disabled={meta?.isMovingItems || meta?.isReworkingItems}
+                    >
+                      {stage.name || `Stage ${stage.id.substring(0, 6)}`}
+                    </DropdownMenuItem>
+                  )
                 )
-              )
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      };
+
+      return (
+        <div className="flex flex-col gap-2 items-start">
+          {/* Top stack - Move Forward and Rework buttons */}
+          <div className="flex flex-col gap-1 w-full">
+            {moveForwardButton()}
+            {canRework && hasPreviousStep && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenSingleItemRework}
+                disabled={
+                  meta?.isMovingItems ||
+                  meta?.isReworkingItems ||
+                  !hasPreviousStep
+                }
+                className="h-7 w-full text-xs font-medium"
+              >
+                <RotateCcw className="mr-1.5 h-3 w-3" />
+                Rework
+              </Button>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
+          
+          {/* Bottom - Add Remark button */}
+          {canAddRemark && (
+            <AddRemarkModal itemId={item.source_item_id}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={meta?.isMovingItems || meta?.isReworkingItems}
+                className="h-7 w-full text-xs font-medium"
+              >
+                <FileText className="mr-1.5 h-3 w-3" />
+                Add Remark
+              </Button>
+            </AddRemarkModal>
+          )}
+        </div>
       );
     },
     enableSorting: false,
@@ -798,8 +773,6 @@ export function ItemListTable({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const [orderIdFilter, setOrderIdFilter] = useState<string | null>(null);
-  const debouncedOrderIdFilter = useDebounce(orderIdFilter, 500);
 
   // State for PDF export modal and date range picker
   const [isPdfExportModalOpen, setIsPdfExportModalOpen] = useState(false);
@@ -895,7 +868,11 @@ export function ItemListTable({
   };
 
   const handleMoveForward = (
-    itemsToMove: { id: string; quantity: number; allocation_type?: 'normal' | 'reworked' }[], // Updated signature
+    itemsToMove: {
+      id: string;
+      quantity: number;
+      allocation_type?: "normal" | "reworked";
+    }[], // Updated signature
     targetStageId?: string | null, // Add optional targetStageId
     sourceStageId?: string | null // Add optional sourceStageId
   ) => {
@@ -949,9 +926,6 @@ export function ItemListTable({
         stageId: stageId,
       });
 
-      if (debouncedOrderIdFilter) {
-        params.append("orderId", debouncedOrderIdFilter);
-      }
 
       // Add date range parameters if selected
       if (selectedDateRange?.from) {
@@ -1015,7 +989,13 @@ export function ItemListTable({
     if (!itemToMoveDetails) return; // Should not happen if modal was opened correctly
 
     handleMoveForward(
-      [{ id: itemId, quantity: quantity, allocation_type: itemToMoveDetails.entryType }],
+      [
+        {
+          id: itemId,
+          quantity: quantity,
+          allocation_type: itemToMoveDetails.entryType,
+        },
+      ],
       itemToMoveDetails.targetStageId,
       stageId
     );
@@ -1211,14 +1191,8 @@ export function ItemListTable({
 
   return (
     <div className="space-y-4">
-      {/* --- Updated Filter Input and Export Button --- */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-        <Input
-          placeholder="Filter by Order ID..."
-          value={orderIdFilter ?? ""}
-          onChange={(event) => setOrderIdFilter(event.target.value)}
-          className="max-w-sm text-sm h-9"
-        />
+      {/* --- Export Button --- */}
+      <div className="flex justify-end">
         <div className="flex gap-2 items-center">
           {hasPermission("documents.export") && (
             <Button
@@ -1232,40 +1206,6 @@ export function ItemListTable({
               Export PDF
             </Button>
           )}
-          {/* --- Restore DropdownMenu for bulk actions --- */}
-          {hasPermission("items.move") &&
-            subsequentStages &&
-            subsequentStages.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={
-                      isMovingItems ||
-                      isReworkingItems ||
-                      Object.keys(rowSelection).length === 0
-                    }
-                    className="h-9"
-                  >
-                    Move Selected To <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Target Stage</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {subsequentStages.map((target) => (
-                    <DropdownMenuItem
-                      key={target.id}
-                      onClick={() => handleOpenBulkMoveModal(target)}
-                      disabled={isMovingItems || isReworkingItems}
-                    >
-                      {target.name || target.id}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
         </div>
       </div>
 
@@ -1316,7 +1256,6 @@ export function ItemListTable({
         ref={itemTableCoreRef} // Assign the ref
         organizationId={organizationId} // From useProfileAndOrg hook
         stageId={stageId} // From props
-        orderIdFilter={debouncedOrderIdFilter}
         columns={columns}
         userRole={userRole} // From useProfileAndOrg hook
         isMovingItems={isMovingItems} // From useMoveItemsForward hook

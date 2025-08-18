@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Building, Phone, Mail, MapPin, FileText } from "lucide-react";
+import { Plus, Building, Phone, Mail, MapPin, FileText, DollarSign, CreditCard } from "lucide-react";
+import { DateRange } from "react-day-picker";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,22 +17,51 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useVendors } from "@/hooks/queries/use-vendors";
 import { AddVendorModal } from "./add-vendor-modal";
+import { VendorSummaryFilters } from "./vendor-summary-filters";
+import { useVendorPaymentSummary, DatePeriod } from "@/hooks/queries/use-vendor-payment-summary";
 
 export function VendorManagement() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [period, setPeriod] = useState<DatePeriod>("last_30_days");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const router = useRouter();
 
   const { data: vendorsData, isLoading, error } = useVendors();
   const vendors = vendorsData?.vendors || [];
   const meta = vendorsData?.meta;
 
+  // Get payment summary data
+  const { data: paymentSummary, isLoading: isSummaryLoading, error: summaryError } = useVendorPaymentSummary({
+    period,
+    fromDate: dateRange?.from?.toISOString().split('T')[0],
+    toDate: dateRange?.to?.toISOString().split('T')[0],
+  });
+
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-10 w-32" />
+      <div className="space-y-6">
+        {/* Filter skeleton */}
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-10 w-[200px]" />
+          <Skeleton className="h-4 w-48" />
         </div>
+        
+        {/* Summary cards skeleton */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Vendors grid skeleton */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}>
@@ -53,59 +83,115 @@ export function VendorManagement() {
     );
   }
 
-  if (error) {
+  if (error || summaryError) {
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          Failed to load vendors: {error.message}
+          {error ? `Failed to load vendors: ${error.message}` : `Failed to load payment summary: ${summaryError?.message}`}
         </AlertDescription>
       </Alert>
     );
   }
 
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header with stats */}
-      <div className="flex justify-between items-start">
-        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-3 w-full max-w-4xl">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Vendors
-              </CardTitle>
-              <Building className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{meta?.total_count || 0}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Active Vendors
-              </CardTitle>
-              <Building className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {meta?.active_count || 0}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Inactive Vendors
-              </CardTitle>
-              <Building className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-muted-foreground">
-                {meta?.inactive_count || 0}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Filters */}
+      <VendorSummaryFilters
+        period={period}
+        onPeriodChange={setPeriod}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+      />
+
+      {/* Enhanced summary cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Vendors
+            </CardTitle>
+            <Building className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{meta?.total_count || 0}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {paymentSummary?.vendors.withActivityInPeriod || 0} with activity in period
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Active Vendors
+            </CardTitle>
+            <Building className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {meta?.active_count || 0}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Currently active
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Payments
+            </CardTitle>
+            <DollarSign className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {isSummaryLoading ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                formatCurrency(paymentSummary?.payments.total || 0)
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {paymentSummary?.payments.count || 0} transactions
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Outstanding
+            </CardTitle>
+            <CreditCard className="h-4 w-4 text-amber-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">
+              {isSummaryLoading ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                formatCurrency(paymentSummary?.outstanding.total || 0)
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {paymentSummary?.outstanding.orderCount || 0} pending orders
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Add Vendor Button */}
+      <div className="flex justify-end">
         <Button onClick={() => setIsAddModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Add Vendor
@@ -199,6 +285,18 @@ export function VendorManagement() {
                         </span>
                       </div>
                     </div>
+                    
+                    {/* Outstanding amount - show if there's an outstanding balance */}
+                    {vendor.stats?.outstanding_amount > 0 && (
+                      <div className="mt-3 pt-2 border-t border-border">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Outstanding:</span>
+                          <span className="text-sm font-medium text-amber-600">
+                            {formatCurrency(vendor.stats.outstanding_amount)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>

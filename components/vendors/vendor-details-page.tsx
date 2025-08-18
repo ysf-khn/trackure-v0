@@ -219,21 +219,21 @@ export function VendorDetailsPage({ vendorId }: VendorDetailsPageProps) {
         <TabsList className="w-full justify-start border bg-background  h-auto p-1 rounded-lg mb-2">
           <TabsTrigger
             value="orders"
-            className=" data-[state=active]:border  rounded-md px-4 py-2.5 transition-all duration-200"
+            className="data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border rounded-md px-4 py-2.5 transition-all duration-200"
           >
             <Package className="h-4 w-4 mr-2" />
             Orders
           </TabsTrigger>
           <TabsTrigger
             value="active-assignments"
-            className=" data-[state=active]:border  rounded-md px-4 py-2.5 transition-all duration-200"
+            className="data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border rounded-md px-4 py-2.5 transition-all duration-200"
           >
             <Clock className="h-4 w-4 mr-2" />
             Active Assignments
           </TabsTrigger>
           <TabsTrigger
             value="payment-history"
-            className=" data-[state=active]:border  rounded-md px-4 py-2.5 transition-all duration-200"
+            className="data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border rounded-md px-4 py-2.5 transition-all duration-200"
           >
             <CreditCard className="h-4 w-4 mr-2" />
             Payment History

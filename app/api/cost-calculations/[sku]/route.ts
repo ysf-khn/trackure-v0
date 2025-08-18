@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sku: string } }
+  { params }: { params: Promise<{ sku: string }> }
 ) {
   try {
+    const { sku } = await params;
     const supabase = await createClient();
     
     // Get the current user's organization
@@ -28,7 +29,7 @@ export async function GET(
     const { data: cost, error: costError } = await supabase
       .from("cost_calculations")
       .select("*")
-      .eq("sku", params.sku)
+      .eq("sku", sku)
       .eq("organization_id", profile.organization_id)
       .order("last_calculated_at", { ascending: false })
       .limit(1)
@@ -54,9 +55,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { sku: string } }
+  { params }: { params: Promise<{ sku: string }> }
 ) {
   try {
+    const { sku } = await params;
     const supabase = await createClient();
     
     // Get the current user's organization
@@ -94,12 +96,12 @@ export async function POST(
     const { data: existingCost } = await supabase
       .from("cost_calculations")
       .select("id")
-      .eq("sku", params.sku)
+      .eq("sku", sku)
       .eq("organization_id", profile.organization_id)
       .single();
 
     const costData = {
-      sku: params.sku,
+      sku: sku,
       organization_id: profile.organization_id,
       material_cost: material_cost || 0,
       labor_cost: labor_cost || 0,

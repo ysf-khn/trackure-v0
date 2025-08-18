@@ -229,7 +229,7 @@ export async function POST(
     // Get existing payments for this order
     const { data: existingPayments, error: paymentsError } = await supabase
       .from("vendor_payments")
-      .select("amount_paid, payment_type")
+      .select("amount_paid, payment_type, payment_date, remarks")
       .eq("vendor_order_id", paymentData.vendor_order_id);
 
     if (paymentsError) {
@@ -240,12 +240,26 @@ export async function POST(
       );
     }
 
-    // Calculate total already paid
-    const totalPaid = existingPayments.reduce(
-      (sum, p) => sum + Number(p.amount_paid),
-      0
-    );
-    const remainingAmount = Number(order.total_amount) - totalPaid;
+    // Check if payment already exists for this order (temporary restriction)
+    if (existingPayments && existingPayments.length > 0) {
+      return NextResponse.json(
+        { 
+          error: "Payment already exists for this order",
+          details: "Currently, only one payment per order is allowed. This order already has a payment recorded.",
+          existing_payment: {
+            payment_type: existingPayments[0].payment_type,
+            amount_paid: existingPayments[0].amount_paid,
+            payment_date: existingPayments[0].payment_date,
+            remarks: existingPayments[0].remarks
+          }
+        },
+        { status: 400 }
+      );
+    }
+
+    // Since we're blocking multiple payments for now, total paid is 0
+    const totalPaid = 0;
+    const remainingAmount = Number(order.total_amount);
 
     // Validate payment amount
     if (
@@ -353,60 +367,3 @@ export async function POST(
   }
 }
 
-// GET - Get payment summary for vendor
-export async function GET_SUMMARY(
-  request: Request,
-  { params }: { params: Promise<{ vendorId: string }> }
-) {
-  const supabase = await createClient();
-  const { vendorId } = await params;
-
-  // Get the authenticated user
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    // Get vendor payment summary from the view
-    const { data: summary, error } = await supabase
-      .from("vendor_payment_summary")
-      .select("*")
-      .eq("vendor_id", vendorId)
-      .single();
-
-    if (error) {
-      console.error("Error fetching payment summary:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch payment summary" },
-        { status: 500 }
-      );
-    }
-
-    // Get detailed outstanding orders
-    const { data: outstandingData } = await supabase.rpc(
-      "get_vendor_outstanding_payments",
-      {
-        p_vendor_id: vendorId,
-        p_organization_id: summary.organization_id,
-      }
-    );
-
-    return NextResponse.json({
-      summary: {
-        ...summary,
-        outstanding_orders: outstandingData?.[0]?.outstanding_orders || [],
-      },
-    });
-  } catch (error) {
-    console.error("Payment summary error:", error);
-    return NextResponse.json(
-      { error: "An unexpected error occurred" },
-      { status: 500 }
-    );
-  }
-}

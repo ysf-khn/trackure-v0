@@ -12,6 +12,7 @@ const reworkInputSchema = z.object({
         id: z.string().uuid(),
         quantity: z.number().positive("Quantity must be a positive number."),
         source_stage_id: z.string().uuid("Invalid source stage ID."),
+        allocation_type: z.enum(["normal", "reworked"]).optional(), // User can specify allocation type to rework from
       })
     )
     .min(1, "At least one item is required."),
@@ -226,6 +227,7 @@ export async function POST(request: NextRequest) {
           id: itemId,
           quantity: requestedQuantity,
           source_stage_id,
+          allocation_type: specifiedAllocationType,
         } = itemInput;
 
         try {
@@ -245,14 +247,38 @@ export async function POST(request: NextRequest) {
             console.log(`[Rework API] Found ${sourceAllocations.length} source allocations:`, 
               sourceAllocations.map(a => ({ id: a.id, type: a.allocation_type, qty: a.quantity })));
             
-            // Find first allocation with sufficient quantity (no type prioritization)
-            currentAllocation = sourceAllocations.find(alloc => alloc.quantity >= requestedQuantity);
-            
-            // If no allocation has enough quantity, take the largest one
-            if (!currentAllocation) {
-              currentAllocation = sourceAllocations.reduce((max, alloc) => 
-                alloc.quantity > max.quantity ? alloc : max
-              );
+            // Filter by allocation type if specified
+            let candidateAllocations = sourceAllocations;
+            if (specifiedAllocationType) {
+              candidateAllocations = sourceAllocations.filter(alloc => alloc.allocation_type === specifiedAllocationType);
+              console.log(`[Rework API] Filtered to ${specifiedAllocationType} allocations:`, 
+                candidateAllocations.map(a => ({ id: a.id, type: a.allocation_type, qty: a.quantity })));
+              
+              if (candidateAllocations.length === 0) {
+                console.log(`[Rework API] No allocations found with type ${specifiedAllocationType}`);
+                currentAllocation = null;
+              } else {
+                // Find first allocation with sufficient quantity from filtered candidates
+                currentAllocation = candidateAllocations.find(alloc => alloc.quantity >= requestedQuantity);
+                
+                // If no allocation has enough quantity, take the largest one from candidates
+                if (!currentAllocation) {
+                  currentAllocation = candidateAllocations.reduce((max, alloc) => 
+                    alloc.quantity > max.quantity ? alloc : max
+                  );
+                }
+              }
+            } else {
+              // No type specified - use original logic
+              // Find first allocation with sufficient quantity (no type prioritization)
+              currentAllocation = sourceAllocations.find(alloc => alloc.quantity >= requestedQuantity);
+              
+              // If no allocation has enough quantity, take the largest one
+              if (!currentAllocation) {
+                currentAllocation = sourceAllocations.reduce((max, alloc) => 
+                  alloc.quantity > max.quantity ? alloc : max
+                );
+              }
             }
           }
 
@@ -303,7 +329,7 @@ export async function POST(request: NextRequest) {
             .eq("item_id", itemId)
             .eq("organization_id", organizationId)
             .eq("stage_id", target_rework_stage_id)
-            .eq("allocation_type", sourceAllocationType); // Preserve source allocation type
+            .eq("allocation_type", "reworked"); // Always look for reworked allocations when reworking
 
           let targetAllocation = null;
           if (!targetAllocationFetchError && targetAllocations && targetAllocations.length > 0) {
@@ -391,7 +417,7 @@ export async function POST(request: NextRequest) {
                 organization_id: organizationId,
                 stage_id: target_rework_stage_id,
                 quantity: requestedQuantity,
-                allocation_type: sourceAllocationType, // Preserve source allocation type
+                allocation_type: "reworked", // Always create reworked allocations when reworking
                 created_at: timestamp,
                 updated_at: timestamp,
                 moved_by: user.id,

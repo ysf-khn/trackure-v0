@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const paymentSchema = z
   .object({
@@ -296,6 +297,14 @@ export function VendorPaymentModal({
             Record a payment for order {order.order_number}
           </DialogDescription>
         </DialogHeader>
+        
+        {/* Temporary restriction notice */}
+        <Alert className="border-yellow-200 bg-yellow-50">
+          <AlertCircle className="h-4 w-4 text-yellow-600" />
+          <AlertDescription className="text-sm text-yellow-800">
+            <strong>Note:</strong> Currently, only one payment per order is allowed. Once you record this payment, you won't be able to add additional payments to this order.
+          </AlertDescription>
+        </Alert>
 
         <Card className="mb-4">
           <CardContent className="pt-6">

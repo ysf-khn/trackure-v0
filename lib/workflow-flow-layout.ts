@@ -3,11 +3,11 @@ import type { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structur
 import { loadWorkflowLayout, type SavedLayout } from "./layout-persistence";
 
 // Constants for layout spacing
-const HORIZONTAL_SPACING = 300; // Space between main workflow stages
-const VERTICAL_SPACING = 150; // Space between parent and child levels
-const SIBLING_SPACING = 200; // Space between sibling child nodes
-const NODE_WIDTH = 250;
-const NODE_HEIGHT = 80;
+const HORIZONTAL_SPACING = 350; // Space between main workflow stages
+const VERTICAL_SPACING = 180; // Space between parent and child levels
+const SIBLING_SPACING = 240; // Space between sibling child nodes
+const NODE_WIDTH = 280;
+const NODE_HEIGHT = 120;
 
 // Interface for positioned stage with layout metadata
 interface PositionedStage extends FetchedWorkflowStage {

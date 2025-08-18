@@ -18,8 +18,17 @@ export interface FetchedWorkflowStage {
   is_leaf_stage: boolean;
   sku: string | null;
   vendor_pricing_count?: number; // Count of active vendor pricing for this stage
+  primaryVendor?: { name: string; firm_name?: string } | null; // Primary vendor info
+  totalPrice?: { amount: number; currency: string } | null; // Total pricing for stage
+  vendorCount?: number; // Total number of vendors for this stage
   children?: FetchedWorkflowStage[]; // Recursive for infinite nesting
   is_system_stage?: boolean; // Flag to identify system stages like "Completed"
+  latestOrder?: { // Latest vendor order info
+    total_amount: number;
+    currency: string;
+    quantity: number;
+    vendor_id: string;
+  } | null;
 }
 
 // --- Query Key Generator --- //
@@ -32,17 +41,70 @@ export const getWorkflowQueryKey = (organizationId: string, selectedSKU?: string
 ];
 
 // Build tree structure from flat array
-const buildTree = (stages: any[], parentId: string | null = null): FetchedWorkflowStage[] => {
+const buildTree = (stages: any[], vendorOrders: any[], parentId: string | null = null): FetchedWorkflowStage[] => {
   return stages
     .filter(stage => stage.parent_stage_id === parentId)
-    .map(stage => ({
-      ...stage,
-      vendor_pricing_count: Array.isArray(stage.vendor_stage_pricing) 
-        ? stage.vendor_stage_pricing.length 
-        : 0,
-      is_system_stage: stage.name === 'Completed', // Flag system stages
-      children: buildTree(stages, stage.id)
-    }))
+    .map(stage => {
+      const vendorPricing = Array.isArray(stage.vendor_stage_pricing) ? stage.vendor_stage_pricing : [];
+      const vendorCount = vendorPricing.length;
+      
+      // Get primary vendor (first active vendor) and calculate total price
+      let primaryVendor = null;
+      let totalPrice = null;
+      let latestOrder = null;
+      
+      if (vendorCount > 0) {
+        const firstVendor = vendorPricing[0];
+        if (firstVendor?.vendors) {
+          primaryVendor = {
+            name: firstVendor.vendors.name,
+            firm_name: firstVendor.vendors.firm_name
+          };
+        }
+        
+        // Find the latest order for this stage
+        const stageOrders = vendorOrders.filter((order: any) => order.stage_id === stage.id);
+        if (stageOrders.length > 0) {
+          // Get the most recent order (already sorted by created_at desc)
+          const mostRecentOrder = stageOrders[0];
+          latestOrder = {
+            total_amount: mostRecentOrder.total_amount,
+            currency: mostRecentOrder.currency,
+            quantity: mostRecentOrder.quantity,
+            vendor_id: mostRecentOrder.vendor_id
+          };
+          
+          // Use the order's total amount as the totalPrice
+          totalPrice = {
+            amount: mostRecentOrder.total_amount,
+            currency: mostRecentOrder.currency
+          };
+        } else {
+          // Fallback to calculated price if no order exists
+          const totalAmount = vendorPricing.reduce((sum: number, pricing: any) => {
+            return sum + (parseFloat(pricing.price) || 0);
+          }, 0);
+          
+          if (totalAmount > 0) {
+            totalPrice = {
+              amount: totalAmount,
+              currency: vendorPricing[0]?.currency || 'INR'
+            };
+          }
+        }
+      }
+      
+      return {
+        ...stage,
+        vendor_pricing_count: vendorCount,
+        primaryVendor,
+        totalPrice,
+        vendorCount,
+        latestOrder,
+        is_system_stage: stage.name === 'Completed', // Flag system stages
+        children: buildTree(stages, vendorOrders, stage.id)
+      };
+    })
     .sort((a, b) => a.sequence_order - b.sequence_order);
 };
 
@@ -67,7 +129,13 @@ const fetchWorkflowStructure = async (
       is_leaf_stage,
       sku,
       vendor_stage_pricing!left(
-        id
+        id,
+        price,
+        currency,
+        vendors!inner(
+          name,
+          firm_name
+        )
       )
     `
     )
@@ -90,8 +158,40 @@ const fetchWorkflowStructure = async (
     );
   }
 
-  // Build the tree structure from flat data
-  const treeStructure = buildTree(workflowStages || []);
+  // Fetch vendor orders for all stages to get actual order amounts
+  let vendorOrders: any[] = [];
+  if (workflowStages && workflowStages.length > 0) {
+    const stageIds = workflowStages.map(stage => stage.id);
+    const { data: orders, error: ordersError } = await supabase
+      .from("vendor_orders")
+      .select(
+        `
+        id,
+        vendor_id,
+        stage_id,
+        quantity,
+        unit_price,
+        total_amount,
+        currency,
+        status,
+        created_at
+      `
+      )
+      .in("stage_id", stageIds)
+      .eq("organization_id", organizationId)
+      .in("status", ["pending", "in_progress", "completed"])
+      .order("created_at", { ascending: false });
+
+    if (ordersError) {
+      console.error("Error fetching vendor orders:", ordersError);
+      // Don't throw, just continue without orders
+    } else {
+      vendorOrders = orders || [];
+    }
+  }
+
+  // Build the tree structure from flat data with vendor orders
+  const treeStructure = buildTree(workflowStages || [], vendorOrders);
   
   return treeStructure;
 };

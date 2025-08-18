@@ -50,14 +50,14 @@ async function fetchSidebarSkuCost(
   const leafStageIds = leafStages.map(s => s.id);
   console.log(`[COST DEBUG] Leaf stage IDs: [${leafStageIds.join(', ')}]`);
 
-  // Get vendor pricing for all leaf stages
+  // Get vendor orders for all leaf stages (actual vendor assignments)
   const { data: vendorPricing, error: pricingError } = await supabase
-    .from("vendor_stage_pricing")
-    .select("stage_id, price, currency")
+    .from("vendor_orders")
+    .select("stage_id, unit_price, currency")
     .in("stage_id", leafStageIds)
     .eq("sku", selectedSKU)
     .eq("organization_id", organizationId)
-    .eq("is_active", true);
+    .in("status", ["pending", "in_progress", "completed"]);
 
   console.log(`[COST DEBUG] Vendor pricing data:`, vendorPricing || []);
   console.log(`[COST DEBUG] Vendor pricing count: ${vendorPricing?.length || 0}`);
@@ -114,14 +114,14 @@ async function fetchSidebarSkuCost(
     
     currencies.add(pricing.currency);
     
-    if (!currentMinPrice || pricing.price < currentMinPrice.price) {
-      console.log(`[COST DEBUG]   Stage ${stageId}: Setting min price to ₹${pricing.price} (${pricing.currency})`);
+    if (!currentMinPrice || pricing.unit_price < currentMinPrice.price) {
+      console.log(`[COST DEBUG]   Stage ${stageId}: Setting min price to ₹${pricing.unit_price} (${pricing.currency})`);
       stageMinPricing.set(stageId, {
-        price: pricing.price,
+        price: pricing.unit_price,
         currency: pricing.currency
       });
     } else {
-      console.log(`[COST DEBUG]   Stage ${stageId}: Keeping current min ₹${currentMinPrice.price}, rejecting ₹${pricing.price}`);
+      console.log(`[COST DEBUG]   Stage ${stageId}: Keeping current min ₹${currentMinPrice.price}, rejecting ₹${pricing.unit_price}`);
     }
   });
 

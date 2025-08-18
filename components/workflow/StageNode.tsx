@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Handle, Position } from "@xyflow/react";
-import { MapPin, Package, Dot, CheckCircle } from "lucide-react";
+import { MapPin, Package, Dot, CheckCircle, Building } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -58,8 +58,8 @@ export function StageNode({ data }: StageNodeProps) {
         className: cn(
           baseClasses,
           isCurrentStage 
-            ? "bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-400 shadow-lg shadow-green-200/50 ring-2 ring-green-300 ring-opacity-50"
-            : "bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 shadow-lg hover:shadow-xl hover:shadow-green-200/50"
+            ? "bg-green-50 dark:bg-green-900/20 border-2 border-green-400 dark:border-green-500 shadow-lg ring-2 ring-green-300 dark:ring-green-600 ring-opacity-50"
+            : "bg-green-50 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-500 shadow-lg hover:shadow-xl"
         ),
         boxShadow: isCurrentStage
           ? "0 8px 25px -5px rgba(34, 197, 94, 0.3), 0 4px 10px -6px rgba(34, 197, 94, 0.3)"
@@ -71,8 +71,8 @@ export function StageNode({ data }: StageNodeProps) {
       return {
         className: cn(
           baseClasses,
-          "bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-400 shadow-lg shadow-blue-200/50",
-          "ring-2 ring-blue-300 ring-opacity-50" // Use ring instead of transform
+          "bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-400 dark:border-blue-500 shadow-lg",
+          "ring-2 ring-blue-300 dark:ring-blue-600 ring-opacity-50"
         ),
         boxShadow:
           "0 8px 25px -5px rgba(59, 130, 246, 0.3), 0 4px 10px -6px rgba(59, 130, 246, 0.3)",
@@ -84,7 +84,7 @@ export function StageNode({ data }: StageNodeProps) {
       return {
         className: cn(
           baseClasses,
-          "bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-lg hover:shadow-xl hover:shadow-gray-300/30"
+          "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-lg hover:shadow-xl"
         ),
         boxShadow:
           "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
@@ -94,7 +94,7 @@ export function StageNode({ data }: StageNodeProps) {
       return {
         className: cn(
           baseClasses,
-          "bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-300 shadow-md hover:shadow-lg hover:shadow-gray-200/50"
+          "bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-500 shadow-md hover:shadow-lg"
         ),
         boxShadow:
           "0 4px 12px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -2px rgba(0, 0, 0, 0.05)",
@@ -105,11 +105,11 @@ export function StageNode({ data }: StageNodeProps) {
   // Get node size based on level
   const getNodeSize = () => {
     if (level === 0) {
-      return { width: 250, height: 100 };
+      return { width: 280, height: 120 };
     } else if (level === 1) {
-      return { width: 220, height: 85 };
+      return { width: 250, height: 100 };
     } else {
-      return { width: 200, height: 75 };
+      return { width: 220, height: 85 };
     }
   };
 
@@ -146,7 +146,7 @@ export function StageNode({ data }: StageNodeProps) {
           id="left"
           type="target"
           position={Position.Left}
-          className="!w-2 !h-2 !bg-gray-400 !border-2 !border-white"
+          className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500 !border-2 !border-white dark:!border-gray-700"
         />
       )}
 
@@ -164,7 +164,7 @@ export function StageNode({ data }: StageNodeProps) {
           id="right"
           type="source"
           position={Position.Right}
-          className="!w-2 !h-2 !bg-gray-400 !border-2 !border-white"
+          className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500 !border-2 !border-white dark:!border-gray-700"
         />
       )}
 
@@ -174,7 +174,7 @@ export function StageNode({ data }: StageNodeProps) {
           id="bottom"
           type="source"
           position={Position.Bottom}
-          className="!w-2 !h-2 !bg-gray-400 !border-2 !border-white"
+          className="!w-2 !h-2 !bg-gray-400 dark:!bg-gray-500 !border-2 !border-white dark:!border-gray-700"
         />
       )}
 
@@ -217,7 +217,7 @@ export function StageNode({ data }: StageNodeProps) {
                     : level === 1
                       ? "text-sm"
                       : "text-xs",
-                  isCurrentStage ? "text-blue-700" : isSystemStage ? "text-green-700" : "text-gray-900"
+                  isCurrentStage ? "text-blue-700 dark:text-blue-300" : isSystemStage ? "text-green-700 dark:text-green-300" : "text-gray-900 dark:text-gray-100"
                 )}
               >
                 {stageName}
@@ -226,9 +226,22 @@ export function StageNode({ data }: StageNodeProps) {
               {/* Location if available */}
               {stage.location && (
                 <div className="flex items-center gap-1 mt-1">
-                  <MapPin className="h-3 w-3 text-gray-500 flex-shrink-0" />
-                  <span className="text-xs text-gray-600 truncate">
+                  <MapPin className="h-3 w-3 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                  <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
                     {stage.location}
+                  </span>
+                </div>
+              )}
+              
+              {/* Vendor if available */}
+              {stage.primaryVendor && (
+                <div className="flex items-center gap-1 mt-1">
+                  <Building className="h-3 w-3 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                  <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                    {stage.primaryVendor.name}
+                    {stage.vendorCount && stage.vendorCount > 1 && (
+                      <span className="text-gray-500"> +{stage.vendorCount - 1}</span>
+                    )}
                   </span>
                 </div>
               )}
@@ -250,17 +263,31 @@ export function StageNode({ data }: StageNodeProps) {
 
           {/* Footer with item counts */}
           <div className="flex items-end justify-between w-full">
-            {/* SKU badge if available */}
-            {stage.sku && (
-              <Badge
-                variant="outline"
-                className="text-xs px-2 py-0.5 bg-white/80 border-gray-300"
-              >
-                {stage.sku}
-              </Badge>
-            )}
+            {/* Left side: SKU and Price badges */}
+            <div className="flex items-center gap-1">
+              {stage.sku && (
+                <Badge
+                  variant="outline"
+                  className="text-xs px-2 py-0.5 bg-white/90 dark:bg-gray-700/90 border-gray-300 dark:border-gray-500 text-gray-800 dark:text-gray-200"
+                >
+                  {stage.sku}
+                </Badge>
+              )}
+              {stage.totalPrice && (
+                <Badge
+                  variant="outline"
+                  className="text-xs px-2 py-0.5 bg-blue-50 dark:bg-blue-900/50 border-blue-300 dark:border-blue-600 text-blue-800 dark:text-blue-200"
+                >
+                  {stage.totalPrice.currency === 'INR' ? '₹' : 
+                   stage.totalPrice.currency === 'USD' ? '$' : 
+                   stage.totalPrice.currency === 'EUR' ? '€' : 
+                   stage.totalPrice.currency === 'GBP' ? '£' : ''}
+                  {stage.totalPrice.amount.toLocaleString()}
+                </Badge>
+              )}
+            </div>
 
-            {/* Item counts */}
+            {/* Right side: Item counts */}
             <div className="flex items-center gap-1">
               {isLoading ? (
                 <Skeleton className="h-5 w-12 rounded-full" />
@@ -276,7 +303,7 @@ export function StageNode({ data }: StageNodeProps) {
                       </Badge>
                       <Badge
                         variant="secondary"
-                        className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 font-medium shadow-sm"
+                        className="bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 text-xs px-2 py-0.5 font-medium shadow-sm"
                       >
                         {detailedCount.reworkedQuantity}
                       </Badge>
@@ -288,7 +315,7 @@ export function StageNode({ data }: StageNodeProps) {
                         "text-xs px-3 py-1 font-medium shadow-sm",
                         itemCount > 0
                           ? "bg-emerald-500 text-white"
-                          : "bg-gray-100 text-gray-600"
+                          : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                       )}
                     >
                       {itemCount > 0 ? `${itemCount}` : "0"}
@@ -314,7 +341,7 @@ export function StageNode({ data }: StageNodeProps) {
               "w-full h-full p-0 rounded-xl border-solid select-none stage-node-content",
               isDragging && "scale-105 shadow-xl shadow-blue-500/30",
               // Add visual indication for parent nodes
-              !isLeafStage && "ring-1 ring-blue-200/50"
+              !isLeafStage && "ring-1 ring-blue-200/50 dark:ring-blue-700/50"
             )}
             style={{
               boxShadow: nodeStyling.boxShadow,
@@ -333,7 +360,7 @@ export function StageNode({ data }: StageNodeProps) {
                         : level === 1
                           ? "text-sm"
                           : "text-xs",
-                      isCurrentStage ? "text-blue-700" : "text-gray-900"
+                      isCurrentStage ? "text-blue-700 dark:text-blue-300" : "text-gray-900 dark:text-gray-100"
                     )}
                   >
                     {stageName}
@@ -342,9 +369,22 @@ export function StageNode({ data }: StageNodeProps) {
                   {/* Location if available */}
                   {stage.location && (
                     <div className="flex items-center gap-1 mt-1">
-                      <MapPin className="h-3 w-3 text-gray-500 flex-shrink-0" />
-                      <span className="text-xs text-gray-600 truncate">
+                      <MapPin className="h-3 w-3 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
                         {stage.location}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Vendor if available */}
+                  {stage.primaryVendor && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Building className="h-3 w-3 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                        {stage.primaryVendor.name}
+                        {stage.vendorCount && stage.vendorCount > 1 && (
+                          <span className="text-gray-500"> +{stage.vendorCount - 1}</span>
+                        )}
                       </span>
                     </div>
                   )}
@@ -364,17 +404,31 @@ export function StageNode({ data }: StageNodeProps) {
 
               {/* Footer with item counts */}
               <div className="flex items-end justify-between w-full">
-                {/* SKU badge if available */}
-                {stage.sku && (
-                  <Badge
-                    variant="outline"
-                    className="text-xs px-2 py-0.5 bg-white/80 border-gray-300"
-                  >
-                    {stage.sku}
-                  </Badge>
-                )}
+                {/* Left side: SKU and Price badges */}
+                <div className="flex items-center gap-1">
+                  {stage.sku && (
+                    <Badge
+                      variant="outline"
+                      className="text-xs px-2 py-0.5 bg-white/90 dark:bg-gray-700/90 border-gray-300 dark:border-gray-500 text-gray-800 dark:text-gray-200"
+                    >
+                      {stage.sku}
+                    </Badge>
+                  )}
+                  {stage.totalPrice && (
+                    <Badge
+                      variant="outline"
+                      className="text-xs px-2 py-0.5 bg-blue-50 dark:bg-blue-900/50 border-blue-300 dark:border-blue-600 text-blue-800 dark:text-blue-200"
+                    >
+                      {stage.totalPrice.currency === 'INR' ? '₹' : 
+                       stage.totalPrice.currency === 'USD' ? '$' : 
+                       stage.totalPrice.currency === 'EUR' ? '€' : 
+                       stage.totalPrice.currency === 'GBP' ? '£' : ''}
+                      {stage.totalPrice.amount.toLocaleString()}
+                    </Badge>
+                  )}
+                </div>
 
-                {/* Item counts */}
+                {/* Right side: Item counts */}
                 <div className="flex items-center gap-1">
                   {isLoading ? (
                     <Skeleton className="h-5 w-12 rounded-full" />
@@ -390,7 +444,7 @@ export function StageNode({ data }: StageNodeProps) {
                           </Badge>
                           <Badge
                             variant="secondary"
-                            className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 font-medium shadow-sm"
+                            className="bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 text-xs px-2 py-0.5 font-medium shadow-sm"
                           >
                             {detailedCount.reworkedQuantity}
                           </Badge>
@@ -402,7 +456,7 @@ export function StageNode({ data }: StageNodeProps) {
                             "text-xs px-3 py-1 font-medium shadow-sm",
                             itemCount > 0
                               ? "bg-emerald-500 text-white"
-                              : "bg-gray-100 text-gray-600"
+                              : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                           )}
                         >
                           {itemCount > 0 ? `${itemCount}` : "0"}
@@ -423,8 +477,8 @@ export function StageNode({ data }: StageNodeProps) {
           "absolute inset-0 rounded-xl opacity-0 pointer-events-none transition-all duration-200 -z-10",
           "group-hover:opacity-100",
           isCurrentStage
-            ? "bg-blue-400/10 shadow-lg shadow-blue-400/20"
-            : "bg-gray-400/5 shadow-md shadow-gray-400/10"
+            ? "bg-blue-400/10 dark:bg-blue-600/20 shadow-lg shadow-blue-400/20 dark:shadow-blue-600/30"
+            : "bg-gray-400/5 dark:bg-gray-600/10 shadow-md shadow-gray-400/10 dark:shadow-gray-600/20"
         )}
       />
 

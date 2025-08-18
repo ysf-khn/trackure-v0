@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import {
   ReactFlow,
   Background,
@@ -28,7 +28,10 @@ import { cn } from "@/lib/utils";
 import { StageNode, stageNodeType } from "./StageNode";
 import { FlowEdge, flowEdgeTypes } from "./FlowEdge";
 import { transformWorkflowToFlow } from "@/lib/workflow-flow-layout";
-import { saveWorkflowLayout } from "@/lib/layout-persistence";
+import {
+  saveWorkflowLayout,
+  loadWorkflowLayout,
+} from "@/lib/layout-persistence";
 import useProfileAndOrg from "@/hooks/queries/use-profileAndOrg";
 import type { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
 
@@ -65,7 +68,15 @@ function WorkflowReactFlowCompactContent({
   className,
   height = "h-80",
 }: WorkflowReactFlowCompactProps) {
-  const { fitView, setCenter, getNode, zoomIn, zoomOut, getViewport, setViewport } = useReactFlow();
+  const {
+    fitView,
+    setCenter,
+    getNode,
+    zoomIn,
+    zoomOut,
+    getViewport,
+    setViewport,
+  } = useReactFlow();
   const { organizationId } = useProfileAndOrg();
 
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -73,12 +84,42 @@ function WorkflowReactFlowCompactContent({
   const [autoSaveTimer, setAutoSaveTimer] = useState<NodeJS.Timeout | null>(
     null
   );
+  const [viewportSaveTimer, setViewportSaveTimer] =
+    useState<NodeJS.Timeout | null>(null);
   const [selectedSKU, setSelectedSKU] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [fullscreenViewport, setFullscreenViewport] = useState<{x: number, y: number, zoom: number} | null>(null);
+  const [fullscreenViewport, setFullscreenViewport] = useState<{
+    x: number;
+    y: number;
+    zoom: number;
+  } | null>(null);
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
-  const savedViewportRef = React.useRef<{x: number, y: number, zoom: number} | null>(null);
-  
+  const savedViewportRef = React.useRef<{
+    x: number;
+    y: number;
+    zoom: number;
+  } | null>(null);
+
+  // Track dark mode
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(document.documentElement.classList.contains("dark"));
+    };
+
+    checkDarkMode();
+
+    // Watch for theme changes
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   // Refs for ReactFlow instances to avoid context conflicts
   const mainReactFlowRef = React.useRef<any>(null);
   const fullscreenReactFlowRef = React.useRef<any>(null);
@@ -113,8 +154,8 @@ function WorkflowReactFlowCompactContent({
       style: {
         ...node.style,
         width:
-          node.data?.level === 0 ? 200 : node.data?.level === 1 ? 180 : 160,
-        height: node.data?.level === 0 ? 80 : node.data?.level === 1 ? 70 : 60,
+          node.data?.level === 0 ? 240 : node.data?.level === 1 ? 210 : 180,
+        height: node.data?.level === 0 ? 100 : node.data?.level === 1 ? 85 : 75,
       },
     }));
 
@@ -134,7 +175,29 @@ function WorkflowReactFlowCompactContent({
   React.useEffect(() => {
     setNodes(flow.nodes as Node[]);
     setEdges(flow.edges as Edge[]);
-  }, [flow.nodes, flow.edges]);
+
+    // Load saved viewport on initial render
+    if (organizationId && selectedSKU) {
+      const savedLayout = loadWorkflowLayout(organizationId, selectedSKU);
+      if (savedLayout?.viewport) {
+        // Apply viewport after a short delay to ensure ReactFlow is ready
+        setTimeout(() => {
+          try {
+            if (mainReactFlowRef.current?.setViewport) {
+              mainReactFlowRef.current.setViewport(savedLayout.viewport, {
+                duration: 300,
+              });
+              console.log("Restored saved viewport:", savedLayout.viewport);
+            } else {
+              setViewport(savedLayout.viewport, { duration: 300 });
+            }
+          } catch (error) {
+            console.warn("Failed to restore viewport:", error);
+          }
+        }, 100);
+      }
+    }
+  }, [flow.nodes, flow.edges, organizationId, selectedSKU, setViewport]);
 
   // Handle node click
   const onNodeClick = useCallback(
@@ -151,6 +214,26 @@ function WorkflowReactFlowCompactContent({
     setNodes((nds) => applyNodeChanges(changes, nds));
   }, []);
 
+  // Save layout with current viewport
+  const saveLayoutWithViewport = useCallback(() => {
+    if (organizationId && selectedSKU) {
+      let currentViewport;
+      try {
+        if (mainReactFlowRef.current?.getViewport) {
+          currentViewport = mainReactFlowRef.current.getViewport();
+        } else {
+          currentViewport = getViewport();
+        }
+
+        saveWorkflowLayout(organizationId, selectedSKU, nodes, currentViewport);
+        console.log("Layout with viewport saved:", currentViewport);
+      } catch (error) {
+        console.warn("Failed to get viewport for saving:", error);
+        saveWorkflowLayout(organizationId, selectedSKU, nodes);
+      }
+    }
+  }, [organizationId, selectedSKU, nodes, getViewport]);
+
   // Fit view to show all nodes
   const handleFitView = useCallback(() => {
     fitView({ padding: 30, duration: 600 });
@@ -160,7 +243,7 @@ function WorkflowReactFlowCompactContent({
   const handleEnterFullscreen = useCallback(() => {
     // Capture current viewport state from the main ReactFlow instance
     let currentViewport = { x: 0, y: 0, zoom: 0.9 }; // fallback
-    
+
     try {
       if (mainReactFlowRef.current) {
         currentViewport = mainReactFlowRef.current.getViewport();
@@ -169,15 +252,18 @@ function WorkflowReactFlowCompactContent({
         currentViewport = getViewport();
       }
     } catch (error) {
-      console.warn('Failed to capture compact viewport, using fallback:', error);
+      console.warn(
+        "Failed to capture compact viewport, using fallback:",
+        error
+      );
     }
-    
+
     // Store captured viewport for fullscreen and in ref for restoration
     setFullscreenViewport(currentViewport);
     savedViewportRef.current = currentViewport;
     setIsFullscreen(true);
-    
-    console.log('Entering compact fullscreen with viewport:', currentViewport);
+
+    console.log("Entering compact fullscreen with viewport:", currentViewport);
   }, [getViewport]);
 
   // Handle exiting fullscreen with viewport restore
@@ -189,48 +275,65 @@ function WorkflowReactFlowCompactContent({
   React.useEffect(() => {
     if (!isFullscreen && savedViewportRef.current) {
       const viewportToRestore = savedViewportRef.current;
-      console.log('Starting compact viewport restoration:', viewportToRestore);
-      
+      console.log("Starting compact viewport restoration:", viewportToRestore);
+
       // Longer delay to let the dialog fully close and main ReactFlow initialize
       const timer = setTimeout(() => {
         let restored = false;
-        
+
         try {
           // Try to restore using main ReactFlow instance
-          if (mainReactFlowRef.current && mainReactFlowRef.current.setViewport) {
-            mainReactFlowRef.current.setViewport(viewportToRestore, { duration: 300 });
+          if (
+            mainReactFlowRef.current &&
+            mainReactFlowRef.current.setViewport
+          ) {
+            mainReactFlowRef.current.setViewport(viewportToRestore, {
+              duration: 300,
+            });
             restored = true;
-            console.log('Compact viewport restored via main instance');
+            console.log("Compact viewport restored via main instance");
           } else {
             // Fallback to useReactFlow hook
             setViewport(viewportToRestore, { duration: 300 });
             restored = true;
-            console.log('Compact viewport restored via hook fallback');
+            console.log("Compact viewport restored via hook fallback");
           }
         } catch (error) {
-          console.warn('Compact viewport restoration failed, using fitView fallback:', error);
+          console.warn(
+            "Compact viewport restoration failed, using fitView fallback:",
+            error
+          );
         }
-        
+
         // If restoration failed, use fitView as final fallback
         if (!restored) {
           setTimeout(() => {
             try {
-              if (mainReactFlowRef.current && mainReactFlowRef.current.fitView) {
-                mainReactFlowRef.current.fitView({ padding: 30, duration: 600 });
-                console.log('Used compact fitView fallback via main instance');
+              if (
+                mainReactFlowRef.current &&
+                mainReactFlowRef.current.fitView
+              ) {
+                mainReactFlowRef.current.fitView({
+                  padding: 30,
+                  duration: 600,
+                });
+                console.log("Used compact fitView fallback via main instance");
               } else {
                 fitView({ padding: 30, duration: 600 });
-                console.log('Used compact fitView fallback via hook');
+                console.log("Used compact fitView fallback via hook");
               }
             } catch (error) {
-              console.error('All compact viewport restoration methods failed:', error);
+              console.error(
+                "All compact viewport restoration methods failed:",
+                error
+              );
             }
           }, 100);
         }
-        
+
         savedViewportRef.current = null;
       }, 200); // Increased delay for better reliability
-      
+
       return () => clearTimeout(timer);
     }
   }, [isFullscreen, setViewport, fitView]);
@@ -254,14 +357,17 @@ function WorkflowReactFlowCompactContent({
     );
   }, [currentStageId, nodes]);
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount
   React.useEffect(() => {
     return () => {
       if (autoSaveTimer) {
         clearTimeout(autoSaveTimer);
       }
+      if (viewportSaveTimer) {
+        clearTimeout(viewportSaveTimer);
+      }
     };
-  }, [autoSaveTimer]);
+  }, [autoSaveTimer, viewportSaveTimer]);
 
   // Handle ESC key to exit fullscreen
   React.useEffect(() => {
@@ -282,8 +388,10 @@ function WorkflowReactFlowCompactContent({
 
   if (!workflowData || workflowData.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 bg-gray-50 rounded-lg">
-        <p className="text-gray-500 text-sm">No workflow data available</p>
+      <div className="flex items-center justify-center h-48 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <p className="text-gray-500 dark:text-gray-400 text-sm">
+          No workflow data available
+        </p>
       </div>
     );
   }
@@ -293,14 +401,9 @@ function WorkflowReactFlowCompactContent({
       {/* Compact header */}
       <div className="flex items-center justify-between mb-3 px-2">
         <div className="flex items-center gap-3">
-          <h4 className="text-sm font-medium text-gray-700">
-            Workflow Navigation
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Workflow
           </h4>
-          {currentStageName && (
-            <Badge variant="default" className="bg-blue-500 text-white text-xs">
-              {currentStageName}
-            </Badge>
-          )}
         </div>
 
         {/* Compact controls */}
@@ -342,7 +445,7 @@ function WorkflowReactFlowCompactContent({
       <div
         className={cn(
           height,
-          "w-full bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-gray-200 overflow-hidden"
+          "w-full bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
         )}
       >
         {nodes.length === 0 ? (
@@ -383,9 +486,29 @@ function WorkflowReactFlowCompactContent({
             zoomOnScroll={false}
             className="compact-workflow-flow"
             proOptions={{ hideAttribution: true }}
+            onViewportChange={(viewport) => {
+              // Debounced save of viewport changes (zoom/pan)
+              if (organizationId && selectedSKU) {
+                if (viewportSaveTimer) {
+                  clearTimeout(viewportSaveTimer);
+                }
+
+                const timer = setTimeout(() => {
+                  saveWorkflowLayout(
+                    organizationId,
+                    selectedSKU,
+                    nodes,
+                    viewport
+                  );
+                  console.log("Viewport state auto-saved:", viewport);
+                }, 2000); // Longer delay for viewport changes to avoid too frequent saves
+
+                setViewportSaveTimer(timer);
+              }
+            }}
             onInit={(reactFlowInstance) => {
               mainReactFlowRef.current = reactFlowInstance;
-              console.log('Compact main ReactFlow instance initialized');
+              console.log("Compact main ReactFlow instance initialized");
             }}
             onNodeDragStop={() => {
               // Auto-save layout after drag ends with debounce
@@ -397,7 +520,7 @@ function WorkflowReactFlowCompactContent({
 
                 // Set new timer for auto-save (1 second delay)
                 const timer = setTimeout(() => {
-                  saveWorkflowLayout(organizationId, selectedSKU, nodes);
+                  saveLayoutWithViewport();
                   console.log("Compact layout auto-saved after drag");
                 }, 1000);
 
@@ -410,20 +533,20 @@ function WorkflowReactFlowCompactContent({
               variant={BackgroundVariant.Dots}
               gap={18}
               size={0.7}
-              color="#111111"
+              color={isDarkMode ? "#6b7280" : "#111111"}
             />
 
             {/* In-canvas zoom controls */}
             <Panel
               position="top-right"
-              className="!bg-white !border !border-gray-200 !rounded-md !shadow px-2 py-1"
+              className="!bg-white dark:!bg-gray-800 !border !border-gray-200 dark:!border-gray-600 !rounded-md !shadow px-2 py-1"
             >
               <div className="flex items-center gap-1">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => zoomOut()}
-                  className="h-7 w-7 p-0 text-black"
+                  className="h-7 w-7 p-0 text-black dark:text-white"
                 >
                   <ZoomOut className="h-3.5 w-3.5" />
                 </Button>
@@ -431,7 +554,7 @@ function WorkflowReactFlowCompactContent({
                   variant="outline"
                   size="sm"
                   onClick={() => zoomIn()}
-                  className="h-7 w-7 p-0 text-black"
+                  className="h-7 w-7 p-0 text-black dark:text-white"
                 >
                   <ZoomIn className="h-3.5 w-3.5" />
                 </Button>
@@ -442,7 +565,7 @@ function WorkflowReactFlowCompactContent({
       </div>
 
       {/* Compact status footer */}
-      <div className="mt-2 flex items-center justify-between text-xs text-gray-500 px-2">
+      <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 px-2">
         <span>
           {nodes.length} stages •{" "}
           {
@@ -455,19 +578,24 @@ function WorkflowReactFlowCompactContent({
           }{" "}
           active
         </span>
-        <span className="text-blue-600">Click stage to navigate</span>
+        <span className="text-blue-600 dark:text-blue-400">
+          Click stage to navigate
+        </span>
       </div>
 
       {/* Fullscreen Dialog */}
-      <Dialog open={isFullscreen} onOpenChange={(open) => !open && handleExitFullscreen()}>
+      <Dialog
+        open={isFullscreen}
+        onOpenChange={(open) => !open && handleExitFullscreen()}
+      >
         <DialogContent className="max-w-none h-screen w-screen p-0 m-0 rounded-none border-none">
-          <div className="relative h-full w-full bg-gray-50">
+          <div className="relative h-full w-full bg-gray-50 dark:bg-gray-900">
             {/* Close button */}
             <Button
               variant="outline"
               size="sm"
               onClick={handleExitFullscreen}
-              className="absolute top-4 right-4 z-50 h-8 w-8 p-0 bg-white shadow-lg"
+              className="absolute top-4 right-4 z-50 h-8 w-8 p-0 bg-white dark:bg-gray-800 shadow-lg"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -510,7 +638,7 @@ function WorkflowReactFlowCompactContent({
 
                     // Set new timer for auto-save (1 second delay)
                     const timer = setTimeout(() => {
-                      saveWorkflowLayout(organizationId, selectedSKU, nodes);
+                      saveLayoutWithViewport();
                       console.log(
                         "Layout auto-saved after drag in compact fullscreen"
                       );
@@ -520,7 +648,9 @@ function WorkflowReactFlowCompactContent({
                   }
                 }}
                 connectionMode={ConnectionMode.Strict}
-                defaultViewport={fullscreenViewport || { x: 0, y: 0, zoom: 0.8 }}
+                defaultViewport={
+                  fullscreenViewport || { x: 0, y: 0, zoom: 0.8 }
+                }
                 onViewportChange={(viewport) => {
                   // Update fullscreen viewport state as user pans/zooms
                   setFullscreenViewport(viewport);
@@ -539,7 +669,9 @@ function WorkflowReactFlowCompactContent({
                 proOptions={{ hideAttribution: true }}
                 onInit={(reactFlowInstance) => {
                   fullscreenReactFlowRef.current = reactFlowInstance;
-                  console.log('Compact fullscreen ReactFlow instance initialized');
+                  console.log(
+                    "Compact fullscreen ReactFlow instance initialized"
+                  );
                 }}
               >
                 {/* Background pattern */}
@@ -547,19 +679,19 @@ function WorkflowReactFlowCompactContent({
                   variant={BackgroundVariant.Dots}
                   gap={22}
                   size={1.1}
-                  color="#cbd5e1"
+                  color={isDarkMode ? "#6b7280" : "#cbd5e1"}
                 />
 
                 {/* Controls panel */}
                 <Controls
-                  className="!bottom-4 !left-4 !bg-white !border !border-gray-200 !rounded-lg !shadow-lg"
+                  className="!bottom-4 !left-4 !bg-white dark:!bg-gray-800 !border !border-gray-200 dark:!border-gray-600 !rounded-lg !shadow-lg"
                   showFitView={false}
                   showInteractive={false}
                 />
 
                 {/* Mini map */}
                 <MiniMap
-                  className="!bottom-4 !right-4 !bg-white !border !border-gray-200 !rounded-lg !shadow-lg"
+                  className="!bottom-4 !right-4 !bg-white dark:!bg-gray-800 !border !border-gray-200 dark:!border-gray-600 !rounded-lg !shadow-lg"
                   nodeColor={(node) => {
                     if (node.data?.isCurrentStage) return "#3b82f6";
                     if (node.data?.level === 0) return "#64748b";
@@ -573,7 +705,7 @@ function WorkflowReactFlowCompactContent({
                 {/* Fullscreen zoom controls */}
                 <Panel
                   position="top-right"
-                  className="!bg-white !border !border-gray-200 !rounded-md !shadow px-2 py-1 !top-16"
+                  className="!bg-white dark:!bg-gray-800 !border !border-gray-200 dark:!border-gray-600 !rounded-md !shadow px-2 py-1 !top-16"
                 >
                   <div className="flex items-center gap-1">
                     <Button

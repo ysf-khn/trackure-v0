@@ -382,7 +382,7 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
                     return (
                       <TableHead
                         key={header.id}
-                        className="text-xs font-semibold uppercase tracking-wider"
+                        className="text-xs font-semibold uppercase tracking-wider text-left"
                       >
                         {header.isPlaceholder
                           ? null
@@ -407,7 +407,7 @@ const ItemTableCore = forwardRef<ItemTableCoreHandles, ItemTableCoreProps>(
                     )}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell key={cell.id} className="py-3 text-left align-top">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()
