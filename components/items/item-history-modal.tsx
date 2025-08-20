@@ -216,30 +216,15 @@ export function ItemHistoryModal({
                   {item.from_stage_name ? (
                     <>
                       Moved <strong>{item.quantity}</strong> items from{" "}
-                      <strong>
-                        {item.from_stage_name}
-                        {item.from_sub_stage_name
-                          ? ` / ${item.from_sub_stage_name}`
-                          : ""}
-                      </strong>{" "}
+                      <strong>{item.from_stage_name}</strong>{" "}
                       to{" "}
-                      <strong>
-                        {item.to_stage_name}
-                        {item.to_sub_stage_name
-                          ? ` / ${item.to_sub_stage_name}`
-                          : ""}
-                      </strong>
+                      <strong>{item.to_stage_name}</strong>
                     </>
                   ) : (
                     <>
                       Initially allocated <strong>{item.quantity}</strong> items
                       to{" "}
-                      <strong>
-                        {item.to_stage_name}
-                        {item.to_sub_stage_name
-                          ? ` / ${item.to_sub_stage_name}`
-                          : ""}
-                      </strong>
+                      <strong>{item.to_stage_name}</strong>
                     </>
                   )}
                   {item.rework_reason && (

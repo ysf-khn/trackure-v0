@@ -38,8 +38,8 @@ const fetchOrderSKUs = async (
   }
 
   // Get unique SKUs
-  const uniqueSkus = [...new Set(items.map(item => item.sku))];
-  
+  const uniqueSkus = Array.from(new Set(items.map((item) => item.sku)));
+
   // For each SKU, get the completed stage and count allocations
   const skuDataPromises = uniqueSkus.map(async (sku) => {
     // Find the completed stage for this SKU
@@ -50,7 +50,7 @@ const fetchOrderSKUs = async (
       .eq("name", "Completed")
       .eq("sku", sku)
       .single();
-    
+
     // If no SKU-specific completed stage, try organization-level
     let completedStageId = completedStage?.id;
     if (!completedStageId) {
@@ -63,14 +63,17 @@ const fetchOrderSKUs = async (
         .single();
       completedStageId = orgCompletedStage?.id;
     }
-    
+
     // Get items for this SKU
-    const skuItems = items.filter(item => item.sku === sku);
-    const itemIds = skuItems.map(item => item.id);
-    
+    const skuItems = items.filter((item) => item.sku === sku);
+    const itemIds = skuItems.map((item) => item.id);
+
     // Calculate working quantity for this SKU (actual workable quantity after scrapping)
-    const workingQuantity = skuItems.reduce((sum, item) => sum + (item.working_quantity || 0), 0);
-    
+    const workingQuantity = skuItems.reduce(
+      (sum, item) => sum + (item.working_quantity || 0),
+      0
+    );
+
     // Get completed quantity from allocations to the completed stage
     let completedQuantity = 0;
     if (completedStageId && itemIds.length > 0) {
@@ -79,10 +82,12 @@ const fetchOrderSKUs = async (
         .select("quantity")
         .in("item_id", itemIds)
         .eq("stage_id", completedStageId);
-      
-      completedQuantity = allocations?.reduce((sum, alloc) => sum + (alloc.quantity || 0), 0) || 0;
+
+      completedQuantity =
+        allocations?.reduce((sum, alloc) => sum + (alloc.quantity || 0), 0) ||
+        0;
     }
-    
+
     return {
       sku,
       sku_name: null,
@@ -90,7 +95,7 @@ const fetchOrderSKUs = async (
       completed_quantity: completedQuantity,
     };
   });
-  
+
   const skuData = await Promise.all(skuDataPromises);
 
   // Get SKU names from item_master
@@ -105,8 +110,8 @@ const fetchOrderSKUs = async (
   }
 
   // Add SKU names to the results
-  const skuDataWithNames = skuData.map(skuInfo => {
-    const master = itemMasters?.find(m => m.sku === skuInfo.sku);
+  const skuDataWithNames = skuData.map((skuInfo) => {
+    const master = itemMasters?.find((m) => m.sku === skuInfo.sku);
     if (master) {
       const details = master.master_details as any;
       skuInfo.sku_name = details?.name || details?.item_name || master.sku;

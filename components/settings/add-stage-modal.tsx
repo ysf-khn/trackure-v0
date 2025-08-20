@@ -67,7 +67,7 @@ interface AddStageModalProps {
   selectedSKU: string | null;
   isOpen: boolean;
   onClose: () => void;
-  parentStage?: { id: string; name: string } | null;
+  parentStage?: { id: string; name: string | null } | null;
 }
 
 interface CreatedStageResponse {

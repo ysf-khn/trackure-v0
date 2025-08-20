@@ -314,24 +314,6 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
                               {stageGroup.totalQuantity}
                             </Badge>
                           </div>
-
-                          {stageGroup.allocations.some((a) => a.sub_stage) && (
-                            <div className="ml-6 space-y-1">
-                              {stageGroup.allocations
-                                .filter((a) => a.sub_stage)
-                                .map((allocation) => (
-                                  <div
-                                    key={allocation.id}
-                                    className="flex items-center justify-between text-sm"
-                                  >
-                                    <span className="text-muted-foreground">
-                                      {allocation.sub_stage?.name}
-                                    </span>
-                                    <span>{allocation.quantity}</span>
-                                  </div>
-                                ))}
-                            </div>
-                          )}
                         </div>
                       ))}
 
@@ -368,7 +350,6 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Stage</TableHead>
-                      <TableHead>Sub-Stage</TableHead>
                       <TableHead>Quantity</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Location</TableHead>
@@ -388,9 +369,6 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
                               {allocation.stage.name}
                             </TableCell>
                             <TableCell>
-                              {allocation.sub_stage?.name || "-"}
-                            </TableCell>
-                            <TableCell>
                               <Badge variant="secondary">
                                 {allocation.quantity}
                               </Badge>
@@ -407,9 +385,7 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {allocation.sub_stage?.location ||
-                                allocation.stage.location ||
-                                "-"}
+                              {allocation.stage.location || "-"}
                             </TableCell>
                             <TableCell>
                               {formatDistanceToNow(
@@ -460,27 +436,13 @@ export function ItemDetailsView({ itemId }: ItemDetailsViewProps) {
                         </TableCell>
                         <TableCell>
                           {entry.from_stage_name ? (
-                            <div>
-                              <div>{entry.from_stage_name}</div>
-                              {entry.from_sub_stage_name && (
-                                <div className="text-xs text-muted-foreground">
-                                  {entry.from_sub_stage_name}
-                                </div>
-                              )}
-                            </div>
+                            <div>{entry.from_stage_name}</div>
                           ) : (
                             <span className="text-muted-foreground">New</span>
                           )}
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <div>{entry.to_stage_name}</div>
-                            {entry.to_sub_stage_name && (
-                              <div className="text-xs text-muted-foreground">
-                                {entry.to_sub_stage_name}
-                              </div>
-                            )}
-                          </div>
+                          <div>{entry.to_stage_name}</div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{entry.quantity}</Badge>

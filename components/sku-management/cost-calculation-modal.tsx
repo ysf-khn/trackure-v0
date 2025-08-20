@@ -6,15 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { 
-  Calculator, 
-  DollarSign, 
-  TrendingUp, 
-  Users, 
-  Package,
-  Info,
-  RefreshCw
-} from "lucide-react";
+import { Calculator, TrendingUp, RefreshCw } from "lucide-react";
 
 import {
   Dialog,
@@ -35,26 +27,25 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 const costCalculationSchema = z.object({
   material_cost: z.coerce.number().min(0, "Material cost must be non-negative"),
   labor_cost: z.coerce.number().min(0, "Labor cost must be non-negative"),
-  overhead_percentage: z.coerce.number().min(0).max(100, "Overhead must be between 0-100%"),
-  profit_margin_percentage: z.coerce.number().min(0).max(100, "Profit margin must be between 0-100%"),
-  additional_costs: z.coerce.number().min(0, "Additional costs must be non-negative").optional(),
+  overhead_percentage: z.coerce
+    .number()
+    .min(0)
+    .max(100, "Overhead must be between 0-100%"),
+  profit_margin_percentage: z.coerce
+    .number()
+    .min(0)
+    .max(100, "Profit margin must be between 0-100%"),
+  additional_costs: z.coerce
+    .number()
+    .min(0, "Additional costs must be non-negative")
+    .optional(),
 });
 
 type CostCalculationForm = z.infer<typeof costCalculationSchema>;
@@ -105,7 +96,8 @@ export function CostCalculationModal({
         material_cost: existingCost.cost.material_cost || 0,
         labor_cost: existingCost.cost.labor_cost || 0,
         overhead_percentage: existingCost.cost.overhead_percentage || 15,
-        profit_margin_percentage: existingCost.cost.profit_margin_percentage || 20,
+        profit_margin_percentage:
+          existingCost.cost.profit_margin_percentage || 20,
         additional_costs: existingCost.cost.additional_costs || 0,
       });
       setCalculatedCost(existingCost.cost.final_calculated_cost);
@@ -113,7 +105,9 @@ export function CostCalculationModal({
   }, [existingCost, form]);
 
   const saveCostMutation = useMutation({
-    mutationFn: async (data: CostCalculationForm & { final_calculated_cost: number }) => {
+    mutationFn: async (
+      data: CostCalculationForm & { final_calculated_cost: number }
+    ) => {
       const response = await fetch(`/api/cost-calculations/${sku}`, {
         method: "POST",
         headers: {
@@ -141,10 +135,11 @@ export function CostCalculationModal({
   });
 
   const calculateCost = (data: CostCalculationForm) => {
-    const baseCost = data.material_cost + data.labor_cost + (data.additional_costs || 0);
-    const withOverhead = baseCost * (1 + (data.overhead_percentage / 100));
-    const finalCost = withOverhead * (1 + (data.profit_margin_percentage / 100));
-    
+    const baseCost =
+      data.material_cost + data.labor_cost + (data.additional_costs || 0);
+    const withOverhead = baseCost * (1 + data.overhead_percentage / 100);
+    const finalCost = withOverhead * (1 + data.profit_margin_percentage / 100);
+
     setCalculatedCost(finalCost);
     return finalCost;
   };
@@ -188,7 +183,8 @@ export function CostCalculationModal({
             Cost Calculation - {sku}
           </DialogTitle>
           <DialogDescription>
-            Calculate the total cost for this SKU including materials, labor, overhead, and profit margin.
+            Calculate the total cost for this SKU including materials, labor,
+            overhead, and profit margin.
           </DialogDescription>
         </DialogHeader>
 
@@ -197,7 +193,7 @@ export function CostCalculationModal({
             {/* Cost Input Fields */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Cost Components</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -273,9 +269,7 @@ export function CostCalculationModal({
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription>
-                        Desired profit margin
-                      </FormDescription>
+                      <FormDescription>Desired profit margin</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -333,33 +327,75 @@ export function CostCalculationModal({
                   <div className="space-y-3">
                     <div className="flex justify-between">
                       <span>Material Cost:</span>
-                      <span>₹{form.getValues('material_cost')?.toFixed(2) || '0.00'}</span>
+                      <span>
+                        ₹{form.getValues("material_cost")?.toFixed(2) || "0.00"}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Labor Cost:</span>
-                      <span>₹{form.getValues('labor_cost')?.toFixed(2) || '0.00'}</span>
+                      <span>
+                        ₹{form.getValues("labor_cost")?.toFixed(2) || "0.00"}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Additional Costs:</span>
-                      <span>₹{form.getValues('additional_costs')?.toFixed(2) || '0.00'}</span>
+                      <span>
+                        ₹
+                        {form.getValues("additional_costs")?.toFixed(2) ||
+                          "0.00"}
+                      </span>
                     </div>
                     <Separator />
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
-                      <span>₹{((form.getValues('material_cost') || 0) + (form.getValues('labor_cost') || 0) + (form.getValues('additional_costs') || 0)).toFixed(2)}</span>
+                      <span>
+                        ₹
+                        {(
+                          (form.getValues("material_cost") || 0) +
+                          (form.getValues("labor_cost") || 0) +
+                          (form.getValues("additional_costs") || 0)
+                        ).toFixed(2)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>Overhead ({form.getValues('overhead_percentage')}%):</span>
-                      <span>₹{(((form.getValues('material_cost') || 0) + (form.getValues('labor_cost') || 0) + (form.getValues('additional_costs') || 0)) * (form.getValues('overhead_percentage') || 0) / 100).toFixed(2)}</span>
+                      <span>
+                        Overhead ({form.getValues("overhead_percentage")}%):
+                      </span>
+                      <span>
+                        ₹
+                        {(
+                          (((form.getValues("material_cost") || 0) +
+                            (form.getValues("labor_cost") || 0) +
+                            (form.getValues("additional_costs") || 0)) *
+                            (form.getValues("overhead_percentage") || 0)) /
+                          100
+                        ).toFixed(2)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>Profit Margin ({form.getValues('profit_margin_percentage')}%):</span>
-                      <span>₹{(calculatedCost - ((form.getValues('material_cost') || 0) + (form.getValues('labor_cost') || 0) + (form.getValues('additional_costs') || 0)) * (1 + (form.getValues('overhead_percentage') || 0) / 100)).toFixed(2)}</span>
+                      <span>
+                        Profit Margin (
+                        {form.getValues("profit_margin_percentage")}%):
+                      </span>
+                      <span>
+                        ₹
+                        {(
+                          calculatedCost -
+                          ((form.getValues("material_cost") || 0) +
+                            (form.getValues("labor_cost") || 0) +
+                            (form.getValues("additional_costs") || 0)) *
+                            (1 +
+                              (form.getValues("overhead_percentage") || 0) /
+                                100)
+                        ).toFixed(2)}
+                      </span>
                     </div>
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
                       <span>Final Cost per Unit:</span>
-                      <span className="text-primary">₹{calculatedCost.toFixed(2)}</span>
+                      <span className="text-primary">
+                        ₹{calculatedCost.toFixed(2)}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -379,7 +415,9 @@ export function CostCalculationModal({
                 type="submit"
                 disabled={saveCostMutation.isPending || calculatedCost === null}
               >
-                {saveCostMutation.isPending ? "Saving..." : "Save Cost Calculation"}
+                {saveCostMutation.isPending
+                  ? "Saving..."
+                  : "Save Cost Calculation"}
               </Button>
             </DialogFooter>
           </form>

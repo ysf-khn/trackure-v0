@@ -19,14 +19,13 @@ import {
 } from "@xyflow/react";
 import { Eye, Maximize2, ZoomIn, ZoomOut, Expand, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 // Import our custom components
-import { StageNode, stageNodeType } from "./StageNode";
-import { FlowEdge, flowEdgeTypes } from "./FlowEdge";
+import { stageNodeType } from "./StageNode";
+import { flowEdgeTypes } from "./FlowEdge";
 import { transformWorkflowToFlow } from "@/lib/workflow-flow-layout";
 import {
   saveWorkflowLayout,
@@ -180,16 +179,18 @@ function WorkflowReactFlowCompactContent({
     if (organizationId && selectedSKU) {
       const savedLayout = loadWorkflowLayout(organizationId, selectedSKU);
       if (savedLayout?.viewport) {
+        // Store viewport in const for proper type narrowing
+        const viewportToRestore = savedLayout.viewport;
         // Apply viewport after a short delay to ensure ReactFlow is ready
         setTimeout(() => {
           try {
             if (mainReactFlowRef.current?.setViewport) {
-              mainReactFlowRef.current.setViewport(savedLayout.viewport, {
+              mainReactFlowRef.current.setViewport(viewportToRestore, {
                 duration: 300,
               });
-              console.log("Restored saved viewport:", savedLayout.viewport);
+              console.log("Restored saved viewport:", viewportToRestore);
             } else {
-              setViewport(savedLayout.viewport, { duration: 300 });
+              setViewport(viewportToRestore, { duration: 300 });
             }
           } catch (error) {
             console.warn("Failed to restore viewport:", error);

@@ -31,7 +31,7 @@ export async function compressImage(
 
   // Get metadata to check dimensions
   const metadata = await sharpInstance.metadata();
-  
+
   // Only resize if larger than maxWidth
   if (metadata.width && metadata.width > maxWidth) {
     sharpInstance = sharpInstance.resize(maxWidth, null, {
@@ -42,17 +42,11 @@ export async function compressImage(
 
   // Apply format-specific compression
   if (contentType === "image/jpeg" || contentType === "image/jpg") {
-    return await sharpInstance
-      .jpeg({ quality, progressive: true })
-      .toBuffer();
+    return await sharpInstance.jpeg({ quality, progressive: true }).toBuffer();
   } else if (contentType === "image/png") {
-    return await sharpInstance
-      .png({ quality, compressionLevel: 9 })
-      .toBuffer();
+    return await sharpInstance.png({ quality, compressionLevel: 9 }).toBuffer();
   } else if (contentType === "image/webp") {
-    return await sharpInstance
-      .webp({ quality })
-      .toBuffer();
+    return await sharpInstance.webp({ quality }).toBuffer();
   } else {
     // For other formats, just pass through with basic optimization
     return await sharpInstance.toBuffer();
@@ -60,7 +54,10 @@ export async function compressImage(
 }
 
 // Validate file size
-export function validateFileSize(sizeInBytes: number, maxSizeMB: number = 10): void {
+export function validateFileSize(
+  sizeInBytes: number,
+  maxSizeMB: number = 10
+): void {
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
   if (sizeInBytes > maxSizeBytes) {
     throw new Error(`File size exceeds ${maxSizeMB}MB limit`);
@@ -77,14 +74,18 @@ export function validateContentType(contentType: string): void {
     "image/webp",
     "image/svg+xml",
   ];
-  
+
   if (!allowedTypes.includes(contentType)) {
-    throw new Error(`Invalid file type. Allowed types: ${allowedTypes.join(", ")}`);
+    throw new Error(
+      `Invalid file type. Allowed types: ${allowedTypes.join(", ")}`
+    );
   }
 }
 
 // Main upload function for server-side uploads
-export async function uploadImageToS3(options: UploadOptions): Promise<UploadResult> {
+export async function uploadImageToS3(
+  options: UploadOptions
+): Promise<UploadResult> {
   const {
     file,
     fileName,
@@ -104,6 +105,7 @@ export async function uploadImageToS3(options: UploadOptions): Promise<UploadRes
   if (file instanceof Buffer) {
     buffer = file;
   } else {
+    //@ts-ignore
     const arrayBuffer = await file.arrayBuffer();
     buffer = Buffer.from(arrayBuffer);
   }
@@ -113,7 +115,11 @@ export async function uploadImageToS3(options: UploadOptions): Promise<UploadRes
 
   // Compress image if enabled and it's an image
   let processedBuffer = buffer;
-  if (compress && contentType.startsWith("image/") && contentType !== "image/svg+xml") {
+  if (
+    compress &&
+    contentType.startsWith("image/") &&
+    contentType !== "image/svg+xml"
+  ) {
     try {
       processedBuffer = await compressImage(buffer, contentType);
     } catch (error) {
@@ -152,13 +158,13 @@ export async function processFormDataFile(formData: FormData): Promise<{
   contentType: string;
 }> {
   const file = formData.get("file") as File;
-  
+
   if (!file) {
     throw new Error("No file provided");
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  
+
   return {
     file: buffer,
     fileName: file.name,

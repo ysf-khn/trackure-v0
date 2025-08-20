@@ -14,10 +14,8 @@ import {
   CreditCard,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -164,9 +162,9 @@ export function VendorDetailsPage({ vendorId }: VendorDetailsPageProps) {
     return null;
   }
 
-  console.log('VendorDetailsPage - Full vendor response:', vendor);
-  console.log('VendorDetailsPage - vendorData:', vendorData);
-  console.log('VendorDetailsPage - vendor.metrics:', vendor.metrics);
+  console.log("VendorDetailsPage - Full vendor response:", vendor);
+  console.log("VendorDetailsPage - vendorData:", vendorData);
+  console.log("VendorDetailsPage - vendor.metrics:", vendor.metrics);
 
   return (
     <div className="space-y-6 min-h-screen  -m-6 p-6">

@@ -6,7 +6,6 @@ import {
   Receipt,
   Search,
   Filter,
-  Download,
   User,
   Package,
   Calendar,
@@ -26,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -45,14 +44,19 @@ interface VendorPaymentHistoryProps {
 export function VendorPaymentHistory({ vendorId }: VendorPaymentHistoryProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>("");
-  const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set());
+  const [expandedPayments, setExpandedPayments] = useState<Set<string>>(
+    new Set()
+  );
 
   const {
     data: paymentsData,
     isLoading,
     error,
   } = useVendorPayments(vendorId, {
-    paymentType: paymentTypeFilter && paymentTypeFilter !== "all" ? paymentTypeFilter : undefined,
+    paymentType:
+      paymentTypeFilter && paymentTypeFilter !== "all"
+        ? paymentTypeFilter
+        : undefined,
     includeCarriedForward: true,
   });
 
@@ -121,17 +125,18 @@ export function VendorPaymentHistory({ vendorId }: VendorPaymentHistoryProps) {
   };
 
   // Filter payments based on search term
-  const filteredPayments = paymentsData?.payments.filter((payment) => {
-    if (!searchTerm) return true;
-    
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      payment.order?.order_number?.toLowerCase().includes(searchLower) ||
-      payment.order?.sku?.toLowerCase().includes(searchLower) ||
-      payment.remarks?.toLowerCase().includes(searchLower) ||
-      payment.created_by?.toLowerCase().includes(searchLower)
-    );
-  }) || [];
+  const filteredPayments =
+    paymentsData?.payments.filter((payment) => {
+      if (!searchTerm) return true;
+
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        payment.order?.order_number?.toLowerCase().includes(searchLower) ||
+        payment.order?.sku?.toLowerCase().includes(searchLower) ||
+        payment.remarks?.toLowerCase().includes(searchLower) ||
+        payment.created_by?.toLowerCase().includes(searchLower)
+      );
+    }) || [];
 
   if (isLoading) {
     return (
@@ -198,7 +203,7 @@ export function VendorPaymentHistory({ vendorId }: VendorPaymentHistoryProps) {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -219,10 +224,12 @@ export function VendorPaymentHistory({ vendorId }: VendorPaymentHistoryProps) {
               <FileText className="h-5 w-5 text-yellow-600" />
               <div>
                 <p className="text-2xl font-semibold">
-                  {paymentsData.statistics.payment_types.part_payment + 
-                   paymentsData.statistics.payment_types.advance}
+                  {paymentsData.statistics.payment_types.part_payment +
+                    paymentsData.statistics.payment_types.advance}
                 </p>
-                <p className="text-sm text-muted-foreground">Partial Payments</p>
+                <p className="text-sm text-muted-foreground">
+                  Partial Payments
+                </p>
               </div>
             </div>
           </CardContent>
@@ -234,10 +241,12 @@ export function VendorPaymentHistory({ vendorId }: VendorPaymentHistoryProps) {
               <Package className="h-5 w-5 text-purple-600" />
               <div>
                 <p className="text-2xl font-semibold">
-                  {paymentsData.statistics.payment_types.closure + 
-                   paymentsData.statistics.payment_types.force_closure}
+                  {paymentsData.statistics.payment_types.closure +
+                    paymentsData.statistics.payment_types.force_closure}
                 </p>
-                <p className="text-sm text-muted-foreground">Completed Orders</p>
+                <p className="text-sm text-muted-foreground">
+                  Completed Orders
+                </p>
               </div>
             </div>
           </CardContent>
@@ -323,14 +332,23 @@ function PaymentCard({
                   ) : (
                     <ChevronRight className="h-4 w-4" />
                   )}
-                  <Receipt className={cn("h-5 w-5", getPaymentTypeColor(payment.payment_type))} />
+                  <Receipt
+                    className={cn(
+                      "h-5 w-5",
+                      getPaymentTypeColor(payment.payment_type)
+                    )}
+                  />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-semibold text-lg">
                       {formatCurrency(payment.amount_paid)}
                     </span>
-                    <Badge variant={getPaymentTypeVariant(payment.payment_type) as any}>
+                    <Badge
+                      variant={
+                        getPaymentTypeVariant(payment.payment_type) as any
+                      }
+                    >
                       {formatPaymentType(payment.payment_type)}
                     </Badge>
                   </div>
@@ -357,7 +375,8 @@ function PaymentCard({
               <div className="flex items-center gap-2">
                 {receipts?.receipts?.length ? (
                   <Badge variant="outline" className="text-xs">
-                    {receipts.receipts.length} receipt{receipts.receipts.length > 1 ? 's' : ''}
+                    {receipts.receipts.length} receipt
+                    {receipts.receipts.length > 1 ? "s" : ""}
                   </Badge>
                 ) : null}
               </div>
@@ -407,7 +426,7 @@ function PaymentCard({
                         key={receipt.id}
                         variant="outline"
                         size="sm"
-                        onClick={() => window.open(receipt.signedUrl, '_blank')}
+                        onClick={() => window.open(receipt.signedUrl, "_blank")}
                         className="text-xs"
                       >
                         <Eye className="h-3 w-3 mr-1" />

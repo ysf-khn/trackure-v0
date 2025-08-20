@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { Package, Calendar, DollarSign, AlertCircle, CheckCircle, Clock, XCircle } from "lucide-react";
+import {
+  Package,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  XCircle,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Tooltip,
@@ -11,7 +17,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -119,7 +131,9 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
     }
   };
 
-  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+  const getStatusVariant = (
+    status: string
+  ): "default" | "secondary" | "destructive" | "outline" => {
     switch (status) {
       case "pending":
         return "secondary";
@@ -134,7 +148,9 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
     }
   };
 
-  const getPaymentStatusVariant = (status: string): "default" | "secondary" | "destructive" => {
+  const getPaymentStatusVariant = (
+    status: string
+  ): "default" | "secondary" | "destructive" => {
     switch (status) {
       case "paid":
         return "default";
@@ -188,7 +204,8 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
   const summary = data?.summary || {};
 
   // Calculate outstanding payment from orders if not available in summary
-  const outstandingPayment = summary.outstanding_payment || 
+  const outstandingPayment =
+    summary.outstanding_payment ||
     orders.reduce((total: number, order: VendorOrder) => {
       return total + (order.payment_summary?.remaining_amount || 0);
     }, 0);
@@ -229,112 +246,142 @@ export function VendorOrdersPanel({ vendorId }: VendorOrdersPanelProps) {
             ) : (
               <TooltipProvider>
                 <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order Number</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Assigned Stage</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Price per Unit</TableHead>
-                    <TableHead>Total Amount</TableHead>
-                    <TableHead>Payment Status</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.map((order: VendorOrder) => (
-                    <TableRow key={order.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{order.customer_order_number}</p>
-                          <p className="text-xs text-muted-foreground">{order.customer_name}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{order.sku}</p>
-                          {order.sku_details?.master_details?.name && (
-                            <p className="text-sm text-muted-foreground">
-                              {order.sku_details.master_details.name}
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order Number</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead>Assigned Stage</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Price per Unit</TableHead>
+                      <TableHead>Total Amount</TableHead>
+                      <TableHead>Payment Status</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orders.map((order: VendorOrder) => (
+                      <TableRow key={order.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">
+                              {order.customer_order_number}
                             </p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {order.stage.name}
-                      </TableCell>
-                      <TableCell>{order.quantity}</TableCell>
-                      <TableCell>
-                        {formatCurrency(order.unit_price, order.currency)}
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-medium">
-                          {formatCurrency(order.total_amount, order.currency)}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        {order.payment_summary.payment_status === "paid" ? (
-                          <div className="space-y-1">
-                            <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100">
-                              Paid
-                            </Badge>
-                            {order.payment_summary.last_payment_type && (
-                              <div className="text-xs space-y-0.5">
-                                <p className="text-muted-foreground">
-                                  Type: {order.payment_summary.last_payment_type}
-                                </p>
-                                {order.payment_summary.last_payment_remarks && (
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <p className="text-muted-foreground truncate max-w-[150px]">
-                                        {order.payment_summary.last_payment_remarks}
-                                      </p>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p className="max-w-xs">{order.payment_summary.last_payment_remarks}</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                              </div>
-                            )}
+                            <p className="text-xs text-muted-foreground">
+                              {order.customer_name}
+                            </p>
                           </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <Badge variant={getPaymentStatusVariant(order.payment_summary.payment_status)}>
-                              {order.payment_summary.payment_status === "partial" ? "Partial" : "Unpaid"}
-                            </Badge>
-                            {order.payment_summary.remaining_amount > 0 && (
-                              <p className="text-xs text-destructive font-medium">
-                                Due: {formatCurrency(order.payment_summary.remaining_amount, order.currency)}
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{order.sku}</p>
+                            {order.sku_details?.master_details?.name && (
+                              <p className="text-sm text-muted-foreground">
+                                {order.sku_details.master_details.name}
                               </p>
                             )}
                           </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {format(new Date(order.created_at), "PP")}
-                      </TableCell>
-                      <TableCell>
-                        {order.payment_summary.payment_status !== "paid" && order.payment_summary.payment_count === 0 && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleAddPayment(order)}
-                          >
-                            Add Payment
-                          </Button>
-                        )}
-                        {order.payment_summary.payment_count > 0 && order.payment_summary.payment_status !== "paid" && (
-                          <div className="text-sm text-muted-foreground">
-                            Payment recorded
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {order.stage.name}
+                        </TableCell>
+                        <TableCell>{order.quantity}</TableCell>
+                        <TableCell>
+                          {formatCurrency(order.unit_price, order.currency)}
+                        </TableCell>
+                        <TableCell>
+                          <p className="font-medium">
+                            {formatCurrency(order.total_amount, order.currency)}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          {order.payment_summary.payment_status === "paid" ? (
+                            <div className="space-y-1">
+                              <Badge
+                                variant="default"
+                                className="bg-green-100 text-green-700 hover:bg-green-100"
+                              >
+                                Paid
+                              </Badge>
+                              {order.payment_summary.last_payment_type && (
+                                <div className="text-xs space-y-0.5">
+                                  <p className="text-muted-foreground">
+                                    Type:{" "}
+                                    {order.payment_summary.last_payment_type}
+                                  </p>
+                                  {order.payment_summary
+                                    .last_payment_remarks && (
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <p className="text-muted-foreground truncate max-w-[150px]">
+                                          {
+                                            order.payment_summary
+                                              .last_payment_remarks
+                                          }
+                                        </p>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="max-w-xs">
+                                          {
+                                            order.payment_summary
+                                              .last_payment_remarks
+                                          }
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <Badge
+                                variant={getPaymentStatusVariant(
+                                  order.payment_summary.payment_status
+                                )}
+                              >
+                                {order.payment_summary.payment_status ===
+                                "partial"
+                                  ? "Partial"
+                                  : "Unpaid"}
+                              </Badge>
+                              {order.payment_summary.remaining_amount > 0 && (
+                                <p className="text-xs text-destructive font-medium">
+                                  Due:{" "}
+                                  {formatCurrency(
+                                    order.payment_summary.remaining_amount,
+                                    order.currency
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {format(new Date(order.created_at), "PP")}
+                        </TableCell>
+                        <TableCell>
+                          {order.payment_summary.payment_status !== "paid" &&
+                            order.payment_summary.payment_count === 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleAddPayment(order)}
+                              >
+                                Add Payment
+                              </Button>
+                            )}
+                          {order.payment_summary.payment_count > 0 &&
+                            order.payment_summary.payment_status !== "paid" && (
+                              <div className="text-sm text-muted-foreground">
+                                Payment recorded
+                              </div>
+                            )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </TooltipProvider>
             )}
           </CardContent>

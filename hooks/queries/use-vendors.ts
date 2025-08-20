@@ -6,9 +6,10 @@ interface VendorStats {
   supported_stages: number;
   avg_price: number;
   avg_lead_time: number;
+  outstanding_amount: number;
 }
 
-interface VendorPricing {
+export interface VendorPricing {
   id: string;
   stage_id: string;
   sku: string;
@@ -57,14 +58,14 @@ export function useVendors(includeInactive = false) {
       if (includeInactive) {
         params.set("include_inactive", "true");
       }
-      
+
       const response = await fetch(`/api/vendors?${params.toString()}`);
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to fetch vendors");
       }
-      
+
       return response.json();
     },
     staleTime: 5 * 60 * 1000, // 5 minutes

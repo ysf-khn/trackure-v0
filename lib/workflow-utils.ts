@@ -179,7 +179,7 @@ interface SubsequentStageInfo {
   id: string;
   name: string | null;
   isSubStage?: boolean;
-  parentStageId?: string;
+  parentStageId?: string | null;
   parentStageName?: string | null;
 }
 
@@ -187,7 +187,7 @@ interface PreviousStageInfo {
   id: string;
   name: string | null;
   isSubStage?: boolean;
-  parentStageId?: string;
+  parentStageId?: string | null;
   parentStageName?: string | null;
 }
 

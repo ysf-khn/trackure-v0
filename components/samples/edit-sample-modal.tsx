@@ -192,9 +192,9 @@ export function EditSampleModal({ sampleId, open, onOpenChange }: EditSampleModa
         const response = await fetch("/api/sku-management");
         if (response.ok) {
           const data = await response.json();
-          const uniqueSKUs = [
-            ...new Set(data.skus?.map((s: any) => s.sku) || []),
-          ];
+          const uniqueSKUs = Array.from(
+            new Set(data.skus?.map((s: any) => s.sku) || [])
+          ) as string[];
           setSkuOptions(uniqueSKUs);
         }
       } catch (error) {

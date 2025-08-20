@@ -2,24 +2,23 @@
 
 import * as React from "react";
 import { formatDistanceToNow } from "date-fns";
-import { 
-  Clock, 
-  Package, 
-  User, 
-  MapPin, 
-  ArrowRight, 
+import {
+  Clock,
+  Package,
+  User,
+  MapPin,
+  ArrowRight,
   MoreHorizontal,
   History,
   RotateCcw,
   ExternalLink,
   AlertTriangle,
   CheckCircle,
-  ArrowUpRight
+  ArrowUpRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu,
@@ -53,33 +52,34 @@ export function DenseItemCards({
   showStageContext = false,
   isLoading = false,
 }: DenseItemCardsProps) {
-
   const getItemStatusColor = (item: ItemInStage) => {
-    if (item.entry_type === 'reworked') return 'text-orange-600';
-    
+    if (item.entry_type === "reworked") return "text-orange-600";
+
     // Check if item has been in stage too long (>7 days)
     if (item.current_stage_entered_at) {
       const enteredAt = new Date(item.current_stage_entered_at);
-      const daysDiff = (Date.now() - enteredAt.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysDiff > 7) return 'text-red-600';
-      if (daysDiff > 3) return 'text-yellow-600';
+      const daysDiff =
+        (Date.now() - enteredAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysDiff > 7) return "text-red-600";
+      if (daysDiff > 3) return "text-yellow-600";
     }
-    
-    return 'text-green-600';
+
+    return "text-green-600";
   };
 
   const getItemStatusIcon = (item: ItemInStage) => {
-    if (item.entry_type === 'reworked') {
+    if (item.entry_type === "reworked") {
       return <AlertTriangle className="h-4 w-4" />;
     }
-    
+
     if (item.current_stage_entered_at) {
       const enteredAt = new Date(item.current_stage_entered_at);
-      const daysDiff = (Date.now() - enteredAt.getTime()) / (1000 * 60 * 60 * 24);
+      const daysDiff =
+        (Date.now() - enteredAt.getTime()) / (1000 * 60 * 60 * 24);
       if (daysDiff > 7) return <AlertTriangle className="h-4 w-4" />;
       if (daysDiff > 3) return <Clock className="h-4 w-4" />;
     }
-    
+
     return <CheckCircle className="h-4 w-4" />;
   };
 
@@ -131,11 +131,10 @@ export function DenseItemCards({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Package className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">
-            Items in {stageName}
-          </h3>
+          <h3 className="text-lg font-semibold">Items in {stageName}</h3>
           <Badge variant="outline">
-            {items.length} items • {items.reduce((sum, item) => sum + item.quantity, 0)} total qty
+            {items.length} items •{" "}
+            {items.reduce((sum, item) => sum + item.quantity, 0)} total qty
           </Badge>
         </div>
       </div>
@@ -146,28 +145,32 @@ export function DenseItemCards({
           const statusColor = getItemStatusColor(item);
           const StatusIcon = () => getItemStatusIcon(item);
           const progress = calculateProgress(item);
-          
+
           return (
             <Card key={item.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <h4 className="font-semibold truncate">
-                      Order #{item.order_number || 'N/A'}
+                      Order #{item.order_number || "N/A"}
                     </h4>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant="outline" className="text-xs">
                         {item.sku}
                       </Badge>
-                      <Badge 
-                        variant={item.entry_type === 'reworked' ? 'destructive' : 'default'}
+                      <Badge
+                        variant={
+                          item.entry_type === "reworked"
+                            ? "destructive"
+                            : "default"
+                        }
                         className="text-xs"
                       >
-                        {item.entry_type === 'reworked' ? 'Rework' : 'Normal'}
+                        {item.entry_type === "reworked" ? "Rework" : "Normal"}
                       </Badge>
                     </div>
                   </div>
-                  
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -198,7 +201,7 @@ export function DenseItemCards({
                   </DropdownMenu>
                 </div>
               </CardHeader>
-              
+
               <CardContent className="pt-0 space-y-3">
                 {/* Quantity and status */}
                 <div className="flex items-center justify-between">
@@ -208,16 +211,20 @@ export function DenseItemCards({
                       Qty: {item.quantity}
                     </span>
                   </div>
-                  
+
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
-                        <div className={cn("flex items-center gap-1", statusColor)}>
+                        <div
+                          className={cn("flex items-center gap-1", statusColor)}
+                        >
                           <StatusIcon />
                           <span className="text-xs">
-                            {item.current_stage_entered_at && 
-                              formatDistanceToNow(new Date(item.current_stage_entered_at), { addSuffix: true })
-                            }
+                            {item.current_stage_entered_at &&
+                              formatDistanceToNow(
+                                new Date(item.current_stage_entered_at),
+                                { addSuffix: true }
+                              )}
                           </span>
                         </div>
                       </TooltipTrigger>
@@ -231,35 +238,43 @@ export function DenseItemCards({
                 {/* Progress bar */}
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Workflow Progress</span>
+                    <span className="text-muted-foreground">
+                      Workflow Progress
+                    </span>
                     <span className="font-medium">{progress}%</span>
                   </div>
                   <Progress value={progress} className="h-2" />
                 </div>
 
                 {/* Instance details preview */}
-                {item.instance_details && Object.keys(item.instance_details).length > 0 && (
-                  <div className="space-y-1">
-                    <div className="text-xs text-muted-foreground">Details:</div>
+                {item.instance_details &&
+                  Object.keys(item.instance_details).length > 0 && (
                     <div className="space-y-1">
-                      {Object.entries(item.instance_details)
-                        .slice(0, 2)
-                        .map(([key, value]) => (
-                          <div key={key} className="flex justify-between text-xs">
-                            <span className="text-muted-foreground capitalize">
-                              {key.replace(/_/g, ' ')}:
-                            </span>
-                            <span className="font-medium truncate ml-2">
-                              {String(value)}
-                            </span>
-                          </div>
-                        ))}
+                      <div className="text-xs text-muted-foreground">
+                        Details:
+                      </div>
+                      <div className="space-y-1">
+                        {Object.entries(item.instance_details)
+                          .slice(0, 2)
+                          .map(([key, value]) => (
+                            <div
+                              key={key}
+                              className="flex justify-between text-xs"
+                            >
+                              <span className="text-muted-foreground capitalize">
+                                {key.replace(/_/g, " ")}:
+                              </span>
+                              <span className="font-medium truncate ml-2">
+                                {String(value)}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Rework information */}
-                {item.entry_type === 'reworked' && item.rework_reasons && (
+                {item.entry_type === "reworked" && item.rework_reasons && (
                   <div className="p-2 bg-orange-50 border border-orange-200 rounded-md">
                     <div className="text-xs text-orange-800">
                       <div className="font-medium mb-1">Rework Reasons:</div>

@@ -36,7 +36,7 @@ const addVendorSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   remarks: z.string().optional(),
-  is_active: z.boolean().default(true),
+  is_active: z.boolean(),
 });
 
 type AddVendorForm = z.infer<typeof addVendorSchema>;

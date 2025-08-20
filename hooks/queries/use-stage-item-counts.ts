@@ -24,7 +24,7 @@ export function useStageItemCounts(
   workflowData: FetchedWorkflowStage[] | undefined
 ) {
   return useQuery({
-    queryKey: queryKeys.stageItemCounts(organizationId, selectedSKU),
+    queryKey: queryKeys.stageItemCounts(organizationId ?? null, selectedSKU),
     queryFn: async (): Promise<StageItemCountsResult> => {
       console.log(
         "[STAGE COUNTS DEBUG] Fetching stage counts for org:",
@@ -288,7 +288,7 @@ export function calculateWorkflowItemsSummary(
   };
 
   const allStageIds = collectAllStageIds(workflowData);
-  
+
   let totalItems = 0;
   let totalQuantity = 0;
   let normalQuantity = 0;
@@ -302,7 +302,7 @@ export function calculateWorkflowItemsSummary(
       totalQuantity += stageCount.totalQuantity;
       normalQuantity += stageCount.normalQuantity;
       reworkedQuantity += stageCount.reworkedQuantity;
-      
+
       if (stageCount.totalQuantity > 0) {
         stagesWithItems += 1;
       }

@@ -4,6 +4,12 @@ interface SampleAttribute {
   attribute_name: string;
   attribute_value: string;
   attribute_unit?: string | null;
+  vendor_id?: string | null;
+  display_order?: number | null;
+  vendor?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 interface Sample {
@@ -12,6 +18,8 @@ interface Sample {
   sku: string;
   sample_code: string;
   name: string;
+  quantity: number;
+  size: string;
   description?: string | null;
   location?: string | null;
   status: string;

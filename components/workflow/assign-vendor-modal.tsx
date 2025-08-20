@@ -58,7 +58,7 @@ import {
 const assignVendorSchema = z.object({
   vendor_id: z.string().uuid("Please select a vendor"),
   unit_price: z.number().min(0, "Unit price must be non-negative"),
-  currency: z.enum(["INR", "USD", "EUR", "GBP"]).default("INR"),
+  currency: z.enum(["INR", "USD", "EUR", "GBP"]),
   notes: z.string().optional(),
 });
 
@@ -71,7 +71,7 @@ interface AssignVendorModalProps {
   stageId: string;
   stageName: string;
   availableQuantity?: number; // Optional - will be fetched from order context
-  orderId?: string;
+  orderId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -220,7 +220,9 @@ export function AssignVendorModal({
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["vendor-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["stage-vendor-pricing", stageId] });
+      queryClient.invalidateQueries({
+        queryKey: ["stage-vendor-pricing", stageId],
+      });
       toast.success(
         `Vendor assigned successfully. Order: ${data.order_number}`
       );

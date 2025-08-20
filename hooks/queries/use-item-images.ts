@@ -7,8 +7,11 @@ import { createClient } from "@/utils/supabase/client";
 // Define the structure of the image data returned by the API
 export interface ItemImage {
   id: string;
-  storage_path: string;
+  storage_path: string | null; // Legacy storage path (null for S3 images)
+  s3_key: string | null; // AWS S3 object key
+  s3_url: string | null; // Full public URL for the image (S3 or CloudFront)
   file_name: string | null;
+  file_size_bytes: number | null;
   uploaded_at: string;
   uploaded_by: string; // User UUID
   remark_id: number | null; // BIGINT of the remark it's linked to (remarks.id is bigserial/BIGINT)

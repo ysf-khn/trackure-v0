@@ -25,7 +25,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RotateCcw, ArrowLeft, CheckCircle, AlertCircle, Trash2 } from "lucide-react";
+import {
+  RotateCcw,
+  ArrowLeft,
+  CheckCircle,
+  AlertCircle,
+  Trash2,
+} from "lucide-react";
 import { FetchedWorkflowStage } from "@/hooks/queries/use-workflow-structure";
 import { useWorkerPermissions } from "@/components/providers/permissions-provider";
 import { getPreviousStages } from "@/lib/workflow-utils";
@@ -47,7 +53,7 @@ interface SingleItemReworkQuantityModalProps {
     quantity: number,
     reason: string,
     targetStageId: string,
-    sourceStageId: string,
+    sourceStageId: string
   ) => void;
   onConfirmScrap?: (
     itemId: string,
@@ -69,7 +75,9 @@ export function SingleItemReworkQuantityModal({
   isProcessing,
   userRole,
 }: SingleItemReworkQuantityModalProps) {
-  const [action, setAction] = useState<"rework" | "scrap_and_replace" | "scrap_totally">("rework");
+  const [action, setAction] = useState<
+    "rework" | "scrap_and_replace" | "scrap_totally"
+  >("rework");
   const [quantityToRework, setQuantityToRework] = useState<number>(1);
   const [quantityError, setQuantityError] = useState<string | null>(null);
   const [reworkReason, setReworkReason] = useState<string>("");
@@ -86,7 +94,11 @@ export function SingleItemReworkQuantityModal({
     console.log(`[ReworkModal] Debug info:`, {
       workflowDataLength: workflowData?.length || 0,
       currentStageId: item.currentStageId,
-      workflowData: workflowData?.map(s => ({ id: s.id, name: s.name, full_path: s.full_path }))
+      workflowData: workflowData?.map((s) => ({
+        id: s.id,
+        name: s.name,
+        full_path: s.full_path,
+      })),
     });
 
     if (!workflowData || workflowData.length === 0) {
@@ -104,14 +116,14 @@ export function SingleItemReworkQuantityModal({
     console.log(`[ReworkModal] Previous stages found:`, previousStages);
 
     // Convert to the format expected by the select component
-    const options = previousStages.map(stage => ({
+    const options = previousStages.map((stage) => ({
       id: stage.id,
       name: stage.name || `Stage ${stage.id}`,
     }));
 
     console.log(`[ReworkModal] Final options:`, options);
     return options;
-  }, [workflowData, item.currentStageId, item.currentSubStageId]);
+  }, [workflowData, item.currentStageId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -185,7 +197,13 @@ export function SingleItemReworkQuantityModal({
         // Use the new scrap mutation hook
         scrapItems(
           {
-            items: [{ id: item.id, quantity: quantityToRework, stage_id: item.currentStageId }],
+            items: [
+              {
+                id: item.id,
+                quantity: quantityToRework,
+                stage_id: item.currentStageId,
+              },
+            ],
             scrap_reason: reworkReason.trim(),
             create_replacement: action === "scrap_and_replace",
             preserve_total_quantity: action === "scrap_and_replace", // Only preserve for replacements
@@ -277,9 +295,11 @@ export function SingleItemReworkQuantityModal({
             </div>
             <div className="flex-1">
               <DialogTitle className="text-xl">
-                {action === "rework" ? "Send Item for Rework" : 
-                 action === "scrap_and_replace" ? "Scrap & Replace Item" : 
-                 "Scrap Item Completely"}
+                {action === "rework"
+                  ? "Send Item for Rework"
+                  : action === "scrap_and_replace"
+                    ? "Scrap & Replace Item"
+                    : "Scrap Item Completely"}
               </DialogTitle>
               <div className="flex items-center gap-2 mt-1">
                 <Badge variant="secondary" className="text-xs font-mono">
@@ -293,12 +313,11 @@ export function SingleItemReworkQuantityModal({
             </div>
           </div>
           <DialogDescription className="text-sm text-muted-foreground">
-            {action === "rework" ? 
-              "Send this item back to an earlier stage for rework. Specify the quantity, target stage, and reason for rework." :
-              action === "scrap_and_replace" ?
-              "Scrap this item and create replacement items. Specify the quantity and reason for scrapping." :
-              "Permanently scrap this item from production. Specify the quantity and reason for scrapping."
-            }
+            {action === "rework"
+              ? "Send this item back to an earlier stage for rework. Specify the quantity, target stage, and reason for rework."
+              : action === "scrap_and_replace"
+                ? "Scrap this item and create replacement items. Specify the quantity and reason for scrapping."
+                : "Permanently scrap this item from production. Specify the quantity and reason for scrapping."}
           </DialogDescription>
         </DialogHeader>
 
@@ -342,7 +361,10 @@ export function SingleItemReworkQuantityModal({
                   onChange={() => setAction("rework")}
                   disabled={isProcessing || isScrapPending}
                 />
-                <label htmlFor="rework" className="flex items-center gap-2 cursor-pointer">
+                <label
+                  htmlFor="rework"
+                  className="flex items-center gap-2 cursor-pointer"
+                >
                   Send Back for Rework
                   <span className="text-sm text-muted-foreground">
                     (Move to previous stage)
@@ -359,7 +381,10 @@ export function SingleItemReworkQuantityModal({
                   onChange={() => setAction("scrap_and_replace")}
                   disabled={isProcessing || isScrapPending}
                 />
-                <label htmlFor="scrap_and_replace" className="flex items-center gap-2 cursor-pointer">
+                <label
+                  htmlFor="scrap_and_replace"
+                  className="flex items-center gap-2 cursor-pointer"
+                >
                   <Trash2 className="h-4 w-4 text-orange-500" />
                   Scrap & Replace
                   <span className="text-sm text-muted-foreground">
@@ -377,7 +402,10 @@ export function SingleItemReworkQuantityModal({
                   onChange={() => setAction("scrap_totally")}
                   disabled={isProcessing || isScrapPending}
                 />
-                <label htmlFor="scrap_totally" className="flex items-center gap-2 cursor-pointer">
+                <label
+                  htmlFor="scrap_totally"
+                  className="flex items-center gap-2 cursor-pointer"
+                >
                   <Trash2 className="h-4 w-4 text-red-500" />
                   Scrap Completely
                   <span className="text-sm text-muted-foreground">
@@ -390,23 +418,26 @@ export function SingleItemReworkQuantityModal({
 
           {/* Target Stage Selection */}
           {action === "rework" && (
-          <div className="space-y-3">
-            <Label htmlFor="target-stage" className="text-sm font-medium">
-              Target Stage for Rework
-            </Label>
-            <Select value={selectedStageId} onValueChange={setSelectedStageId}>
-              <SelectTrigger className="h-12">
-                <SelectValue placeholder="Select target stage" />
-              </SelectTrigger>
-              <SelectContent>
-                {reworkTargetOptions.map((stage) => (
-                  <SelectItem key={stage.id} value={stage.id}>
-                    {stage.name || stage.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-3">
+              <Label htmlFor="target-stage" className="text-sm font-medium">
+                Target Stage for Rework
+              </Label>
+              <Select
+                value={selectedStageId}
+                onValueChange={setSelectedStageId}
+              >
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="Select target stage" />
+                </SelectTrigger>
+                <SelectContent>
+                  {reworkTargetOptions.map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>
+                      {stage.name || stage.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
 
           {/* Quantity Input */}
@@ -448,9 +479,10 @@ export function SingleItemReworkQuantityModal({
                 id="rework-reason"
                 value={reworkReason}
                 onChange={handleReasonChange}
-                placeholder={action === "rework" ? 
-                  "Describe why this item needs rework... (minimum 3 characters)" :
-                  "Describe why this item is being scrapped... (minimum 3 characters)"
+                placeholder={
+                  action === "rework"
+                    ? "Describe why this item needs rework... (minimum 3 characters)"
+                    : "Describe why this item is being scrapped... (minimum 3 characters)"
                 }
                 className={`min-h-[100px] resize-none ${reasonError ? "border-destructive" : ""}`}
               />
@@ -470,9 +502,11 @@ export function SingleItemReworkQuantityModal({
           <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
             <div className="text-sm">
               <span className="text-muted-foreground">
-                {action === "rework" ? "Reworking:" : 
-                 action === "scrap_and_replace" ? "Scrapping & Replacing:" :
-                 "Scrapping:"}
+                {action === "rework"
+                  ? "Reworking:"
+                  : action === "scrap_and_replace"
+                    ? "Scrapping & Replacing:"
+                    : "Scrapping:"}
               </span>
               <span className="ml-2 font-medium">{quantityToRework} units</span>
             </div>
@@ -483,11 +517,13 @@ export function SingleItemReworkQuantityModal({
                 <AlertCircle className="h-4 w-4 text-orange-600" />
               )}
               <Badge variant={isValid ? "default" : "secondary"}>
-                {isValid ? 
-                  (action === "rework" ? "Ready to rework" : 
-                   action === "scrap_and_replace" ? "Ready to scrap & replace" :
-                   "Ready to scrap") : 
-                  "Complete all fields"}
+                {isValid
+                  ? action === "rework"
+                    ? "Ready to rework"
+                    : action === "scrap_and_replace"
+                      ? "Ready to scrap & replace"
+                      : "Ready to scrap"
+                  : "Complete all fields"}
               </Badge>
             </div>
           </div>
@@ -533,12 +569,12 @@ export function SingleItemReworkQuantityModal({
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
                 {isScrapPending ? "Scrapping..." : "Processing..."}
               </div>
+            ) : action === "rework" ? (
+              `Rework ${quantityToRework} ${quantityToRework === 1 ? "Item" : "Items"}`
+            ) : action === "scrap_and_replace" ? (
+              `Scrap & Replace ${quantityToRework} ${quantityToRework === 1 ? "Item" : "Items"}`
             ) : (
-              action === "rework" ? 
-                `Rework ${quantityToRework} ${quantityToRework === 1 ? "Item" : "Items"}` :
-              action === "scrap_and_replace" ?
-                `Scrap & Replace ${quantityToRework} ${quantityToRework === 1 ? "Item" : "Items"}` :
-                `Scrap ${quantityToRework} ${quantityToRework === 1 ? "Item" : "Items"}`
+              `Scrap ${quantityToRework} ${quantityToRework === 1 ? "Item" : "Items"}`
             )}
           </Button>
         </DialogFooter>

@@ -2,13 +2,18 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { TrendingUp, TrendingDown, Minus, Plus, History, Filter } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Plus, History } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -50,8 +55,8 @@ import { z } from "zod";
 
 const updatePriceSchema = z.object({
   price: z.number().min(0, "Price must be non-negative"),
-  currency: z.enum(["INR", "USD", "EUR", "GBP"]).default("INR"),
-  price_unit: z.enum(["per_piece", "per_kg", "per_dozen", "per_hundred"]).default("per_piece"),
+  currency: z.enum(["INR", "USD", "EUR", "GBP"]),
+  price_unit: z.enum(["per_piece", "per_kg", "per_dozen", "per_hundred"]),
   notes: z.string().optional(),
 });
 
@@ -89,8 +94,14 @@ interface PriceHistoryEntry {
   }>;
 }
 
-export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistoryProps) {
-  const [selectedEntry, setSelectedEntry] = useState<PriceHistoryEntry | null>(null);
+export function VendorPriceHistory({
+  vendorId,
+  sku,
+  stageId,
+}: VendorPriceHistoryProps) {
+  const [selectedEntry, setSelectedEntry] = useState<PriceHistoryEntry | null>(
+    null
+  );
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -102,7 +113,9 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
       if (stageId) params.append("stage_id", stageId);
       params.append("include_inactive", "true");
 
-      const response = await fetch(`/api/vendors/${vendorId}/price-history?${params}`);
+      const response = await fetch(
+        `/api/vendors/${vendorId}/price-history?${params}`
+      );
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to fetch price history");
@@ -122,7 +135,9 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
   });
 
   const updatePriceMutation = useMutation({
-    mutationFn: async (data: UpdatePriceForm & { stage_id: string; sku: string }) => {
+    mutationFn: async (
+      data: UpdatePriceForm & { stage_id: string; sku: string }
+    ) => {
       const response = await fetch(`/api/vendors/${vendorId}/price-history`, {
         method: "POST",
         headers: {
@@ -139,9 +154,13 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["vendor-price-history", vendorId] });
+      queryClient.invalidateQueries({
+        queryKey: ["vendor-price-history", vendorId],
+      });
       queryClient.invalidateQueries({ queryKey: ["vendors"] });
-      toast.success(`Price updated successfully${data.previous_price ? ` (was ₹${data.previous_price})` : ""}`);
+      toast.success(
+        `Price updated successfully${data.previous_price ? ` (was ₹${data.previous_price})` : ""}`
+      );
       setIsUpdateModalOpen(false);
       form.reset();
     },
@@ -163,7 +182,7 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
 
   const onSubmit = (data: UpdatePriceForm) => {
     if (!selectedEntry) return;
-    
+
     updatePriceMutation.mutate({
       ...data,
       stage_id: selectedEntry.stage_id,
@@ -239,13 +258,18 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle className="text-lg">{entry.sku_name || entry.sku}</CardTitle>
+                  <CardTitle className="text-lg">
+                    {entry.sku_name || entry.sku}
+                  </CardTitle>
                   <CardDescription>{entry.stage_path}</CardDescription>
                 </div>
                 {entry.current_price && (
                   <div className="text-right">
                     <p className="text-2xl font-bold">
-                      {formatPrice(entry.current_price.price, entry.current_price.currency)}
+                      {formatPrice(
+                        entry.current_price.price,
+                        entry.current_price.currency
+                      )}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {formatPriceUnit(entry.current_price.price_unit)}
@@ -259,7 +283,11 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
                 {entry.current_price && (
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground">
-                      Current price since {format(new Date(entry.current_price.effective_from), "PPP")}
+                      Current price since{" "}
+                      {format(
+                        new Date(entry.current_price.effective_from),
+                        "PPP"
+                      )}
                     </p>
                     <Button
                       size="sm"
@@ -287,22 +315,38 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
                       <TableBody>
                         {entry.history.map((historyItem, index) => {
                           const previousPrice = entry.history[index + 1];
-                          const priceChange = previousPrice 
-                            ? calculatePriceChange(historyItem.price, previousPrice.price)
+                          const priceChange = previousPrice
+                            ? calculatePriceChange(
+                                historyItem.price,
+                                previousPrice.price
+                              )
                             : null;
 
                           return (
                             <TableRow key={historyItem.id}>
                               <TableCell>
-                                {formatPrice(historyItem.price, historyItem.currency)}
+                                {formatPrice(
+                                  historyItem.price,
+                                  historyItem.currency
+                                )}
                                 <span className="text-xs text-muted-foreground ml-1">
                                   {formatPriceUnit(historyItem.price_unit)}
                                 </span>
                               </TableCell>
                               <TableCell className="text-sm">
-                                {format(new Date(historyItem.effective_from), "PP")}
+                                {format(
+                                  new Date(historyItem.effective_from),
+                                  "PP"
+                                )}
                                 {historyItem.effective_to && (
-                                  <> - {format(new Date(historyItem.effective_to), "PP")}</>
+                                  <>
+                                    {" "}
+                                    -{" "}
+                                    {format(
+                                      new Date(historyItem.effective_to),
+                                      "PP"
+                                    )}
+                                  </>
                                 )}
                               </TableCell>
                               <TableCell>
@@ -311,21 +355,28 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
                                     {priceChange.isIncrease && (
                                       <>
                                         <TrendingUp className="h-4 w-4 text-red-500" />
-                                        <span className="text-sm text-red-500">+{priceChange.percentage}%</span>
+                                        <span className="text-sm text-red-500">
+                                          +{priceChange.percentage}%
+                                        </span>
                                       </>
                                     )}
                                     {priceChange.isDecrease && (
                                       <>
                                         <TrendingDown className="h-4 w-4 text-green-500" />
-                                        <span className="text-sm text-green-500">-{priceChange.percentage}%</span>
+                                        <span className="text-sm text-green-500">
+                                          -{priceChange.percentage}%
+                                        </span>
                                       </>
                                     )}
-                                    {!priceChange.isIncrease && !priceChange.isDecrease && (
-                                      <>
-                                        <Minus className="h-4 w-4 text-muted-foreground" />
-                                        <span className="text-sm text-muted-foreground">No change</span>
-                                      </>
-                                    )}
+                                    {!priceChange.isIncrease &&
+                                      !priceChange.isDecrease && (
+                                        <>
+                                          <Minus className="h-4 w-4 text-muted-foreground" />
+                                          <span className="text-sm text-muted-foreground">
+                                            No change
+                                          </span>
+                                        </>
+                                      )}
                                   </div>
                                 )}
                               </TableCell>
@@ -350,7 +401,8 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
           <DialogHeader>
             <DialogTitle>Update Price</DialogTitle>
             <DialogDescription>
-              Update the price for {selectedEntry?.sku_name} at {selectedEntry?.stage_name}
+              Update the price for {selectedEntry?.sku_name} at{" "}
+              {selectedEntry?.stage_name}
             </DialogDescription>
           </DialogHeader>
 
@@ -367,7 +419,9 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
                         type="number"
                         step="0.01"
                         {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                        onChange={(e) =>
+                          field.onChange(parseFloat(e.target.value))
+                        }
                       />
                     </FormControl>
                     <FormMessage />
@@ -382,7 +436,10 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Currency</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select currency" />
@@ -406,7 +463,10 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Price Unit</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select unit" />
@@ -416,7 +476,9 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
                           <SelectItem value="per_piece">Per Piece</SelectItem>
                           <SelectItem value="per_kg">Per Kg</SelectItem>
                           <SelectItem value="per_dozen">Per Dozen</SelectItem>
-                          <SelectItem value="per_hundred">Per Hundred</SelectItem>
+                          <SelectItem value="per_hundred">
+                            Per Hundred
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -453,11 +515,10 @@ export function VendorPriceHistory({ vendorId, sku, stageId }: VendorPriceHistor
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={updatePriceMutation.isPending}
-                >
-                  {updatePriceMutation.isPending ? "Updating..." : "Update Price"}
+                <Button type="submit" disabled={updatePriceMutation.isPending}>
+                  {updatePriceMutation.isPending
+                    ? "Updating..."
+                    : "Update Price"}
                 </Button>
               </DialogFooter>
             </form>

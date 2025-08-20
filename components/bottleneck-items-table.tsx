@@ -104,11 +104,6 @@ export function BottleneckItemsTable({
                         <span className="font-medium">
                           {item.current_stage_name}
                         </span>
-                        {item.current_sub_stage_name && (
-                          <span className="text-sm text-muted-foreground">
-                            {item.current_sub_stage_name}
-                          </span>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell>

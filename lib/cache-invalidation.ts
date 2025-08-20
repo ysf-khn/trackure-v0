@@ -1,6 +1,6 @@
 /**
  * Centralized Cache Invalidation Utilities
- * 
+ *
  * This file provides reusable cache invalidation functions that ensure consistent
  * and comprehensive cache updates across all mutations in the application.
  */
@@ -34,33 +34,40 @@ const DEFAULT_CONFIG: InvalidationConfig = {
  * This is the most commonly needed invalidation after mutations
  */
 export const invalidateStageItemCounts = (
-  queryClient: QueryClient, 
+  queryClient: QueryClient,
   organizationId: string | null,
   config: InvalidationConfig = DEFAULT_CONFIG
 ) => {
-  console.log("[CACHE INVALIDATION] Invalidating stage item counts for org:", organizationId);
+  console.log(
+    "[CACHE INVALIDATION] Invalidating stage item counts for org:",
+    organizationId
+  );
 
   if (config.forceRemove) {
     // Remove all cached stage item counts first
     console.log("[CACHE INVALIDATION] Removing stage item counts cache");
-    queryClient.removeQueries(queryKeyUtils.getAllStageItemCountsForOrg(organizationId));
+    queryClient.removeQueries(
+      queryKeyUtils.getAllStageItemCountsForOrg(organizationId)
+    );
   }
 
   // Invalidate all stage item counts queries
   console.log("[CACHE INVALIDATION] Invalidating stage item counts queries");
   queryClient.invalidateQueries({
     ...queryKeyUtils.getAllStageItemCountsForOrg(organizationId),
-    refetchType: config.refetchAll ? 'all' : 'active'
+    refetchType: config.refetchAll ? "all" : "active",
   });
 
   if (config.aggressiveRefetch) {
     // Force refetch common SKU patterns
     const commonSKUPatterns = [null, undefined, ""];
-    commonSKUPatterns.forEach(sku => {
-      console.log(`[CACHE INVALIDATION] Force refetching stage counts for SKU: ${sku}`);
+    commonSKUPatterns.forEach((sku) => {
+      console.log(
+        `[CACHE INVALIDATION] Force refetching stage counts for SKU: ${sku}`
+      );
       queryClient.refetchQueries({
-        queryKey: queryKeys.stageItemCounts(organizationId, sku),
-        type: 'all'
+        queryKey: queryKeys.stageItemCounts(organizationId, sku ?? null),
+        type: "all",
       });
     });
   }
@@ -68,7 +75,7 @@ export const invalidateStageItemCounts = (
   if (config.triggerWindowFocus) {
     // Trigger window focus event to activate refetchOnWindowFocus
     console.log("[CACHE INVALIDATION] Triggering window focus event");
-    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event("focus"));
   }
 };
 
@@ -80,20 +87,23 @@ export const invalidateWorkflowQueries = (
   organizationId: string | null,
   config: InvalidationConfig = DEFAULT_CONFIG
 ) => {
-  console.log("[CACHE INVALIDATION] Invalidating workflow queries for org:", organizationId);
+  console.log(
+    "[CACHE INVALIDATION] Invalidating workflow queries for org:",
+    organizationId
+  );
 
   const queriesToInvalidate = [
     queryKeys.workflowStructure(organizationId),
     queryKeys.workflowSidebar(),
   ];
 
-  queriesToInvalidate.forEach(queryKey => {
+  queriesToInvalidate.forEach((queryKey) => {
     if (config.forceRemove) {
       queryClient.removeQueries({ queryKey });
     }
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey,
-      refetchType: config.refetchAll ? 'all' : 'active'
+      refetchType: config.refetchAll ? "all" : "active",
     });
   });
 };
@@ -106,20 +116,23 @@ export const invalidateDashboardQueries = (
   organizationId: string | null,
   config: InvalidationConfig = DEFAULT_CONFIG
 ) => {
-  console.log("[CACHE INVALIDATION] Invalidating dashboard queries for org:", organizationId);
+  console.log(
+    "[CACHE INVALIDATION] Invalidating dashboard queries for org:",
+    organizationId
+  );
 
   const queriesToInvalidate = [
     queryKeys.dashboardStats(organizationId),
     queryKeys.bottleneckItems(organizationId),
   ];
 
-  queriesToInvalidate.forEach(queryKey => {
+  queriesToInvalidate.forEach((queryKey) => {
     if (config.forceRemove) {
       queryClient.removeQueries({ queryKey });
     }
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey,
-      refetchType: config.refetchAll ? 'all' : 'active'
+      refetchType: config.refetchAll ? "all" : "active",
     });
   });
 };
@@ -132,7 +145,10 @@ export const invalidateItemQueries = (
   organizationId: string | null,
   config: InvalidationConfig = DEFAULT_CONFIG
 ) => {
-  console.log("[CACHE INVALIDATION] Invalidating item queries for org:", organizationId);
+  console.log(
+    "[CACHE INVALIDATION] Invalidating item queries for org:",
+    organizationId
+  );
 
   const queriesToInvalidate = [
     queryKeys.newOrderItems(organizationId),
@@ -143,26 +159,26 @@ export const invalidateItemQueries = (
   // Also invalidate items in stage queries (using predicate for partial matches)
   if (config.forceRemove) {
     queryClient.removeQueries({
-      predicate: (query) => 
-        query.queryKey[0] === "itemsInStage" && 
-        query.queryKey[1] === organizationId
+      predicate: (query) =>
+        query.queryKey[0] === "itemsInStage" &&
+        query.queryKey[1] === organizationId,
     });
   }
 
   queryClient.invalidateQueries({
-    predicate: (query) => 
-      query.queryKey[0] === "itemsInStage" && 
+    predicate: (query) =>
+      query.queryKey[0] === "itemsInStage" &&
       query.queryKey[1] === organizationId,
-    refetchType: config.refetchAll ? 'all' : 'active'
+    refetchType: config.refetchAll ? "all" : "active",
   });
 
-  queriesToInvalidate.forEach(queryKey => {
+  queriesToInvalidate.forEach((queryKey) => {
     if (config.forceRemove) {
       queryClient.removeQueries({ queryKey });
     }
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey,
-      refetchType: config.refetchAll ? 'all' : 'active'
+      refetchType: config.refetchAll ? "all" : "active",
     });
   });
 };
@@ -176,7 +192,10 @@ export const invalidateAllItemRelatedQueries = (
   organizationId: string | null,
   config: InvalidationConfig = DEFAULT_CONFIG
 ) => {
-  console.log("[CACHE INVALIDATION] Performing comprehensive invalidation for org:", organizationId);
+  console.log(
+    "[CACHE INVALIDATION] Performing comprehensive invalidation for org:",
+    organizationId
+  );
 
   // Invalidate all related query groups
   invalidateStageItemCounts(queryClient, organizationId, config);
@@ -195,12 +214,15 @@ export const resetAllQueriesForOrganization = (
   queryClient: QueryClient,
   organizationId: string | null
 ) => {
-  console.warn("[CACHE INVALIDATION] NUCLEAR: Resetting all queries for org:", organizationId);
-  
+  console.warn(
+    "[CACHE INVALIDATION] NUCLEAR: Resetting all queries for org:",
+    organizationId
+  );
+
   queryClient.resetQueries(queryKeyUtils.getAllForOrganization(organizationId));
-  
+
   // Trigger window focus to activate refetches
-  window.dispatchEvent(new Event('focus'));
-  
+  window.dispatchEvent(new Event("focus"));
+
   console.warn("[CACHE INVALIDATION] Nuclear reset completed");
 };

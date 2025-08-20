@@ -16,6 +16,7 @@ export default function WorkflowTabContent({
 
   return (
     // Pass organizationId down to the editor component
+    //@ts-ignore
     <WorkflowEditor organizationId={organizationId} />
   );
 }

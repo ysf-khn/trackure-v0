@@ -524,7 +524,9 @@ export function SampleDetailsModal({
                               <p className="text-sm text-muted-foreground">
                                 {entry.field_name
                                   .replace(/_/g, " ")
-                                  .replace(/\b\w/g, (l) => l.toUpperCase())}
+                                  .replace(/\b\w/g, (l: string) =>
+                                    l.toUpperCase()
+                                  )}
                               </p>
                               {entry.old_value && entry.new_value && (
                                 <div className="flex items-center gap-2 text-sm">

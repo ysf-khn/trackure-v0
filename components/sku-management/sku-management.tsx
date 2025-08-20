@@ -3,26 +3,16 @@
 import { useState } from "react";
 import {
   Search,
-  Filter,
-  Plus,
   TrendingUp,
   Package,
   DollarSign,
   Users,
-  Workflow,
   Eye,
-  Settings,
   Calculator,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -63,13 +53,14 @@ export function SKUManagement() {
         record.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.sku_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         record.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (record.buyer_id && record.buyer_id.toLowerCase().includes(searchQuery.toLowerCase()))
+        (record.buyer_id &&
+          record.buyer_id.toLowerCase().includes(searchQuery.toLowerCase()))
     )
     .sort((a, b) => {
       switch (sortBy) {
         case "cost":
           return (
-            (b.estimated_workflow_cost || b.final_calculated_cost || 0) - 
+            (b.estimated_workflow_cost || b.final_calculated_cost || 0) -
             (a.estimated_workflow_cost || a.final_calculated_cost || 0)
           );
         case "items":
@@ -126,13 +117,18 @@ export function SKUManagement() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">SKU-Order Combinations</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              SKU-Order Combinations
+            </CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_sku_order_combinations || 0}</div>
+            <div className="text-2xl font-bold">
+              {stats?.total_sku_order_combinations || 0}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {stats?.unique_skus || 0} unique SKUs, {stats?.unique_orders || 0} orders
+              {stats?.unique_skus || 0} unique SKUs, {stats?.unique_orders || 0}{" "}
+              orders
             </p>
           </CardContent>
         </Card>
@@ -150,7 +146,9 @@ export function SKUManagement() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Estimated Workflow Cost</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Estimated Workflow Cost
+            </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -256,7 +254,9 @@ export function SKUManagement() {
                     </TableCell>
                     <TableCell onClick={() => setSelectedSKU(record.sku)}>
                       <div>
-                        <span className="font-medium">{record.order_number}</span>
+                        <span className="font-medium">
+                          {record.order_number}
+                        </span>
                         <p className="text-xs text-muted-foreground">
                           {record.order_status}
                         </p>
@@ -271,7 +271,9 @@ export function SKUManagement() {
                       <div className="flex gap-1">
                         <Badge
                           variant={
-                            record.active_items_for_order > 0 ? "default" : "secondary"
+                            record.active_items_for_order > 0
+                              ? "default"
+                              : "secondary"
                           }
                           className="bg-blue-500 text-white"
                         >
@@ -279,7 +281,9 @@ export function SKUManagement() {
                         </Badge>
                         <Badge
                           variant={
-                            record.completed_items_for_order > 0 ? "default" : "secondary"
+                            record.completed_items_for_order > 0
+                              ? "default"
+                              : "secondary"
                           }
                           className="bg-green-500 text-white"
                         >
@@ -288,9 +292,13 @@ export function SKUManagement() {
                       </div>
                     </TableCell>
                     <TableCell onClick={() => setSelectedSKU(record.sku)}>
-                      {record.has_active_template && record.active_template_name ? (
+                      {record.has_active_template &&
+                      record.active_template_name ? (
                         <div>
-                          <Badge variant="default" className="bg-purple-500 text-white">
+                          <Badge
+                            variant="default"
+                            className="bg-purple-500 text-white"
+                          >
                             {record.active_template_name}
                           </Badge>
                           {record.template_usage_count && (
@@ -300,7 +308,9 @@ export function SKUManagement() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground text-sm">No template</span>
+                        <span className="text-muted-foreground text-sm">
+                          No template
+                        </span>
                       )}
                     </TableCell>
                     <TableCell onClick={() => setSelectedSKU(record.sku)}>
@@ -352,14 +362,22 @@ export function SKUManagement() {
                     <TableCell onClick={() => setSelectedSKU(record.sku)}>
                       <Badge
                         variant={
-                          record.sku_order_status === "All Completed" ? "default" :
-                          record.sku_order_status === "Partially Completed" ? "secondary" :
-                          record.sku_order_status === "In Progress" ? "outline" : "secondary"
+                          record.sku_order_status === "All Completed"
+                            ? "default"
+                            : record.sku_order_status === "Partially Completed"
+                              ? "secondary"
+                              : record.sku_order_status === "In Progress"
+                                ? "outline"
+                                : "secondary"
                         }
                         className={
-                          record.sku_order_status === "All Completed" ? "bg-green-500 text-white" :
-                          record.sku_order_status === "Partially Completed" ? "bg-yellow-500 text-white" :
-                          record.sku_order_status === "In Progress" ? "bg-blue-500 text-white" : ""
+                          record.sku_order_status === "All Completed"
+                            ? "bg-green-500 text-white"
+                            : record.sku_order_status === "Partially Completed"
+                              ? "bg-yellow-500 text-white"
+                              : record.sku_order_status === "In Progress"
+                                ? "bg-blue-500 text-white"
+                                : ""
                         }
                       >
                         {record.sku_order_status}

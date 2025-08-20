@@ -21,7 +21,7 @@ type MoveForwardErrorResponse = {
 
 // Define the type for the mutation variables
 interface MoveItemsForwardVariables {
-  items: { id: string; quantity: number; allocation_type?: 'normal' | 'reworked' }[]; // Add allocation_type to items
+  items: { id: string; quantity: number; allocation_type?: 'normal' | 'reworked' | 'replacement' }[]; // Add allocation_type to items
   organizationId: string;
   targetStageId?: string | null; // Add optional target stage ID
   targetSubStageId?: string | null; // Add optional target sub-stage ID
@@ -33,7 +33,7 @@ async function moveItemsForwardAPI(
 ): Promise<MoveForwardSuccessResponse> {
   // Construct the body, including target_stage_id, target_sub_stage_id and source_stage_id if present
   const body: {
-    items: { id: string; quantity: number; allocation_type?: 'normal' | 'reworked' }[];
+    items: { id: string; quantity: number; allocation_type?: 'normal' | 'reworked' | 'replacement' }[];
     target_stage_id?: string | null;
     target_sub_stage_id?: string | null;
     source_stage_id?: string | null;

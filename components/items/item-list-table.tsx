@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useMemo, useRef } from "react";
+import { useState } from "react";
 import {
   ColumnDef,
   SortingState,
@@ -23,14 +23,12 @@ import {
   RotateCcw, // Icon for Rework
   FileText, // Icon for PDF
   ExternalLink, // Add this import
-  Trash2, // Import the Trash icon
   Layers, // Icon for composite items
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePickerWithRange } from "@/components/ui/date-picker-with-range";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -49,12 +47,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-  DropdownMenuPortal,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ItemInStage } from "@/hooks/queries/use-items-in-stage"; // Keep type import
@@ -94,7 +87,7 @@ interface ItemForSingleRework {
   sku: string | null;
   currentQuantity: number;
   currentStageId: string;
-  entryType?: "normal" | "reworked";
+  entryType?: "normal" | "reworked" | "replacement";
 }
 
 interface ItemToMoveDetails {
@@ -103,7 +96,7 @@ interface ItemToMoveDetails {
   currentQuantity: number;
   targetStageId?: string | null;
   targetStageName: string;
-  entryType?: "normal" | "reworked";
+  entryType?: "normal" | "reworked" | "replacement";
 }
 
 interface ItemListTableMeta {
@@ -122,7 +115,7 @@ interface ItemListTableMeta {
     itemsToMove: {
       id: string;
       quantity: number;
-      allocation_type?: "normal" | "reworked";
+      allocation_type?: "normal" | "reworked" | "replacement";
     }[],
     targetStageId?: string | null,
     sourceStageId?: string | null
@@ -680,7 +673,7 @@ export const columns: ColumnDef<ItemInStage>[] = [
               </Button>
             )}
           </div>
-          
+
           {/* Bottom - Add Remark button */}
           {canAddRemark && (
             <AddRemarkModal itemId={item.source_item_id}>
@@ -772,7 +765,6 @@ export function ItemListTable({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
 
   // State for PDF export modal and date range picker
   const [isPdfExportModalOpen, setIsPdfExportModalOpen] = useState(false);
@@ -871,7 +863,7 @@ export function ItemListTable({
     itemsToMove: {
       id: string;
       quantity: number;
-      allocation_type?: "normal" | "reworked";
+      allocation_type?: "normal" | "reworked" | "replacement";
     }[], // Updated signature
     targetStageId?: string | null, // Add optional targetStageId
     sourceStageId?: string | null // Add optional sourceStageId
@@ -925,7 +917,6 @@ export function ItemListTable({
         organizationId: organizationId,
         stageId: stageId,
       });
-
 
       // Add date range parameters if selected
       if (selectedDateRange?.from) {
@@ -1256,6 +1247,7 @@ export function ItemListTable({
         ref={itemTableCoreRef} // Assign the ref
         organizationId={organizationId} // From useProfileAndOrg hook
         stageId={stageId} // From props
+        orderIdFilter={null} // No order filtering needed
         columns={columns}
         userRole={userRole} // From useProfileAndOrg hook
         isMovingItems={isMovingItems} // From useMoveItemsForward hook
@@ -1358,7 +1350,7 @@ export function ItemListTable({
           }))}
           onConfirmBulkRework={handleConfirmBulkRework}
           isProcessing={isReworkingItems}
-          availableStages={workflowData || []}
+          workflowData={workflowData || []}
           userRole={userRole}
         />
       )}

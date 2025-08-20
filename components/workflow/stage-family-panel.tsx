@@ -39,17 +39,22 @@ export function StageFamilyPanel({
 }: StageFamilyPanelProps) {
   const router = useRouter();
   const { selectedSKU } = useSKUSelection();
-  
+
   // Get workflow structure to find related stages
-  const { data: workflowData, isLoading: isLoadingWorkflow } = 
+  const { data: workflowData, isLoading: isLoadingWorkflow } =
     useWorkflowStructure(organizationId, currentStage?.sku || selectedSKU);
 
   // Get stage item counts
   const { data: stageCountsData, isLoading: isLoadingStageCounts } =
-    useStageItemCounts(organizationId, currentStage?.sku || selectedSKU, workflowData);
+    useStageItemCounts(
+      organizationId,
+      currentStage?.sku || selectedSKU,
+      workflowData
+    );
 
   const relatedStages = React.useMemo(() => {
-    if (!workflowData || !currentStage) return { parent: null, siblings: [], children: [] };
+    if (!workflowData || !currentStage)
+      return { parent: null, siblings: [], children: [] };
 
     // Find current stage in the workflow tree
     const findStageInTree = (stages: any[], targetId: string): any => {
@@ -64,7 +69,11 @@ export function StageFamilyPanel({
     };
 
     // Find parent stage
-    const findParentStage = (stages: any[], targetId: string, parent: any = null): any => {
+    const findParentStage = (
+      stages: any[],
+      targetId: string,
+      parent: any = null
+    ): any => {
       for (const stage of stages) {
         if (stage.id === targetId) return parent;
         if (stage.children) {
@@ -77,14 +86,18 @@ export function StageFamilyPanel({
 
     const currentStageInTree = findStageInTree(workflowData, currentStage.id);
     const parentStage = findParentStage(workflowData, currentStage.id);
-    
+
     // Get siblings (stages at the same level with same parent)
     const siblings = [];
     if (parentStage && parentStage.children) {
-      siblings.push(...parentStage.children.filter((s: any) => s.id !== currentStage.id));
+      siblings.push(
+        ...parentStage.children.filter((s: any) => s.id !== currentStage.id)
+      );
     } else if (!parentStage) {
       // Top level siblings
-      siblings.push(...workflowData.filter((s: any) => s.id !== currentStage.id));
+      siblings.push(
+        ...workflowData.filter((s: any) => s.id !== currentStage.id)
+      );
     }
 
     // Get children
@@ -111,7 +124,7 @@ export function StageFamilyPanel({
           stageCountsData.stageCountsMap
         )
       : { totalQuantity: 0, normalQuantity: 0, reworkedQuantity: 0 };
-    
+
     const itemCount = detailedCount.totalQuantity;
     const hasReworked = detailedCount.reworkedQuantity > 0;
 
@@ -146,7 +159,10 @@ export function StageFamilyPanel({
                       {detailedCount.normalQuantity}
                     </Badge>
                     <span className="text-muted-foreground text-xs">|</span>
-                    <Badge variant="destructive" className="bg-orange-500 text-white text-xs px-1.5 py-0.5">
+                    <Badge
+                      variant="destructive"
+                      className="bg-orange-500 text-white text-xs px-1.5 py-0.5"
+                    >
                       {detailedCount.reworkedQuantity}
                     </Badge>
                   </div>
@@ -242,8 +258,11 @@ export function StageFamilyPanel({
                 Sibling Stages
               </div>
               <div className="space-y-2">
-                {relatedStages.siblings.map((stage) => 
-                  renderStageButton(stage, `Sequence ${stage.sequence_order + 1}`)
+                {relatedStages.siblings.map((stage) =>
+                  renderStageButton(
+                    stage,
+                    `Sequence ${stage.sequence_order + 1}`
+                  )
                 )}
               </div>
             </div>
@@ -257,8 +276,11 @@ export function StageFamilyPanel({
             <div className="space-y-2">
               <div className="text-sm font-medium">Child Stages</div>
               <div className="space-y-2">
-                {relatedStages.children.map((stage) => 
-                  renderStageButton(stage, `Sequence ${stage.sequence_order + 1}`)
+                {relatedStages.children.map((stage: any) =>
+                  renderStageButton(
+                    stage,
+                    `Sequence ${stage.sequence_order + 1}`
+                  )
                 )}
               </div>
             </div>
@@ -272,7 +294,7 @@ export function StageFamilyPanel({
             variant="outline"
             size="sm"
             className="w-full"
-            onClick={() => router.push('/workflow-hub')}
+            onClick={() => router.push("/workflow-hub")}
           >
             View Full Workflow
           </Button>

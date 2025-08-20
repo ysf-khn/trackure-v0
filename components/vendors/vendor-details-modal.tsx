@@ -12,9 +12,9 @@ import {
   Plus,
   History,
   Package,
-  DollarSign,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import type { VendorPricing } from "@/hooks/queries/use-vendors";
 
 import {
   Dialog,
@@ -25,16 +25,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VendorPriceHistory } from "./vendor-price-history";
 import { VendorOrdersPanel } from "./vendor-orders-panel";
@@ -156,7 +149,9 @@ export function VendorDetailsModal({
             <TabsTrigger value="pricing">
               <FileText className="h-4 w-4 mr-2" />
               Pricing (
-              {vendorData.pricing?.filter((p) => p.is_active).length || 0})
+              {vendorData.pricing?.filter((p: VendorPricing) => p.is_active)
+                .length || 0}
+              )
             </TabsTrigger>
             <TabsTrigger value="orders">
               <Package className="h-4 w-4 mr-2" />
@@ -311,7 +306,7 @@ export function VendorDetailsModal({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {vendorData.pricing.map((pricing) => (
+                        {vendorData.pricing.map((pricing: VendorPricing) => (
                           <TableRow key={pricing.id}>
                             <TableCell>
                               <div>

@@ -9,7 +9,7 @@ import {
   getSmoothStepPath,
 } from '@xyflow/react';
 
-export interface FlowEdgeData {
+export interface FlowEdgeData extends Record<string, unknown> {
   type?: 'horizontal' | 'vertical' | 'mixed';
   animated?: boolean;
   label?: string;

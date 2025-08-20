@@ -52,7 +52,7 @@ async function fetchItemRemarks(
   }
 
   // Get unique user IDs from remarks
-  const userIds = [...new Set(data.map((remark) => remark.user_id))].filter(
+  const userIds = Array.from(new Set(data.map((remark) => remark.user_id))).filter(
     (id): id is string => id !== null && id !== undefined
   );
 
