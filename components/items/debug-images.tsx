@@ -22,24 +22,28 @@ export function DebugImages({ itemId }: DebugImagesProps) {
       {images && images.length > 0 ? (
         <div className="space-y-2 mt-4">
           {images.map((img) => {
-            const imageUrl = img.s3_url || img.storage_path; // Support both S3 and legacy Supabase images
+            const imageUrl = img.storage_path;
             return (
               <div key={img.id} className="border p-2 rounded">
                 <p>
                   <strong>ID:</strong> {img.id}
                 </p>
                 <p>
-                  <strong>S3 Key:</strong> {img.s3_key || "N/A"}
-                </p>
-                <p>
-                  <strong>S3 URL:</strong> {img.s3_url || "N/A"}
+                  <strong>Storage Path:</strong> {img.storage_path || "N/A"}
                 </p>
                 <p>
                   <strong>File Name:</strong> {img.file_name || "N/A"}
                 </p>
                 <p>
+                  <strong>Content Type:</strong> {img.content_type || "N/A"}
+                </p>
+                <p>
                   <strong>Remark ID:</strong>{" "}
                   {img.remark_id?.toString() || "N/A"}
+                </p>
+                <p>
+                  <strong>Uploaded At:</strong>{" "}
+                  {new Date(img.uploaded_at).toLocaleString()}
                 </p>
 
                 {imageUrl && (
@@ -61,7 +65,7 @@ export function DebugImages({ itemId }: DebugImagesProps) {
                 )}
               </div>
             );
-          })
+          })}
         </div>
       ) : (
         <p className="mt-2 text-muted-foreground">

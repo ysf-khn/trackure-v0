@@ -92,7 +92,7 @@ export async function GET(
     }
 
     // Group pricing by SKU for better organization
-    const pricingBySku = pricing.reduce((acc, price) => {
+    const pricingBySku = pricing.reduce((acc: Record<string, any>, price) => {
       if (!acc[price.sku]) {
         acc[price.sku] = {
           sku: price.sku,

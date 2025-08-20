@@ -203,14 +203,21 @@ export async function GET(request: Request) {
           price_unit: p.price_unit,
           notes: p.notes || "",
         })) || [],
-        recent_payments: recentPayments?.map((p) => ({
-          type: p.payment_type,
-          amount: p.amount_paid,
-          remarks: p.remarks || "",
-          date: new Date(p.payment_date).toLocaleDateString(),
-          sku: p.vendor_orders?.sku,
-          order_number: p.vendor_orders?.order_number,
-        })) || [],
+        recent_payments: recentPayments?.map((p) => {
+          // Handle vendor_orders that might be an array or single object
+          const vendorOrder = Array.isArray(p.vendor_orders) 
+            ? p.vendor_orders[0] 
+            : p.vendor_orders;
+          
+          return {
+            type: p.payment_type,
+            amount: p.amount_paid,
+            remarks: p.remarks || "",
+            date: new Date(p.payment_date).toLocaleDateString(),
+            sku: vendorOrder?.sku,
+            order_number: vendorOrder?.order_number,
+          };
+        }) || [],
       },
     };
 

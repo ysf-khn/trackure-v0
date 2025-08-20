@@ -90,12 +90,20 @@ export async function GET(
       (acc, entry) => {
         const key = `${entry.sku}-${entry.stage_id}`;
         if (!acc[key]) {
+          // Handle joined data that might be arrays or single objects
+          const skuDetails = Array.isArray(entry.sku_details) 
+            ? entry.sku_details[0] 
+            : entry.sku_details;
+          const stage = Array.isArray(entry.stage) 
+            ? entry.stage[0] 
+            : entry.stage;
+          
           acc[key] = {
             sku: entry.sku,
-            sku_name: entry.sku_details?.master_details?.name || entry.sku,
+            sku_name: skuDetails?.master_details?.name || entry.sku,
             stage_id: entry.stage_id,
-            stage_name: entry.stage?.name,
-            stage_path: entry.stage?.full_path,
+            stage_name: stage?.name,
+            stage_path: stage?.full_path,
             current_price: null,
             history: [],
           };

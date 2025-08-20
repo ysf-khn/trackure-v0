@@ -118,9 +118,13 @@ export async function GET(request: Request) {
           .limit(3);
 
         // Filter payments for this SKU
-        const skuPayments = recentPayments?.filter(
-          payment => payment.vendor_orders?.sku === sku
-        ) || [];
+        const skuPayments = recentPayments?.filter(payment => {
+          // Handle vendor_orders that might be an array or single object
+          const vendorOrder = Array.isArray(payment.vendor_orders) 
+            ? payment.vendor_orders[0] 
+            : payment.vendor_orders;
+          return vendorOrder?.sku === sku;
+        }) || [];
 
         // Get outstanding amount for this vendor
         const { data: outstandingData } = await supabase.rpc(
@@ -148,15 +152,22 @@ export async function GET(request: Request) {
               notes: currentPricing.notes,
               last_updated: new Date(currentPricing.updated_at).toLocaleDateString(),
             } : null,
-            recent_payments: skuPayments.map(p => ({
-              type: p.payment_type,
-              amount: p.amount_paid,
-              remarks: p.remarks,
-              date: new Date(p.payment_date).toLocaleDateString(),
-              order_number: p.vendor_orders?.order_number,
-            })),
+            recent_payments: skuPayments.map(p => {
+              // Handle vendor_orders that might be an array or single object
+              const vendorOrder = Array.isArray(p.vendor_orders) 
+                ? p.vendor_orders[0] 
+                : p.vendor_orders;
+              
+              return {
+                type: p.payment_type,
+                amount: p.amount_paid,
+                remarks: p.remarks,
+                date: new Date(p.payment_date).toLocaleDateString(),
+                order_number: vendorOrder?.order_number,
+              };
+            }),
             outstanding_amount: outstandingData?.[0]?.total_outstanding || 0,
-            has_worked_before: (priceHistory?.length > 0) || (currentPricing !== null),
+            has_worked_before: ((priceHistory?.length || 0) > 0) || (currentPricing !== null),
             last_work_date: priceHistory?.[0]?.effective_from || currentPricing?.updated_at,
           }
         };
