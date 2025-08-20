@@ -146,7 +146,7 @@ interface ItemTableCoreProps {
   subsequentStages?: {
     id: string;
     name: string | null;
-    parentStageId?: string;
+    parentStageId?: string | null;
     parentStageName?: string | null;
   }[];
   // Add permission check function

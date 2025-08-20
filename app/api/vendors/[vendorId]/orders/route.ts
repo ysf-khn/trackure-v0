@@ -39,12 +39,10 @@ export async function GET(
   }
 
   try {
-    let query = supabase
-      .from("vendor_orders")
-      .select(
-        `
+    const baseSelect = `
         id,
         vendor_id,
+        organization_id,
         order_number,
         sku,
         quantity,
@@ -68,11 +66,10 @@ export async function GET(
             order_number,
             customer_name
           )
-        ),
-        ${
-          includePayments
-            ? `
-        payments:vendor_payments!vendor_payments_vendor_order_id_fkey(
+        )`;
+    
+    const paymentsSelect = includePayments
+      ? `,payments:vendor_payments!vendor_payments_vendor_order_id_fkey(
           id,
           payment_type,
           amount_paid,
@@ -80,10 +77,11 @@ export async function GET(
           remarks,
           is_carried_forward
         )`
-            : ""
-        }
-      `
-      )
+      : "";
+
+    let query = supabase
+      .from("vendor_orders")
+      .select(baseSelect + paymentsSelect)
       .eq("vendor_id", vendorId)
       .order("created_at", { ascending: false });
 
@@ -96,9 +94,48 @@ export async function GET(
       query = query.eq("sku", sku);
     }
 
-    const { data: orders, error } = await query;
+    // Type definition for vendor order from query
+    type VendorOrder = {
+      id: string;
+      vendor_id: string;
+      organization_id: string;
+      order_number: string;
+      sku: string;
+      quantity: number;
+      unit_price: number;
+      total_amount: number;
+      currency: string;
+      stage_id: string;
+      item_id: string | null;
+      allocation_id: string | null;
+      status: string;
+      expected_completion: string | null;
+      actual_completion: string | null;
+      created_at: string;
+      stage: { name: string; full_path: string } | null;
+      sku_details: { master_details: any } | null;
+      item: {
+        order_id: string;
+        remaining_quantity: number;
+        order: {
+          id: string;
+          order_number: string;
+          customer_name: string;
+        } | null;
+      } | null;
+      payments?: Array<{
+        id: string;
+        payment_type: string;
+        amount_paid: number;
+        payment_date: string;
+        remarks: string | null;
+        is_carried_forward: boolean;
+      }>;
+    };
 
-    if (error) {
+    const { data: orders, error } = await query as { data: VendorOrder[] | null; error: any };
+
+    if (error || !orders) {
       console.error("Error fetching vendor orders:", error);
       return NextResponse.json(
         { error: "Failed to fetch vendor orders" },
@@ -108,7 +145,7 @@ export async function GET(
 
     // Calculate payment summary for each order and add customer order details
     const ordersWithPaymentSummary = orders.map((order) => {
-      const payments = order.payments || [];
+      const payments = includePayments && 'payments' in order ? order.payments || [] : [];
       const totalPaid = payments.reduce(
         (sum: number, p: any) => sum + Number(p.amount_paid),
         0
