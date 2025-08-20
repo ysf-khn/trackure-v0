@@ -43,6 +43,7 @@ export async function GET(
         id,
         vendor_id,
         vendor_order_id,
+        organization_id,
         payment_type,
         amount_paid,
         total_order_amount,
@@ -243,15 +244,16 @@ export async function POST(
     // Check if payment already exists for this order (temporary restriction)
     if (existingPayments && existingPayments.length > 0) {
       return NextResponse.json(
-        { 
+        {
           error: "Payment already exists for this order",
-          details: "Currently, only one payment per order is allowed. This order already has a payment recorded.",
+          details:
+            "Currently, only one payment per order is allowed. This order already has a payment recorded.",
           existing_payment: {
             payment_type: existingPayments[0].payment_type,
             amount_paid: existingPayments[0].amount_paid,
             payment_date: existingPayments[0].payment_date,
-            remarks: existingPayments[0].remarks
-          }
+            remarks: existingPayments[0].remarks,
+          },
         },
         { status: 400 }
       );
@@ -366,4 +368,3 @@ export async function POST(
     );
   }
 }
-
